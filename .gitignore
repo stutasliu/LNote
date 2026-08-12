@@ -5,3 +5,14 @@ release_*/
 __pycache__/
 *.log
 *.pyc
+
+# ---- Gitee 初始化（VSCode 通用规则）----
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# Local History for Visual Studio Code
+.history/
