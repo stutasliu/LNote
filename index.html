@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L.Note · 本地文本编辑器</title>
+<link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
+<link rel="stylesheet" href="vendor/codemirror/addon/dialog/dialog.css">
+<link rel="stylesheet" href="vendor/codemirror/addon/fold/foldgutter.css">
+<link rel="stylesheet" href="vendor/codemirror/addon/hint/show-hint.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/inkpad-rich.css">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<link rel="stylesheet" href="vendor/highlight/github-dark.min.css">
+</head>
+<body>
+  <div id="app">
+
+  <!-- ===== 侧边栏 ===== -->
+  <aside id="sidebar">
+    <!-- 原型：workspace 头像 + 名称 + 版本号 -->
+    <div class="drawer-header">
+      <button class="workspace-btn" id="btn-workspace" title="工作区菜单">
+        <div class="workspace-avatar">
+          <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <div class="workspace-text">
+          <div class="workspace-name">L.Note 工作台</div>
+          <div class="workspace-sub">v0.20.44 · Craft 风格</div>
+        </div>
+        <span class="workspace-arrow"><svg viewBox="0 0 24 24"><path d="M8.71 11.71l2.79 2.79c.39.39 1.02.39 1.41 0l2.79-2.79c.63-.63.18-1.71-.71-1.71H9.41c-.89 0-1.33 1.08-.7 1.71z"/></svg></span>
+      </button>
+    </div>
+
+    <!-- 原型：快速搜索 → 命令面板 -->
+    <div class="sb-search-row">
+      <button class="sb-search-btn" id="btn-sb-search" title="搜索文档（Ctrl+K）">
+        <svg viewBox="0 0 24 24" class="sb-search-ico"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+        <span class="sb-search-text">搜索或执行命令…</span>
+        <span class="sb-search-kbd">Ctrl K</span>
+      </button>
+    </div>
+
+    <!-- 原型：快捷入口导航（图标 + 文字，胶囊行） -->
+    <nav class="drawer-nav" id="drawerNav">
+      <div class="nav-section">
+        <div class="nav-list-item active" id="nav-recent" title="最近文档">
+          <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg></span>
+          <span class="nav-label">最近文档</span>
+          <span class="nav-badge" id="navRecentCount">0</span>
+        </div>
+        <div class="nav-list-item" id="nav-starred" title="收藏">
+          <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></span>
+          <span class="nav-label">收藏</span>
+          <span class="nav-badge">2</span>
+        </div>
+        <div class="nav-list-item" id="nav-shared" title="共享">
+          <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg></span>
+          <span class="nav-label">共享</span>
+        </div>
+        <div class="nav-list-item" id="nav-tags" title="标签">
+          <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58s1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41s-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/></svg></span>
+          <span class="nav-label">标签</span>
+          <span class="nav-badge">5</span>
+        </div>
+      </div>
+
+      <!-- 原型：文档 / 文件 切换（胶囊行风格） -->
+      <div class="nav-section">
+        <div class="nav-list-item active" id="tab-docs" title="文档列表"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span class="nav-label">文档</span></div>
+        <div class="nav-list-item" id="tab-files" title="文件树"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span><span class="nav-label">文件</span></div>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-label" id="docListLabel">我的文档</div>
+        <div id="doc-list"></div>
+        <div id="file-tree" style="display:none"></div>
+      </div>
+    </nav>
+
+    <!-- 原型：底部「＋ 新建文档」FAB + 弹出菜单（含原"新建"分组全部功能） -->
+    <div class="drawer-fab" id="drawerFab">
+      <div class="fab-menu" id="fabMenu" style="display:none">
+        <div class="fab-menu-label">新建</div>
+        <button class="fab-menu-item" id="btn-new-doc" title="新建文档"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 12v6M9 15h6"/></svg></span><span class="nav-label">新建文档</span></button>
+        <button class="fab-menu-item" id="btn-new-rich" title="新建富文档"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span><span class="nav-label">新建富文档</span></button>
+        <button class="fab-menu-item" id="btn-new-flow" title="新建流程图"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M10 6.5h4a2 2 0 0 1 2 2V14"/></svg></span><span class="nav-label">新建流程图</span></button>
+        <button class="fab-menu-item" id="btn-new-mind" title="新建思维导图"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5V10"/><path d="M12 10l-5 7"/><path d="M12 10l5 7"/></svg></span><span class="nav-label">新建思维导图</span></button>
+        <button class="fab-menu-item" id="btn-new-note" title="新建思维笔记"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span class="nav-label">新建思维笔记</span></button>
+        <button class="fab-menu-item" id="btn-open-folder" title="打开文件夹"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span><span class="nav-label">打开文件夹</span></button>
+        <button class="fab-menu-item" id="btn-import" title="导入文件"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span><span class="nav-label">导入文件</span></button>
+        <input type="file" id="file-input" accept=".txt,.md,.json,.xml,.html,.js,.py,.css,.sql,.yaml,.yml,.sh,.mmd,.mermaid" hidden>
+      </div>
+      <button class="fab-extended" id="fabNewDoc" title="新建文档">
+        <svg viewBox="0 0 24 24" class="fab-plus"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        <span class="fab-text">新建文档</span>
+        <svg viewBox="0 0 24 24" class="fab-caret"><path d="M7 10l5 5 5-5z"/></svg>
+      </button>
+    </div>
+
+    <div class="sidebar-footer">L.Note v0.20.44 · Craft 风格</div>
+  </aside>
+
+  <!-- 侧栏可拖动分割线（向左拖宽侧栏，让长文件名可见） -->
+  <div id="sidebar-splitter" class="side-splitter"></div>
+
+  <!-- ===== 主区域 ===== -->
+  <main id="main">
+    <!-- Craft 风格：顶层 App Bar（极简） -->
+    <div id="appbar">
+      <button class="icon-btn" id="btn-expand-sidebar" title="展开侧栏" style="display:none"><svg viewBox="0 0 24 24" class="ico"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+      <button class="icon-btn" id="btn-toggle-sidebar2" title="收起侧栏"><svg viewBox="0 0 24 24" class="ico"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+      <div class="appbar-title">
+        <div class="title-text" id="breadcrumb">文档</div>
+        <div class="title-meta" id="titleMeta"><span id="metaFormat">纯文本</span><span class="meta-dot"></span><span id="metaStat">0 字符</span><span class="meta-dot"></span><span>刚刚编辑</span></div>
+      </div>
+      <div class="toolbar-spacer"></div>
+      <button class="icon-btn" id="btn-find" title="查找替换（Ctrl+F）"><svg viewBox="0 0 24 24" class="ico"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg></button>
+      <button class="icon-btn" id="btn-info-panel" title="信息面板"><svg viewBox="0 0 24 24" class="ico"><path d="M3 5v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2H5a2 2 0 0 0-2 2zm12 4H7V7h8v2zm-4 4H7v-2h4v2zm-4 4v-2h8v2H7z"/></svg></button>
+      <button class="icon-btn" id="btn-rich-outline" title="富文档大纲 / 目录" style="display:none"><svg viewBox="0 0 24 24" class="ico"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg></button>
+      <div class="appbar-more-wrap">
+        <button class="icon-btn" id="btn-more" title="更多工具"><svg viewBox="0 0 24 24" class="ico"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+        <div class="appbar-menu" id="appbar-menu" style="display:none">
+          <button class="menu-item" data-ab="encoding">编码转换</button>
+          <button class="menu-item" data-ab="compare">文件比较</button>
+          <button class="menu-item" data-ab="xml">XML 格式化</button>
+          <button class="menu-item" data-ab="json">JSON 工具</button>
+          <button class="menu-item" data-ab="convert">转换工具</button>
+          <button class="menu-item" data-ab="texttools">文本工具</button>
+          <button class="menu-item" data-ab="insert">插入块</button>
+          <div class="menu-divider"></div>
+          <button class="menu-item" data-ab="preview">切换预览</button>
+          <button class="menu-item" data-ab="export">导出文档</button>
+          <button class="menu-item" data-ab="saveas">另存为</button>
+          <div class="menu-divider"></div>
+          <button class="menu-item" data-ab="delete">删除文档</button>
+        </div>
+      </div>
+      <button class="tool-btn primary" id="btn-save" title="保存到磁盘（Ctrl+S）"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>保存</button>
+    </div>
+
+    <!-- 语言选择（Craft chips 风格，置于 App Bar 之下独立一行） -->
+    <div id="chipsRow" class="chips-row">
+      <select id="lang-select" class="tool-select" title="语言 / 语法高亮">
+        <option value="plaintext">纯文本</option>
+        <option value="markdown">Markdown</option>
+        <option value="json">JSON</option>
+        <option value="xml">XML</option>
+        <option value="html">HTML</option>
+        <option value="javascript">JavaScript</option>
+        <option value="python">Python</option>
+        <option value="css">CSS</option>
+        <option value="sql">SQL</option>
+        <option value="yaml">YAML</option>
+        <option value="shell">Shell</option>
+        <option value="clike">C / Java / C++</option>
+        <option value="mermaid">Mermaid 图表</option>
+      </select>
+    </div>
+
+    <!-- 原工具栏（隐藏容器：保留所有按钮 id + 下拉菜单，供「更多」菜单与快捷操作触发） -->
+    <div id="toolbar" style="display:none">
+      <button class="tool-btn" id="btn-encoding" title="编码转换"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>编码</button>
+      <button class="tool-btn" id="btn-compare" title="文件比较"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>比较</button>
+      <button class="tool-btn" id="btn-format-xml" title="自动格式化并校验 XML"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M8 6l-6 6 6 6"/><path d="M16 6l6 6-6 6"/><path d="M13 4l-2 16"/></svg>XML 格式化</button>
+      <div class="tool-menu-wrap" id="tools-wrap">
+        <button class="tool-btn" id="btn-tools" title="JSON 处理 / 转义 / 复制"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/><path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/></svg>JSON工具 ▾</button>
+        <div class="tool-menu" id="tool-menu" style="display:none">
+          <button class="menu-item" data-tool="format">JSON 格式化</button>
+          <button class="menu-item" data-tool="compress">JSON 压缩</button>
+          <button class="menu-item" data-tool="escape">转义</button>
+          <button class="menu-item" data-tool="unescape">去转义</button>
+          <div class="menu-divider"></div>
+          <button class="menu-item" data-tool="copy">复制</button>
+        </div>
+      </div>
+      <div class="tool-menu-wrap" id="tools-wrap3">
+        <button class="tool-btn" id="btn-convert" title="编码 / 转义 / 时间戳"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M21 21v-5h-5"/></svg>转换工具 ▾</button>
+        <div class="tool-menu" id="convert-menu" style="display:none">
+          <button class="menu-item" data-tool="unicode-zh">Unicode → 中文</button>
+          <button class="menu-item" data-tool="zh-unicode">中文 → Unicode</button>
+          <button class="menu-item" data-tool="to-get">转 GET 参数</button>
+          <div class="menu-divider"></div>
+          <button class="menu-item" data-tool="b64-encode">Base64 编码</button>
+          <button class="menu-item" data-tool="b64-decode">Base64 解码</button>
+          <div class="menu-divider"></div>
+          <button class="menu-item" data-tool="url-encode">URL 编码</button>
+          <button class="menu-item" data-tool="url-decode">URL 解码</button>
+          <div class="menu-divider"></div>
+          <button class="menu-item" data-tool="ts-convert">时间戳转换…</button>
+        </div>
+      </div>
+      <div class="tool-menu-wrap" id="tools-wrap2">
+        <button class="tool-btn" id="btn-texttools" title="文本处理工具"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h7"/><path d="M17 15l3 3-3 3"/></svg>文本工具 ▾</button>
+        <div class="tool-menu" id="texttool-menu" style="display:none">
+          <div class="menu-item submenu-trigger">大小写<span class="submenu-arrow">▸</span>
+            <div class="submenu">
+              <button class="menu-item" data-tt="upper">转大写</button>
+              <button class="menu-item" data-tt="lower">转小写</button>
+              <button class="menu-item" data-tt="title">单词首字母大写</button>
+              <button class="menu-item" data-tt="swap">反转大小写</button>
+            </div>
+          </div>
+          <div class="menu-item submenu-trigger">全半角<span class="submenu-arrow">▸</span>
+            <div class="submenu">
+              <button class="menu-item" data-tt="full2half">全角 半角</button>
+              <button class="menu-item" data-tt="half2full">半角 全角</button>
+            </div>
+          </div>
+          <div class="menu-item submenu-trigger">删除行<span class="submenu-arrow">▸</span>
+            <div class="submenu">
+              <button class="menu-item" data-tt="del-empty">删除空行</button>
+              <button class="menu-item" data-tt="del-dup">删除重复行</button>
+              <button class="menu-item" data-tt="del-sol-space">删除行头空白</button>
+              <button class="menu-item" data-tt="del-eol-space">删除行尾空白</button>
+              <button class="menu-item" data-tt="del-line">删除整行</button>
+              <button class="menu-item" data-tt="del-to-sol">删除到行头</button>
+              <button class="menu-item" data-tt="del-to-eol">删除到行尾</button>
+            </div>
+          </div>
+          <div class="menu-item submenu-trigger">行操作<span class="submenu-arrow">▸</span>
+            <div class="submenu">
+              <button class="menu-item" data-tt="sort">行排序</button>
+              <button class="menu-item" data-tt="sort-len">按长度排序</button>
+              <button class="menu-item" data-tt="reverse">反转行序</button>
+              <button class="menu-item" data-tt="merge">合并行</button>
+              <button class="menu-item" data-tt="reindent">重新缩进</button>
+            </div>
+          </div>
+          <div class="menu-item submenu-trigger">折叠<span class="submenu-arrow">▸</span>
+            <div class="submenu">
+              <button class="menu-item" data-tt="fold-all">折叠全部</button>
+              <button class="menu-item" data-tt="unfold-all">展开全部</button>
+              <button class="menu-item" data-tt="fold-1">折叠级别 1</button>
+              <button class="menu-item" data-tt="fold-2">折叠级别 2</button>
+              <button class="menu-item" data-tt="fold-3">折叠级别 3</button>
+              <button class="menu-item" data-tt="fold-4">折叠级别 4</button>
+              <button class="menu-item" data-tt="fold-5">折叠级别 5</button>
+            </div>
+          </div>
+          <div class="menu-divider"></div>
+          <button class="menu-item" data-tt="snippet">插入代码段…</button>
+          <button class="menu-item" data-tt="clipboard">剪贴板历史…</button>
+        </div>
+      </div>
+      <button class="tool-btn" id="btn-toggle-preview" title="预览开关"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>预览</button>
+      <div class="tool-menu-wrap" id="insert-wrap">
+        <button class="tool-btn" id="btn-insert" title="插入块（类似语雀的文档组件）"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M12 5v14M5 12h14"/></svg>插入 ▾</button>
+        <div class="tool-menu" id="insert-menu" style="display:none">
+          <button class="menu-item" data-insert="code">代码块</button>
+          <button class="menu-item" data-insert="image">图片</button>
+          <button class="menu-item" data-insert="table">表格</button>
+          <button class="menu-item" data-insert="mermaid">流程图 / 思维导图</button>
+          <button class="menu-item" data-insert="icon">图标</button>
+          <button class="menu-item" data-insert="math">数学公式</button>
+          <button class="menu-item" data-insert="callout">标注 / 提示</button>
+          <button class="menu-item" data-insert="task">任务列表</button>
+          <button class="menu-item" data-insert="quote">引用</button>
+          <button class="menu-item" data-insert="toc">自动目录</button>
+          <button class="menu-item" data-insert="hr">分割线</button>
+          <button class="menu-item" data-insert="cols">分栏（两列）</button>
+        </div>
+      </div>
+      <button class="tool-btn" id="btn-insert-image" title="插入图片（也可直接粘贴图片）" style="display:none"><svg viewBox="0 0 24 24" class="tb-ico"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>插入图片</button>
+      <button class="tool-btn" id="btn-export" title="导出为文件"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>导出</button>
+      <button class="tool-btn" id="btn-save-as" title="另存为文件"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/><path d="M14 3v6h6"/></svg>另存为</button>
+      <button class="tool-btn danger" id="btn-delete" title="删除当前文档"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+    </div>
+
+    <!-- 文档标题（紧凑样式：元信息已合并到状态栏） -->
+    <div id="doc-head">
+      <input id="doc-title" placeholder="无标题" spellcheck="false" autocomplete="off">
+    </div>
+
+    <!-- 编辑区 + 预览区 -->
+    <div id="editor-wrap">
+      <!-- 富文档左侧大纲面板（飞书 / Notion 式） -->
+      <aside id="rich-outline" aria-label="文档大纲" style="display:none">
+        <div class="outline-head">
+          <span class="outline-title">大纲</span>
+          <span id="outline-count" class="outline-count">0</span>
+          <span class="outline-spacer"></span>
+          <button class="icon-btn outline-x" id="btn-close-outline" title="收起大纲">«</button>
+        </div>
+        <div class="outline-search-row">
+          <input id="outline-search" class="outline-search" placeholder="搜索标题…" spellcheck="false" autocomplete="off">
+        </div>
+        <div id="outline-list" class="outline-list" role="tree">
+          <div class="outline-empty" id="outline-empty">暂无标题<br><small>用「+」插入一级/二/三级标题</small></div>
+        </div>
+        <div class="outline-foot" id="outline-foot" style="display:none">
+          <button class="icon-btn" id="btn-outline-up" title="上一个标题">▲</button>
+          <button class="icon-btn" id="btn-outline-down" title="下一个标题">▼</button>
+          <button class="icon-btn" id="btn-outline-reload" title="刷新大纲">↻</button>
+        </div>
+      </aside>
+      <div id="rich-outline-splitter" class="side-splitter" style="display:none"></div>
+
+      <div id="editor-pane">
+        <textarea id="editor"></textarea>
+      </div>
+      <!-- 可视化编辑区（流程图/思维导图/思维笔记） -->
+      <div id="visual-pane" style="display:none">
+        <div id="visual-toolbar"></div>
+        <div id="visual-canvas"></div>
+      </div>
+      <!-- 富文档（块编辑器 / Notion 风） -->
+      <div id="rich-pane" style="display:none">
+        <div id="rich-canvas"></div>
+      </div>
+      <!-- 可拖动分割线：拖动调整 编辑区 / 预览区 宽度 -->
+      <div id="pane-splitter" style="display:none"></div>
+      <div id="preview-pane" style="display:none">
+        <div class="preview-header">
+          <span id="preview-title">预览</span>
+          <span class="preview-hint" id="preview-hint"></span>
+        </div>
+        <div id="preview-body">
+          <div id="md-out" style="display:none"></div>
+          <div id="html-out" style="display:none"><iframe id="html-frame" sandbox="allow-same-origin allow-scripts"></iframe></div>
+          <div id="mermaid-out" style="display:none"></div>
+          <div id="preview-empty" class="preview-empty">
+            <div class="preview-empty-icon">📊</div>
+            <p>在左侧输入 Mermaid 代码<br>这里会实时渲染图表</p>
+            <button class="tool-btn" id="btn-insert-sample">插入示例</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 原型：文档信息面板（属性 + 大纲 + 快捷操作，位于编辑区右侧） ===== -->
+      <aside id="info-panel">
+        <div class="panel-header">
+          <svg viewBox="0 0 24 24"><path d="M3 5v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2H5a2 2 0 0 0-2 2zm12 4H7V7h8v2zm-4 4H7v-2h4v2zm-4 4v-2h8v2H7z"/></svg>
+          <span class="panel-title">文档信息</span>
+        </div>
+        <div class="panel-content">
+          <!-- 属性卡片 -->
+          <div class="md3-card elevated">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+              属性
+            </div>
+            <div class="info-row"><span class="info-label">格式</span><span class="info-value" id="pFormat">纯文本</span></div>
+            <div class="info-row"><span class="info-label">编码</span><span class="info-value" id="pEnc">UTF-8</span></div>
+            <div class="info-row"><span class="info-label">行数</span><span class="info-value" id="pLines">0</span></div>
+            <div class="info-row"><span class="info-label">字符数</span><span class="info-value" id="pChars">0</span></div>
+            <div class="info-row"><span class="info-label">归属</span><span class="info-tag"><span class="tag-dot"></span>仅您</span></div>
+            <div class="info-row"><span class="info-label">完成度</span><span class="info-value status-accent">98%</span></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:98%"></div></div>
+          </div>
+          <!-- 大纲卡片（动态渲染：经典文档显示行大纲，富文档由底部飞书式大纲接管） -->
+          <div class="md3-card" id="outlineCard"></div>
+          <!-- 快捷操作 -->
+          <div class="md3-card">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+              快速操作
+            </div>
+            <div class="quick-actions">
+              <button class="quick-action" data-ab="json"><svg viewBox="0 0 24 24"><path d="M3 3h8v8H3V3m10 0h8v8h-8V3M3 13h8v8H3v-8m10 0h8v8h-8v-8z"/></svg><span class="qa-label">JSON 工具</span></button>
+              <button class="quick-action" data-ab="xml"><svg viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0L19.2 12l-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg><span class="qa-label">XML 工具</span></button>
+              <button class="quick-action" data-ab="convert"><svg viewBox="0 0 24 24"><path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/></svg><span class="qa-label">转换工具</span></button>
+              <button class="quick-action" data-ab="compare"><svg viewBox="0 0 24 24"><path d="M10 3H2c-.55 0-1 .45-1 1v16c0 .55.45 1 1 1h8c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zm-1 16H3V5h6v14zM22 3h-8c-.55 0-1 .45-1 1v16c0 .55.45 1 1 1h8c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zm-1 16h-6V5h6v14z"/></svg><span class="qa-label">文件比较</span></button>
+              <button class="quick-action" data-ab="encoding"><svg viewBox="0 0 24 24"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg><span class="qa-label">编码设置</span></button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- 状态栏 -->
+    <div id="statusbar">
+      <span id="stat-lang">纯文本</span>
+      <span class="status-sep">·</span>
+      <span id="stat-count">0 字符</span>
+      <span class="status-sep">·</span>
+      <span id="stat-cursor">行 1, 列 1</span>
+      <span class="toolbar-spacer"></span>
+      <span id="stat-edit" title="最后编辑时间">—</span>
+      <span class="status-sep" id="stat-edit-sep" style="display:none">·</span>
+      <span id="stat-enc" title="磁盘文件编码">本地文档</span>
+      <span class="status-sep">·</span>
+      <span id="stat-saved">已保存</span>
+      <span class="status-sep">·</span>
+      <span id="stat-ctx" title="右键诊断 v0.20.7：md=左键数(右键数) ctx=右键菜单事件 key=键盘。若右键无反应看这里定位">🖱 md=0(右0) ctx=0 key=0 · 待机</span>
+    </div>
+  </main>
+</div>
+
+<!-- 剪贴板历史弹窗 -->
+<div id="clip-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="modal-title">剪贴板历史</span>
+      <button class="icon-btn" id="clip-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="clip-list"></div>
+      <div class="ts-row" style="margin-top:12px">
+        <span class="clip-hint">点击条目插入到光标处 · 自动记录最近 20 条</span>
+        <button class="tool-btn" id="clip-clear">清空历史</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 代码段弹窗 -->
+<div id="snippet-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="modal-title">插入代码段</span>
+      <button class="icon-btn" id="snippet-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="snippet-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 编码转换弹窗 -->
+<div id="enc-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="modal-title">编码转换</span>
+      <button class="icon-btn" id="enc-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ts-row">
+        <span class="ts-label">当前</span>
+        <span id="enc-current" class="enc-info">—</span>
+      </div>
+      <div class="ts-row">
+        <span class="ts-label">目标编码</span>
+        <select id="enc-select" class="tool-select">
+          <option value="UTF-8">UTF-8</option>
+          <option value="UTF-8 (BOM)">UTF-8 (BOM)</option>
+          <option value="UTF-16LE">UTF-16LE</option>
+          <option value="UTF-16BE">UTF-16BE</option>
+          <option value="GB18030">GB18030</option>
+          <option value="BIG5">BIG5</option>
+        </select>
+        <span class="clip-hint">GB18030 兼容 GBK，中文文件建议选它</span>
+      </div>
+      <div class="ts-row">
+        <button class="tool-btn primary" id="enc-reload" title="磁盘文件按目标编码重新读取（乱码修复）">↻ 按此编码重新读取</button>
+        <button class="tool-btn primary" id="enc-saveas" title="当前内容以目标编码另存为文件">💾 另存为此编码…</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 轻提示 -->
+<div id="toast"></div>
+
+<!-- 图片查看器（双击文件树中的图片打开） -->
+<div id="image-modal" class="modal-overlay image-modal" style="display:none">
+  <div class="image-viewer">
+    <div class="image-viewer-bar">
+      <span class="image-viewer-ico">🖼️</span>
+      <span id="image-name" class="image-name"></span>
+      <span class="toolbar-spacer"></span>
+      <button class="tool-btn" id="img-zoom-out" title="缩小">－</button>
+      <button class="tool-btn" id="img-zoom-reset" title="重置缩放">100%</button>
+      <button class="tool-btn" id="img-zoom-in" title="放大">＋</button>
+      <button class="tool-btn" id="img-fit" title="适应窗口">⤢ 适应</button>
+      <button class="icon-btn" id="img-close" title="关闭 (Esc)">✕</button>
+    </div>
+    <div class="image-viewer-stage" id="image-stage">
+      <img id="image-view" alt="图片预览">
+    </div>
+    <div class="image-viewer-tip">滚轮缩放 · 拖动平移 · Esc 关闭</div>
+  </div>
+</div>
+
+<!-- 编码转换弹窗（Base64 / URL） -->
+<div id="code-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="modal-title">编码转换</span>
+      <button class="icon-btn" id="code-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ts-row">
+        <label class="ts-radio"><input type="radio" name="code-mode" value="base64" checked> Base64</label>
+        <label class="ts-radio"><input type="radio" name="code-mode" value="url"> URL</label>
+      </div>
+      <div class="ts-section">输入内容</div>
+      <textarea id="code-input" class="code-area" placeholder="输入要转换的文本…" spellcheck="false"></textarea>
+      <div class="ts-row">
+        <button class="tool-btn primary" id="code-encode">→ 编码</button>
+        <button class="tool-btn primary" id="code-decode">→ 解码</button>
+        <button class="tool-btn" id="code-swap">⇅ 结果填入输入框</button>
+        <button class="tool-btn" id="code-clear">清空</button>
+      </div>
+      <div class="ts-section">转换结果</div>
+      <textarea id="code-output" class="code-area" readonly placeholder="转换结果将显示在这里"></textarea>
+      <div class="ts-row">
+        <button class="tool-btn" id="code-copy">📋 复制结果</button>
+        <button class="tool-btn" id="code-apply">↩ 应用到编辑器</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 查找 / 替换浮层（仿 EverEdit） -->
+<div id="fr-overlay" class="fr-overlay" style="display:none">
+  <div class="fr-card" id="fr-card">
+    <div class="fr-title">
+      <span class="fr-title-txt" id="fr-title-txt">替换</span>
+      <span class="fr-flex"></span>
+      <button class="fr-x" id="fr-close" title="关闭 (Esc)">✕</button>
+    </div>
+
+    <!-- 查找行 -->
+    <div class="fr-row">
+      <label class="fr-lbl" for="fr-find">查找(<u>F</u>):</label>
+      <div class="fr-input-wrap">
+        <input id="fr-find" class="fr-input" type="text" spellcheck="false" autocomplete="off">
+        <button class="fr-arrow" id="fr-find-hist" title="查找历史">▾</button>
+      </div>
+      <button class="fr-icon" id="fr-find-arrow" title="查找下一个">▸</button>
+      <button class="fr-icon star" id="fr-fav" title="收藏当前查找词"></button>
+      <button class="fr-btn" id="fr-next">下一个(<u>N</u>)</button>
+    </div>
+
+    <!-- 替换行 -->
+    <div class="fr-row" id="fr-replace-row">
+      <label class="fr-lbl" for="fr-replace">替换(<u>P</u>):</label>
+      <div class="fr-input-wrap">
+        <input id="fr-replace" class="fr-input" type="text" spellcheck="false" autocomplete="off">
+        <button class="fr-arrow" id="fr-replace-hist" title="替换历史">▾</button>
+      </div>
+      <span class="fr-spacer"></span>
+      <span class="fr-spacer"></span>
+      <button class="fr-btn primary" id="fr-replace-one">替换(<u>R</u>)</button>
+    </div>
+
+    <!-- 二级按钮 -->
+    <div class="fr-row fr-sub">
+      <span class="fr-flex"></span>
+      <button class="fr-btn" id="fr-replace-all">全部替换(<u>A</u>)</button>
+      <button class="fr-btn" id="fr-batch">批量</button>
+      <button class="fr-btn" id="fr-collapse">&lt;&lt; 查找(<u>I</u>)</button>
+    </div>
+
+    <!-- 选项 -->
+    <div class="fr-opts">
+      <label><input type="checkbox" id="fr-case">匹配大小写(<u>S</u>)</label>
+      <label><input type="checkbox" id="fr-whole">全字匹配(<u>W</u>)</label>
+      <label><input type="checkbox" id="fr-regex">正则表达式(<u>E</u>)</label>
+      <label><input type="checkbox" id="fr-cycle">循环查找(<u>O</u>)</label>
+      <label><input type="checkbox" id="fr-expand">扩展(\n,\t)(<u>X</u>)</label>
+      <label><input type="checkbox" id="fr-continue">继续到下一个文件(<u>T</u>)</label>
+      <label><input type="checkbox" id="fr-highlight" checked>高亮匹配(<u>H</u>)</label>
+      <label><input type="checkbox" id="fr-fast">高速模式替换[让正则跨行](<u>M</u>)</label>
+    </div>
+
+    <!-- 范围 + 更多 -->
+    <div class="fr-row fr-scope-row">
+      <span class="fr-lbl">范围</span>
+      <label class="fr-radio"><input type="radio" name="fr-scope" value="current" checked>当前文件(<u>C</u>)</label>
+      <label class="fr-radio"><input type="radio" name="fr-scope" value="selection">选区(<u>L</u>)</label>
+      <label class="fr-radio"><input type="radio" name="fr-scope" value="all">所有打开的文件(<u>D</u>)</label>
+      <span class="fr-flex"></span>
+      <button class="fr-arrow down" id="fr-more" title="更多">▾</button>
+    </div>
+
+    <div class="fr-status" id="fr-status"></div>
+  </div>
+</div>
+
+<!-- 批量替换弹窗 -->
+<div id="fr-batch-modal" class="modal-overlay" style="display:none">
+  <div class="fr-batch-card">
+    <div class="modal-head">
+      <span class="modal-title">批量替换（每行一对：查找⇨替换）</span>
+      <button class="icon-btn" id="fr-batch-close" title="关闭">✕</button>
+    </div>
+    <div class="fr-batch-body">
+      <textarea id="fr-batch-text" class="fr-batch-ta" spellcheck="false" placeholder="一行一对，支持以下三种格式：
+old ⇨ new
+old => new
+old = new"></textarea>
+      <div class="fr-batch-row">
+        <button class="fr-btn primary" id="fr-batch-ok">执行批量替换</button>
+        <button class="fr-btn" id="fr-batch-clear">清空</button>
+        <button class="fr-btn" id="fr-batch-from-find">从查找历史填入</button>
+      </div>
+      <div class="fr-batch-hint">
+        💡 不勾选「正则」时按字面替换，勾选后使用正则语法。
+        替换为空可批量删除；空行会被忽略。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 时间戳转换弹窗 -->
+<div id="ts-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="modal-title">Unix 时间互转（日期转毫秒）</span>
+      <button class="icon-btn" id="ts-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ts-row">
+        <label class="ts-radio"><input type="radio" name="ts-unit" value="s" checked> 10位时间戳（秒级）</label>
+        <label class="ts-radio"><input type="radio" name="ts-unit" value="ms"> 13位时间戳（毫秒级）</label>
+      </div>
+      <div class="ts-row">
+        <span class="ts-label">当前时间戳</span>
+        <input class="ts-input" id="ts-now" readonly>
+        <button class="tool-btn" id="ts-now-copy">复制</button>
+      </div>
+
+      <div class="ts-section">Unix 时间戳 → 北京时间</div>
+      <div class="ts-row">
+        <input class="ts-input" id="ts-input" placeholder="输入时间戳，如 1786018380" spellcheck="false">
+        <button class="tool-btn primary" id="ts-to-date">转换日期 →</button>
+        <input class="ts-input wide" id="ts-date-out" readonly placeholder="转换后的时间">
+        <button class="tool-btn" id="ts-date-copy">复制</button>
+      </div>
+
+      <div class="ts-section">北京时间 → Unix 时间戳</div>
+      <div class="ts-row ts-date-row">
+        <input class="ts-input ts-num" id="ts-y" placeholder="年"><span>年</span>
+        <input class="ts-input ts-num" id="ts-mo" placeholder="月"><span>月</span>
+        <input class="ts-input ts-num" id="ts-d" placeholder="日"><span>日</span>
+        <input class="ts-input ts-num" id="ts-h" placeholder="时"><span>时</span>
+        <input class="ts-input ts-num" id="ts-mi" placeholder="分"><span>分</span>
+        <input class="ts-input ts-num" id="ts-s" placeholder="秒"><span>秒</span>
+      </div>
+      <div class="ts-row">
+        <button class="tool-btn primary" id="ts-to-ts">转换时间戳 →</button>
+        <input class="ts-input wide" id="ts-ts-out" readonly placeholder="转换后的时间戳">
+        <button class="tool-btn" id="ts-ts-copy">复制</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- npm 依赖打包为单个全局 bundle（src-vendor/main.js → js/vendor-bundle.js，由 tools/build-vendor.js 生成） -->
+<script src="js/vendor-bundle.js"></script>
+<script src="js/json-cm.js"></script>
+<script src="js/exporter.js"></script>
+<script src="js/md.js"></script>
+<!-- 删除文档确认弹窗 -->
+<div id="doc-del-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card modal-card-sm">
+    <div class="modal-head">
+      <span class="modal-title">删除文档</span>
+      <button class="icon-btn" id="doc-del-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="doc-del-hint">确定要从「我的文档」中移除这条记录吗？</div>
+      <div class="doc-del-name" id="doc-del-name">—</div>
+      <div class="doc-del-foot">ⓘ <span id="doc-del-foot">仅从列表移除记录，不会删除磁盘上的源文件。</span></div>
+    </div>
+    <div class="modal-foot">
+      <button class="tool-btn" id="doc-del-cancel">取消</button>
+      <button class="tool-btn danger-confirm" id="doc-del-confirm">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- 图标面板（emoji + 矢量图标） -->
+<div id="icon-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card icon-modal-card">
+    <div class="modal-head">
+      <span class="modal-title">插入图标</span>
+      <button class="icon-btn" id="icon-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="icon-tabs">
+        <button class="icon-tab active" data-icontab="emoji">😀 Emoji</button>
+        <button class="icon-tab" data-icontab="vector">🎯 矢量图标</button>
+      </div>
+      <div class="icon-search-row">
+        <input id="icon-search" class="tool-input" placeholder="搜索图标…" spellcheck="false">
+      </div>
+      <div id="icon-grid-emoji" class="icon-grid"></div>
+      <div id="icon-grid-vector" class="icon-grid" style="display:none"></div>
+      <div class="icon-hint">点击图标即可插入到光标处（矢量图标以 <code>:icon-名称:</code> 形式嵌入，预览时渲染）</div>
+    </div>
+  </div>
+</div>
+
+<!-- 代码块插入弹窗 -->
+<div id="code-ins-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card modal-card-sm">
+    <div class="modal-head">
+      <span class="modal-title">插入代码块</span>
+      <button class="icon-btn" id="code-ins-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ts-row">
+        <span class="ts-label">语言</span>
+        <select id="code-ins-lang" class="tool-select">
+          <option value="javascript">JavaScript</option>
+          <option value="python">Python</option>
+          <option value="java">Java</option>
+          <option value="cpp">C / C++</option>
+          <option value="csharp">C#</option>
+          <option value="go">Go</option>
+          <option value="rust">Rust</option>
+          <option value="php">PHP</option>
+          <option value="sql">SQL</option>
+          <option value="bash">Bash / Shell</option>
+          <option value="json">JSON</option>
+          <option value="yaml">YAML</option>
+          <option value="xml">XML</option>
+          <option value="html">HTML</option>
+          <option value="css">CSS</option>
+          <option value="typescript">TypeScript</option>
+          <option value="markdown">Markdown</option>
+          <option value="text">纯文本</option>
+        </select>
+      </div>
+      <div class="modal-foot">
+        <button class="tool-btn" id="code-ins-cancel">取消</button>
+        <button class="tool-btn primary" id="code-ins-ok">插入</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 表格插入弹窗 -->
+<div id="table-ins-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card modal-card-sm">
+    <div class="modal-head">
+      <span class="modal-title">插入表格</span>
+      <button class="icon-btn" id="table-ins-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="ts-row">
+        <span class="ts-label">行数</span>
+        <input id="table-ins-rows" class="tool-input num" type="number" min="1" max="50" value="3">
+        <span class="ts-label">列数</span>
+        <input id="table-ins-cols" class="tool-input num" type="number" min="1" max="20" value="3">
+      </div>
+      <div class="ts-row">
+        <label class="ts-radio"><input type="checkbox" id="table-ins-header" checked> 首行为表头</label>
+      </div>
+      <div class="modal-foot">
+        <button class="tool-btn" id="table-ins-cancel">取消</button>
+        <button class="tool-btn primary" id="table-ins-ok">插入</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 标注类型选择弹窗 -->
+<div id="callout-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card modal-card-sm">
+    <div class="modal-head">
+      <span class="modal-title">选择标注类型</span>
+      <button class="icon-btn" id="callout-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body callout-picker">
+      <button class="callout-pick" data-co="note"><span class="cp-ico">ℹ️</span><span><b>NOTE</b><small>说明 / 补充信息</small></span></button>
+      <button class="callout-pick" data-co="tip"><span class="cp-ico">💡</span><span><b>TIP</b><small>技巧 / 建议</small></span></button>
+      <button class="callout-pick" data-co="important"><span class="cp-ico"></span><span><b>IMPORTANT</b><small>重要提醒</small></span></button>
+      <button class="callout-pick" data-co="warning"><span class="cp-ico">⚠️</span><span><b>WARNING</b><small>警告</small></span></button>
+      <button class="callout-pick" data-co="caution"><span class="cp-ico">🚫</span><span><b>CAUTION</b><small>危险 / 禁止</small></span></button>
+    </div>
+  </div>
+</div>
+
+<!-- 矢量图标定义（供 md.js 渲染 :icon-xxx: 与图标面板使用） -->
+<script src="js/icons.js"></script>
+<script src="js/block-editor.js"></script>
+<script src="js/flow.js"></script>
+<script src="js/mind.js"></script>
+<script src="js/note.js"></script>
+<script src="js/app.js"></script>
+
+<!-- v0.20.3 纯文本框右键菜单（v0.20.28 整理分组 + 新增删除空白组；v0.20.30 分流：仅编辑区弹出） -->
+<div id="ctx-menu" class="ink-ctx-menu" style="display:none">
+  <button class="ctx-item" data-cmd="undo">撤销</button>
+  <button class="ctx-item" data-cmd="redo">重做</button>
+  <div class="ctx-divider"></div>
+  <button class="ctx-item" data-cmd="cut">剪切</button>
+  <button class="ctx-item" data-cmd="copy">复制</button>
+  <button class="ctx-item" data-cmd="paste">粘贴</button>
+  <button class="ctx-item" data-cmd="selectall">全选</button>
+  <button class="ctx-item" data-cmd="del">删除选中</button>
+  <div class="ctx-divider"></div>
+  <button class="ctx-item" data-cmd="del-empty">删除空行</button>
+  <button class="ctx-item" data-cmd="del-dup">删除重复行</button>
+  <button class="ctx-item" data-cmd="del-sol-space">删除行头空白</button>
+  <button class="ctx-item" data-cmd="del-eol-space">删除行尾空白</button>
+  <button class="ctx-item" data-cmd="del-line">删除整行</button>
+  <div class="ctx-divider"></div>
+  <button class="ctx-item" data-cmd="merge">合并行</button>
+  <button class="ctx-item" data-cmd="sort">行排序</button>
+  <button class="ctx-item" data-cmd="reindent">重新缩进</button>
+  <div class="ctx-divider"></div>
+  <button class="ctx-item" data-cmd="upper">转大写</button>
+  <button class="ctx-item" data-cmd="lower">转小写</button>
+  <button class="ctx-item" data-cmd="cmt">切换注释</button>
+  <div class="ctx-divider"></div>
+  <button class="ctx-item" data-cmd="fold-all">⌃ 折叠全部</button>
+  <button class="ctx-item" data-cmd="unfold-all">⌃ 展开全部</button>
+</div>
+
+<!-- v0.20.29 侧边栏「我的文档」右键菜单（区别于纯文本框菜单） -->
+<div id="doc-ctx-menu" class="ink-ctx-menu" style="display:none">
+  <button class="ctx-item" data-dcmd="open">打开</button>
+  <button class="ctx-item" data-dcmd="copy-title">复制标题</button>
+  <button class="ctx-item" data-dcmd="copy-path" id="doc-ctx-copypath">复制路径</button>
+  <div class="ctx-divider"></div>
+  <button class="ctx-item" data-dcmd="del">从列表移除</button>
+</div>
+
+</body>
+</html>

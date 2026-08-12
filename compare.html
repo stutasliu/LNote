@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>L.Note 文件比较</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/components.css">
+<style>
+  body {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif;
+  }
+  .cmp-top {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 18px;
+    border-bottom: 1px solid #e9e9e7;
+    font-size: 13px;
+    color: #37352f;
+    flex-wrap: wrap;
+    background: #fbfbfa;
+  }
+  .cmp-top .t { font-weight: 700; }
+  .cmp-auto { display: flex; align-items: center; gap: 5px; cursor: pointer; color: rgba(55,53,47,0.6); }
+  .cmp-summary { margin-left: auto; font-weight: 600; font-size: 13px; }
+
+  .cmp-inputs { display: flex; border-bottom: 1px solid #e9e9e7; }
+  .cmp-input-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .cmp-input-pane + .cmp-input-pane { border-left: 1px solid #e9e9e7; }
+  .cmp-input-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: rgba(55,53,47,0.6);
+    background: #f7f7f5;
+    border-bottom: 1px solid #e9e9e7;
+  }
+  .cmp-lbl { font-weight: 400; color: rgba(55,53,47,0.4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .mini {
+    border: 1px solid #e9e9e7;
+    background: #fff;
+    border-radius: 5px;
+    padding: 2px 9px;
+    font-size: 12px;
+    cursor: pointer;
+    color: rgba(55,53,47,0.7);
+    font-family: inherit;
+  }
+  .mini:hover { background: rgba(0,0,0,0.04); }
+  .cmp-ta {
+    height: 128px;
+    border: none;
+    outline: none;
+    resize: none;
+    padding: 10px 12px;
+    font-family: "SFMono-Regular", Consolas, "Courier New", monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: #37352f;
+    background: #fff;
+    box-sizing: border-box;
+  }
+  .cmp-ta::placeholder { color: rgba(55,53,47,0.3); }
+
+  .cmp-body { flex: 1; display: flex; min-height: 0; }
+  .cmp-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .cmp-pane + .cmp-pane { border-left: 1px solid #e9e9e7; }
+  .cmp-col-head {
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: rgba(55,53,47,0.6);
+    background: #f7f7f5;
+    border-bottom: 1px solid #e9e9e7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cmp-col { flex: 1; overflow: auto; font-family: "SFMono-Regular", Consolas, monospace; font-size: 12.5px; line-height: 1.6; }
+  .cmp-line { display: flex; }
+  .cmp-ln {
+    flex-shrink: 0;
+    width: 42px;
+    padding: 0 8px;
+    text-align: right;
+    color: rgba(55,53,47,0.35);
+    background: #fafaf9;
+    border-right: 1px solid #e9e9e7;
+    user-select: none;
+  }
+  .cmp-txt { flex: 1; padding: 0 10px; white-space: pre-wrap; word-break: break-all; }
+  .cmp-line.added .cmp-txt { background: rgba(46, 160, 67, 0.16); }
+  .cmp-line.removed .cmp-txt { background: rgba(248, 81, 73, 0.14); }
+  .cmp-line.added .cmp-ln { color: #0f7b0f; }
+  .cmp-line.removed .cmp-ln { color: #d93025; }
+  .cmp-empty { color: rgba(55,53,47,0.4); font-size: 12.5px; padding: 20px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="cmp-top">
+  <span class="t">⇄ 文件比较</span>
+  <label class="cmp-auto"><input type="checkbox" id="cmp-auto" checked> 实时比较</label>
+  <span class="cmp-summary" id="cmp-summary"></span>
+</div>
+
+<div class="cmp-inputs">
+  <div class="cmp-input-pane">
+    <div class="cmp-input-head">文件 A
+      <span class="cmp-lbl" id="lbl-a">可直接粘贴内容</span>
+      <button class="mini" id="btn-load-a">📁 加载文件…</button>
+      <button class="mini" id="btn-clear-a">清空</button>
+    </div>
+    <textarea id="ta-a" class="cmp-ta" placeholder="粘贴文件 A 的内容到这里…" spellcheck="false"></textarea>
+  </div>
+  <div class="cmp-input-pane">
+    <div class="cmp-input-head">文件 B
+      <span class="cmp-lbl" id="lbl-b">可直接粘贴内容</span>
+      <button class="mini" id="btn-load-b">📁 加载文件…</button>
+      <button class="mini" id="btn-clear-b">清空</button>
+    </div>
+    <textarea id="ta-b" class="cmp-ta" placeholder="粘贴文件 B 的内容到这里…" spellcheck="false"></textarea>
+  </div>
+</div>
+
+<div class="cmp-body">
+  <div class="cmp-pane">
+    <div class="cmp-col-head" id="cmp-head-a">文件 A</div>
+    <div class="cmp-col" id="cmp-col-a"><div class="cmp-empty">在左上方粘贴或加载内容后自动比较</div></div>
+  </div>
+  <div class="cmp-pane">
+    <div class="cmp-col-head" id="cmp-head-b">文件 B</div>
+    <div class="cmp-col" id="cmp-col-b"><div class="cmp-empty">在右上方粘贴或加载内容后自动比较</div></div>
+  </div>
+</div>
+
+<script src="js/vendor-bundle.js"></script>
+<script>
+  var nameA = '文件 A', nameB = '文件 B';
+  var taA = document.getElementById('ta-a');
+  var taB = document.getElementById('ta-b');
+  var colA = document.getElementById('cmp-col-a');
+  var colB = document.getElementById('cmp-col-b');
+  var debounceTimer = null;
+
+  function runDiff() {
+    var a = taA.value, b = taB.value;
+    if (!a && !b) {
+      colA.innerHTML = '<div class="cmp-empty">在左上方粘贴或加载内容后自动比较</div>';
+      colB.innerHTML = '<div class="cmp-empty">在右上方粘贴或加载内容后自动比较</div>';
+      document.getElementById('cmp-summary').textContent = '';
+      return;
+    }
+    var parts = window.Diff.diffLines(a, b);
+    colA.innerHTML = ''; colB.innerHTML = '';
+    var na = 0, nb = 0, added = 0, removed = 0;
+
+    function addRow(col, cls, ln, text) {
+      var line = document.createElement('div');
+      line.className = 'cmp-line' + (cls ? ' ' + cls : '');
+      line.innerHTML = '<span class="cmp-ln"></span><span class="cmp-txt"></span>';
+      line.querySelector('.cmp-ln').textContent = ln || '';
+      line.querySelector('.cmp-txt').textContent = text;
+      col.appendChild(line);
+    }
+
+    parts.forEach(function (part) {
+      var lines = part.value.replace(/\n$/, '').split('\n');
+      if (part.added) {
+        lines.forEach(function (l) { nb++; added++; addRow(colB, 'added', nb, l); addRow(colA, '', '', ''); });
+      } else if (part.removed) {
+        lines.forEach(function (l) { na++; removed++; addRow(colA, 'removed', na, l); addRow(colB, '', '', ''); });
+      } else {
+        lines.forEach(function (l) { na++; nb++; addRow(colA, '', na, l); addRow(colB, '', nb, l); });
+      }
+    });
+
+    colA.onscroll = function () { colB.scrollTop = colA.scrollTop; colB.scrollLeft = colA.scrollLeft; };
+    colB.onscroll = function () { colA.scrollTop = colB.scrollTop; colA.scrollLeft = colB.scrollLeft; };
+
+    document.getElementById('cmp-head-a').textContent = nameA + '（' + na + ' 行）';
+    document.getElementById('cmp-head-b').textContent = nameB + '（' + nb + ' 行）';
+    var sum = document.getElementById('cmp-summary');
+    if (added || removed) {
+      sum.innerHTML = '<span style="color:#0f7b0f">+ ' + added + '</span> / <span style="color:#d93025">- ' + removed + '</span> 行差异';
+    } else {
+      sum.innerHTML = '<span style="color:#0f7b0f">两个内容一致 ✓</span>';
+    }
+  }
+
+  function scheduleDiff() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(runDiff, 350);
+  }
+
+  function baseName(p) { return p.replace(/\\/g, '/').split('/').pop(); }
+
+  function loadFile(side) {
+    if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.pick_file) return;
+    window.pywebview.api.pick_file().then(function (path) {
+      if (!path) return;
+      return window.pywebview.api.read_file(path).then(function (res) {
+        if (!res || res.error) return;
+        if (side === 'a') {
+          taA.value = res.content;
+          nameA = baseName(path) + (res.encoding ? '（' + res.encoding + '）' : '');
+          document.getElementById('lbl-a').textContent = nameA;
+        } else {
+          taB.value = res.content;
+          nameB = baseName(path) + (res.encoding ? '（' + res.encoding + '）' : '');
+          document.getElementById('lbl-b').textContent = nameB;
+        }
+        runDiff();
+      });
+    }).catch(function () {});
+  }
+
+  taA.addEventListener('input', function () {
+    if (document.getElementById('cmp-auto').checked) scheduleDiff();
+  });
+  taB.addEventListener('input', function () {
+    if (document.getElementById('cmp-auto').checked) scheduleDiff();
+  });
+  document.getElementById('cmp-auto').addEventListener('change', function () {
+    if (this.checked) runDiff();
+  });
+  document.getElementById('btn-load-a').addEventListener('click', function () { loadFile('a'); });
+  document.getElementById('btn-load-b').addEventListener('click', function () { loadFile('b'); });
+  document.getElementById('btn-clear-a').addEventListener('click', function () { taA.value = ''; nameA = '文件 A'; document.getElementById('lbl-a').textContent = '可直接粘贴内容'; runDiff(); });
+  document.getElementById('btn-clear-b').addEventListener('click', function () { taB.value = ''; nameB = '文件 B'; document.getElementById('lbl-b').textContent = '可直接粘贴内容'; runDiff(); });
+
+  // 主窗口传入的初始数据（文件 A/B 或当前文档）
+  function init() {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.get_data) {
+      window.pywebview.api.get_data().then(function (d) {
+        if (!d) return;
+        if (d.a) { taA.value = d.a; nameA = d.aName || '文件 A'; document.getElementById('lbl-a').textContent = nameA; }
+        if (d.b) { taB.value = d.b; nameB = d.bName || '文件 B'; document.getElementById('lbl-b').textContent = nameB; }
+        runDiff();
+      }).catch(function () {});
+    }
+  }
+  window.addEventListener('pywebviewready', init);
+  if (document.readyState !== 'loading') { if (!window.pywebview) init(); }
+  else document.addEventListener('DOMContentLoaded', function () { if (!window.pywebview) init(); });
+</script>
+</body>
+</html>
