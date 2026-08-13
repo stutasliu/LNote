@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """生成 L.NOTE 方案 C 图标的多尺寸 PNG + Windows .ico。
 
-配色对齐用户原图：左上橙 #FF945C -> 右下粉 #FF6F81（对角渐变）；
+配色对齐应用内按钮主色：左上 #3370FF -> 右下 #2860E1（品牌蓝对角渐变）；
 L 笔画为白色，墨点为白色实心圆 #FFFFFF（还原方案 C 原版）。
 """
 import os
@@ -13,9 +13,9 @@ OUT_DIR = os.path.dirname(os.path.abspath(__file__))
 SIZES = [1024, 512, 256, 128, 64, 32]
 ICO_SIZES = [256, 128, 64, 48, 32, 16]
 
-# 对角渐变端点（与原图采样一致）
-PINK = np.array([255, 148, 92], dtype=np.float32)   # #FF945C 橙（左上，offset 0）
-ORANGE = np.array([255, 111, 129], dtype=np.float32)  # #FF6F81 粉（右下，offset 1）
+# 对角渐变端点（品牌蓝，与页面按钮 #3370FF / hover #2860E1 一致）
+BLUE_A = np.array([51, 112, 255], dtype=np.float32)    # #3370FF（左上，offset 0）
+BLUE_B = np.array([40, 96, 225], dtype=np.float32)     # #2860E1（右下，offset 1）
 
 # 基准画布 1024 坐标系下的图形定义（与 icon-L.NOTE.svg 一致）
 BG_MARGIN = 64
@@ -33,8 +33,8 @@ def build(size):
     yy, xx = np.mgrid[0:size, 0:size]
     t = (xx + yy) / (2.0 * size)          # 0..1 对角
     t = np.clip(t, 0.0, 1.0)
-    buf = (PINK[None, None, :] * (1 - t[..., None]) +
-           ORANGE[None, None, :] * t[..., None])
+    buf = (BLUE_A[None, None, :] * (1 - t[..., None]) +
+           BLUE_B[None, None, :] * t[..., None])
     img = Image.fromarray(buf.astype(np.uint8), 'RGB').convert('RGBA')
 
     # 2) 圆角矩形遮罩（底板外透明）

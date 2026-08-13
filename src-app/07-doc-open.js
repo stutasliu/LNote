@@ -143,6 +143,8 @@ import { saveDiskDoc } from './16-doc-ops.js';
     els.title.value = d.title || '';
     // v0.20.35：原型信息面板 + App Bar 标题元信息
     updateInfoPanel(d, kind);
+    // 预览按钮可见性：所有文档类型统一处理（富文档/可视化文档隐藏）
+    updatePreviewBtn();
     // 元信息合并到底部状态栏
     els.statEdit.textContent = '最后编辑 ' + fullTime(d.updated || Date.now());
     if (d.diskPath) {
@@ -202,16 +204,15 @@ import { saveDiskDoc } from './16-doc-ops.js';
     els.statLang.textContent = LANGS[d.lang] ? LANGS[d.lang].label : '纯文本';
     els.btnTogglePreview.classList.toggle('active', isDiagram && state.previewOn);
 
-    updatePreviewBtn();
     updatePreviewVisibility();
     updateStatus();
     renderList();
   }
 
-  // 预览按钮仅对 Markdown / HTML / Mermaid 文档显示
+  // 预览按钮仅对 Markdown / HTML 文档显示（顶栏右上角）
   function updatePreviewBtn() {
     var d = activeDoc();
-    var ok = d && (d.lang === 'markdown' || d.lang === 'mermaid' || d.lang === 'html');
-    els.btnTogglePreview.style.display = ok ? '' : 'none';
+    var ok = d && (d.lang === 'markdown' || d.lang === 'html');
+    els.btnPreviewTop.style.display = ok ? '' : 'none';
     els.btnInsertImage.style.display = (d && (d.lang === 'markdown' || d.lang === 'html')) ? '' : 'none';
   }

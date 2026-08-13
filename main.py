@@ -557,7 +557,7 @@ def main():
     api = InkpadApi()
     index = resource_path("index.html")
     window = webview.create_window(
-        title=f"L.Note v{APP_VERSION}",
+        title="L.Note",
         url=index,
         js_api=api,
         width=1280,

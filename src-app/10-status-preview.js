@@ -73,6 +73,9 @@ import { dirOf, getApi, hasApi, isAbsPath, joinPath, normPath, resolveImgSrc, to
     els.previewPane.style.display = show ? 'flex' : 'none';
     els.splitter.style.display = show ? 'block' : 'none';
     els.btnTogglePreview.classList.toggle('active', !!show);
+    // 顶栏右上角预览按钮：高亮 + 提示随状态切换
+    els.btnPreviewTop.classList.toggle('active', !!show);
+    els.btnPreviewTop.title = show ? '关闭预览' : '预览';
     if (isMd) els.btnTogglePreview.textContent = '👁 MD预览';
     else if (isHtml) els.btnTogglePreview.textContent = '👁 HTML预览';
     else els.btnTogglePreview.textContent = '👁 图表预览';

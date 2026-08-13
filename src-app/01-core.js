@@ -73,6 +73,7 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, $, els,
     statEdit: $('stat-edit'), statEnc: $('stat-enc'), statEditSep: $('stat-edit-sep'),
     toast: $('toast'), fileInput: $('file-input'),
     btnTogglePreview: $('btn-toggle-preview'),
+    btnPreviewTop: $('btn-preview-top'),
     btnInsertImage: $('btn-insert-image'),
     btnExpandSidebar: $('btn-toggle-sidebar2'),
     btnSave: $('btn-save'),
@@ -100,18 +101,13 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, $, els,
     docBatchDelConfirm: $('doc-batch-del-confirm'),
     docBatchDelCancel: $('doc-batch-del-cancel'),
     docBatchDelClose: $('doc-batch-del-close'),
-    // 便签模块：标签区 / 便签集区
+    // 便签模块：标签区
     tagSection: $('sb-tag-section'), tagHead: $('sb-tag-head'), tagList: $('sb-tag-list'), tagCount: $('sb-tag-count'),
-    colSection: $('sb-col-section'), colHead: $('sb-col-head'), colList: $('sb-col-list'), btnNewCol: $('btn-new-col'),
-    btnBatchCol: $('btn-batch-col'),
     // 便签模块：模态框
     tagEditModal: $('tag-edit-modal'), tagEditDocname: $('tag-edit-docname'),
     tagEditChips: $('tag-edit-chips'), tagEditEmpty: $('tag-edit-empty'),
     tagEditAllchips: $('tag-edit-allchips'), tagEditAllempty: $('tag-edit-allempty'),
     tagEditInput: $('tag-edit-input'),
-    collectionPickModal: $('collection-pick-modal'), collectionPickList: $('collection-pick-list'),
-    collectionPickEmpty: $('collection-pick-empty'), collectionPickInput: $('collection-pick-input'),
-    collectionNewModal: $('collection-new-modal'), collectionNewInput: $('collection-new-input'),
     stickyEditModal: $('sticky-edit-modal'), stickyEditTitle: $('sticky-edit-title'),
     stickyEditContent: $('sticky-edit-content'), stickyEditPin: $('sticky-edit-pin'),
     stickyColorRow: $('sticky-color-row'),
@@ -160,14 +156,11 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, $, els,
     batchMode: false,   // 是否进入批量选择模式
     batchSelected: {},   // { docId: true } 已选中的文档 id 集合
     docFilter: 'recent',  // 当前侧栏过滤模式：recent / my-space / wiki / favorites / trash / sticky
-    // 便签模块：标签 / 便签集 / 便利贴
+    // 便签模块：标签 / 便利贴
     tagFilter: null,      // 当前标签过滤（null 表示未过滤）
-    colFilter: null,      // 当前便签集过滤（集合 id，null 表示未过滤）
-    collections: [],      // 便签集数组 [{ id, name, docIds: [] }]
     tagEditDocId: null,   // 正在编辑标签的文档 id
     stickyEditId: null,   // 正在编辑的便利贴 id
     stickyColor: '#FFD43B', // 便利贴当前选中颜色
-    colPickDocIds: [],     // 「加入便签集」弹窗当前作用的文档 id 集合
     // 定时标签：标签过期时间 / 提醒状态
     tagMeta: {},          // { [tag]: { expiresAt: ts } } 标签过期时间
     remindedKeys: {},     // { [key]: true } 已提醒过的提醒 key（避免同一分钟重复）

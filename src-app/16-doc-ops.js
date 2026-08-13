@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { saveDiskDoc, openEncModal, openCompareWindow, setLang, newDoc, exportDoc, importFile, toastTimer, toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, newSticky, saveSticky, findDoc, saveDocTags, collectAllTags, createCollection, renameCollection, deleteCollection, addDocsToCollection, removeDocFromCollection, findCollection, openStickyEditor, setTagExpiry, clearTagExpiry, cleanupExpiredTags, matchReminder, toLocalInput, fromLocalInput, fmtStamp };
+export { saveDiskDoc, openEncModal, openCompareWindow, setLang, newDoc, exportDoc, importFile, toastTimer, toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, newSticky, saveSticky, findDoc, saveDocTags, collectAllTags, openStickyEditor, setTagExpiry, clearTagExpiry, cleanupExpiredTags, matchReminder, toLocalInput, fromLocalInput, fmtStamp };
 /* [esm] 导入依赖模块绑定 */
 import { $, LANGS, els, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
@@ -81,10 +81,23 @@ import { openSingleModal } from './15-insert.js';
     updatePreviewVisibility();
   }
 
+  // 未指定标题时自动命名：未命名文档、未命名文档 2、未命名文档 3 …（取现有最大序号 +1）
+  function nextAutoTitle() {
+    var base = '未命名文档';
+    var max = 0;
+    (state.docs || []).forEach(function (doc) {
+      var t = doc.title || '';
+      if (t === base) { max = Math.max(max, 1); return; }
+      var m = t.match(/^未命名文档\s+(\d+)$/);
+      if (m) max = Math.max(max, parseInt(m[1], 10));
+    });
+    return max ? base + ' ' + (max + 1) : base;
+  }
+
   function newDoc(lang, title, content) {
     var d = {
       id: uid(),
-      title: title || '',
+      title: title || nextAutoTitle(),
       lang: lang || 'plaintext',
       content: content || '',
       updated: Date.now()
@@ -304,7 +317,6 @@ import { openSingleModal } from './15-insert.js';
     // 切到便利贴视图并打开编辑浮层（不设置 activeId，避免主编辑器被便利贴接管）
     state.docFilter = 'sticky';
     state.tagFilter = null;
-    state.colFilter = null;
     openStickyEditor(d);
     return d;
   }
@@ -479,68 +491,4 @@ import { openSingleModal } from './15-insert.js';
       });
     });
     return map;
-  }
-
-  // 便签集操作
-  function findCollection(id) {
-    for (var i = 0; i < state.collections.length; i++) {
-      if (state.collections[i].id === id) return state.collections[i];
-    }
-    return null;
-  }
-
-  function createCollection(name) {
-    name = (name || '').trim();
-    if (!name) { toast('便签集名称不能为空', 'error'); return null; }
-    if (name.length > 20) { toast('名称最长 20 字', 'error'); return null; }
-    var col = { id: uid(), name: name, docIds: [] };
-    state.collections.push(col);
-    persist();
-    return col;
-  }
-
-  function renameCollection(id, name) {
-    var col = findCollection(id);
-    name = (name || '').trim();
-    if (!col) return false;
-    if (!name) { toast('名称不能为空', 'error'); return false; }
-    col.name = name;
-    persist();
-    return true;
-  }
-
-  function deleteCollection(id) {
-    for (var i = 0; i < state.collections.length; i++) {
-      if (state.collections[i].id === id) {
-        state.collections.splice(i, 1);
-        // 若正在浏览该集合，退出集合过滤
-        if (state.colFilter === id) { state.colFilter = null; }
-        persist();
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // 将一批文档加入集合
-  function addDocsToCollection(colId, docIds) {
-    var col = findCollection(colId);
-    if (!col || !docIds || !docIds.length) return false;
-    var added = 0;
-    docIds.forEach(function (id) {
-      if (col.docIds.indexOf(id) < 0) { col.docIds.push(id); added++; }
-    });
-    if (added) persist();
-    return added > 0;
-  }
-
-  // 从集合移除文档
-  function removeDocFromCollection(colId, docId) {
-    var col = findCollection(colId);
-    if (!col) return false;
-    var idx = col.docIds.indexOf(docId);
-    if (idx < 0) return false;
-    col.docIds.splice(idx, 1);
-    persist();
-    return true;
   }

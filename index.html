@@ -20,12 +20,10 @@
 
   <!-- ===== 侧边栏（飞书云文档风格 v3：严格对齐飞书设计规范） ===== -->
   <aside id="sidebar">
-    <!-- 品牌区（飞书规范：64px 高度，品牌 logo + 工作区名称） -->
+    <!-- 品牌区（精简：仅 L.Note 文字，去掉图标方块与下拉箭头） -->
     <div class="sb-brand-area">
-      <button class="sb-brand-btn" id="btn-workspace" title="切换工作区">
-        <span class="sb-brand-logo">LN</span>
+      <button class="sb-brand-btn" id="btn-workspace" title="L.Note">
         <span class="sb-brand-name">L.Note</span>
-        <svg class="sb-brand-arrow" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>
 
@@ -68,25 +66,14 @@
 
     <!-- 文档分组列表（可滚动区域，按时间分组：今天/昨天/本周/更早） -->
     <div class="sb-content-area" id="drawerNav">
-      <!-- 便签模块：标签区（可折叠） -->
-      <div class="sb-subsection" id="sb-tag-section">
+      <!-- 便签模块：标签区（默认折叠） -->
+      <div class="sb-subsection collapsed" id="sb-tag-section">
         <div class="sb-subsection-head" id="sb-tag-head" title="标签">
           <span class="sb-sub-arrow">▸</span>
           <span class="sb-sub-title">标签</span>
           <span class="sb-sub-count" id="sb-tag-count"></span>
         </div>
         <div class="sb-subsection-body" id="sb-tag-list"></div>
-      </div>
-      <!-- 便签模块：便签集区（可折叠） -->
-      <div class="sb-subsection" id="sb-col-section">
-        <div class="sb-subsection-head" id="sb-col-head" title="便签集">
-          <span class="sb-sub-arrow">▸</span>
-          <span class="sb-sub-title">便签集</span>
-          <button class="sb-icon-btn sb-sub-add" id="btn-new-col" title="新建便签集">
-            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
-          </button>
-        </div>
-        <div class="sb-subsection-body" id="sb-col-list"></div>
       </div>
       <!-- 文档 / 文件 切换 tab + 右侧批量操作按钮 -->
       <div class="sb-tabs-wrap">
@@ -109,9 +96,6 @@
         </label>
         <span class="sb-batch-count" id="sbBatchCount">已选 0 项</span>
         <div class="sb-batch-actions">
-          <button class="sb-icon-btn" id="btn-batch-col" title="批量加入便签集">
-            <svg viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg>
-          </button>
           <button class="sb-icon-btn" id="btn-batch-export" title="批量导出">
             <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
@@ -190,6 +174,9 @@
           </button>
           <button class="icon-btn ab-rbtn" id="btn-info-panel" title="文档信息面板">
             <svg viewBox="0 0 24 24" class="ico"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="15" y1="3" x2="15" y2="21" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2"/></svg>
+          </button>
+          <button class="icon-btn ab-rbtn" id="btn-preview-top" title="预览" style="display:none">
+            <svg viewBox="0 0 24 24" class="ico"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
           </button>
           <button class="icon-btn ab-rbtn" id="btn-rich-outline" title="大纲" style="display:none">
             <svg viewBox="0 0 24 24" class="ico"><line x1="8" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="8" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="8" y1="18" x2="21" y2="18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg>
@@ -771,13 +758,13 @@ old = new"></textarea>
 <div id="doc-batch-del-modal" class="modal-overlay" style="display:none">
   <div class="modal-card modal-card-sm">
     <div class="modal-head">
-      <span class="modal-title">批量删除文档</span>
+      <span class="modal-title" id="doc-batch-del-title">批量删除文档</span>
       <button class="icon-btn" id="doc-batch-del-close" title="关闭">✕</button>
     </div>
     <div class="modal-body">
-      <div class="doc-del-hint">确定要从「我的文档」中移除选中的文档吗？</div>
+      <div class="doc-del-hint" id="doc-batch-del-hint">确定要从「我的文档」中移除选中的文档吗？</div>
       <div class="doc-del-name" id="doc-batch-del-name">—</div>
-      <div class="doc-del-foot">ⓘ 删除后无法恢复，磁盘文件不会被删除。</div>
+      <div class="doc-del-foot" id="doc-batch-del-foot">ⓘ 删除后无法恢复，磁盘文件不会被删除。</div>
     </div>
     <div class="modal-foot">
       <button class="tool-btn" id="doc-batch-del-cancel">取消</button>
@@ -813,46 +800,6 @@ old = new"></textarea>
     <div class="modal-foot">
       <button class="tool-btn" id="tag-edit-cancel">取消</button>
       <button class="tool-btn primary" id="tag-edit-confirm">完成</button>
-    </div>
-  </div>
-</div>
-
-<!-- 加入便签集弹窗 -->
-<div id="collection-pick-modal" class="modal-overlay" style="display:none">
-  <div class="modal-card modal-card-sm">
-    <div class="modal-head">
-      <span class="modal-title">加入便签集</span>
-      <button class="icon-btn" id="collection-pick-close" title="关闭">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="doc-del-hint" id="collection-pick-hint">选择要将文档加入的便签集（可多选）</div>
-      <div class="collection-pick-list" id="collection-pick-list"></div>
-      <div class="collection-pick-empty" id="collection-pick-empty">还没有便签集，请先创建</div>
-      <div class="collection-pick-new-row">
-        <input type="text" class="tool-input" id="collection-pick-input" placeholder="新建便签集名称" maxlength="20">
-        <button class="tool-btn" id="collection-pick-new">新建</button>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="tool-btn" id="collection-pick-cancel">取消</button>
-      <button class="tool-btn primary" id="collection-pick-confirm">确定</button>
-    </div>
-  </div>
-</div>
-
-<!-- 新建便签集弹窗 -->
-<div id="collection-new-modal" class="modal-overlay" style="display:none">
-  <div class="modal-card modal-card-sm">
-    <div class="modal-head">
-      <span class="modal-title">新建便签集</span>
-      <button class="icon-btn" id="collection-new-close" title="关闭">✕</button>
-    </div>
-    <div class="modal-body">
-      <input type="text" class="tool-input" id="collection-new-input" placeholder="请输入便签集名称" maxlength="20">
-    </div>
-    <div class="modal-foot">
-      <button class="tool-btn" id="collection-new-cancel">取消</button>
-      <button class="tool-btn primary" id="collection-new-confirm">创建</button>
     </div>
   </div>
 </div>
@@ -1166,9 +1113,6 @@ old = new"></textarea>
   <div class="ctx-group">
     <button class="ctx-item" data-dcmd="tag">
       <span class="ctx-icon">#</span><span class="ctx-label">编辑标签</span>
-    </button>
-    <button class="ctx-item" data-dcmd="collection">
-      <span class="ctx-icon">▦</span><span class="ctx-label">加入便签集</span>
     </button>
   </div>
   <div class="ctx-divider"></div>

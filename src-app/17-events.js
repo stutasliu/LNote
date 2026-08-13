@@ -4,7 +4,7 @@ export { initEvents, toolMenu, convertMenu, pb, splitDrag, MIN_PANE, sideDrag, S
 import { $, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, els, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
 import { activeDoc } from './05-store.js';
-import { closeDocDelConfirm, deleteDoc, openDocDelConfirm, pendingDelId, openTagEditModal, openCollectionPickModal } from './06-doc-list.js';
+import { closeDocDelConfirm, deleteDoc, openDocDelConfirm, pendingDelId, openTagEditModal } from './06-doc-list.js';
 import { openDoc } from './07-doc-open.js';
 import { onVisualChange } from './08-visual.js';
 import { newRichDoc, newVisualDoc, saveDoc, syncFromEditor } from './09-rich-save.js';
@@ -40,7 +40,7 @@ import { openFindModal } from './19-find-replace.js';
     setLang(els.langSelect.value);
   });
 
-  $('btn-new-doc').addEventListener('click', function () { newDoc('markdown'); });
+  $('btn-new-doc').addEventListener('click', function () { newDoc('plaintext'); });
   $('btn-new-rich').addEventListener('click', function () { newRichDoc(); });
   $('btn-new-flow').addEventListener('click', function () { newVisualDoc('flow'); });
   $('btn-new-mind').addEventListener('click', function () { newVisualDoc('mind'); });
@@ -95,6 +95,11 @@ import { openFindModal } from './19-find-replace.js';
       e.preventDefault();
       saveDoc(false);
     }
+    // Ctrl/Cmd+N：直接新建纯文本文档（阻止浏览器默认"新建窗口"）
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'n' || e.key === 'N')) {
+      e.preventDefault();
+      newDoc('plaintext');
+    }
   });
   $('btn-delete').addEventListener('click', function () {
     var d = activeDoc();
@@ -103,6 +108,12 @@ import { openFindModal } from './19-find-replace.js';
   });
 
   els.btnTogglePreview.addEventListener('click', function () {
+    state.previewOn = !state.previewOn;
+    updatePreviewVisibility();
+  });
+
+  // 顶栏右上角预览按钮：点击预览 / 再点击关闭预览
+  els.btnPreviewTop.addEventListener('click', function () {
     state.previewOn = !state.previewOn;
     updatePreviewVisibility();
   });
@@ -349,9 +360,6 @@ import { openFindModal } from './19-find-replace.js';
         break;
       case 'tag':
         openTagEditModal(d.id);
-        break;
-      case 'collection':
-        openCollectionPickModal([d.id]);
         break;
     }
   }

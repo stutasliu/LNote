@@ -3,8 +3,7 @@ export { loadDocs, persist, uid, activeDoc };
 /* [esm] 导入依赖模块绑定 */
 import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
 
-  /* ---------------- 便签集存储键 ---------------- */
-  var COLLECTION_KEY = 'inkpad.collections.v1';
+  /* ---------------- 便签模块存储键 ---------------- */
   var TAGMETA_KEY = 'inkpad.tagmeta.v1';
   /* ---------------- 数据层 ---------------- */
   function loadDocs() {
@@ -51,15 +50,6 @@ import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
       for (var i = 0; i < state.docs.length; i++) { if (!state.docs[i].deleted) { firstAlive = state.docs[i]; break; } }
       state.activeId = firstAlive ? firstAlive.id : null;
     }
-    // 载入便签集
-    state.collections = [];
-    try {
-      var craw = localStorage.getItem(COLLECTION_KEY);
-      if (craw) {
-        var parsed = JSON.parse(craw);
-        if (Array.isArray(parsed)) state.collections = parsed;
-      }
-    } catch (e) { state.collections = []; }
     // 载入标签过期时间元数据
     state.tagMeta = {};
     try {
@@ -96,10 +86,6 @@ import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(index));
     } catch (e) { console.warn('[inkpad] 索引持久化失败', e); }
-    // 便签集持久化
-    try {
-      localStorage.setItem(COLLECTION_KEY, JSON.stringify(state.collections || []));
-    } catch (e) { console.warn('[inkpad] 便签集持久化失败', e); }
     // 标签过期时间元数据持久化
     try {
       localStorage.setItem(TAGMETA_KEY, JSON.stringify(state.tagMeta || {}));

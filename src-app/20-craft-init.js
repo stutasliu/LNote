@@ -9,7 +9,7 @@ import { _guessMimeFromPath } from './15-insert.js';
 import { toast, renameDoc, newSticky, matchReminder, fmtStamp } from './16-doc-ops.js';
 import { initEvents } from './17-events.js';
 import { initApp } from './18-bootstrap.js';
-import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchExport, renameDocId, closeDocMenu, pendingDelId, renderList, renderSideSub, openTagEditModal, closeTagEditModal, openCollectionPickModal, closeCollectionPickModal, openCollectionNewModal, closeCollectionNewModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, collectionPickConfirm, pickModalCreateCollection, collectionNewConfirm, stickyEditSave } from './06-doc-list.js';
+import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchDestroy, batchExport, renameDocId, closeDocMenu, pendingDelId, renderList, renderSideSub, openTagEditModal, closeTagEditModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, stickyEditSave } from './06-doc-list.js';
 
   // 暴露给块编辑器（block-editor.js）使用的辅助函数
   window.InkpadApp = {
@@ -59,7 +59,7 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
       });
     }
     var wsBtn = document.getElementById('btn-workspace');
-    if (wsBtn) wsBtn.addEventListener('click', function () { toast('L.Note 工作台 · v0.20.44', 'success'); });
+    if (wsBtn) wsBtn.addEventListener('click', function () { toast('L.Note 工作台', 'success'); });
 
     // v0.20.36：飞书风格主导航绑定
     function markNavActive(id) {
@@ -74,7 +74,6 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
     if (navRecent) navRecent.addEventListener('click', function () {
       state.docFilter = 'recent';
       state.tagFilter = null;
-      state.colFilter = null;
       markNavActive('nav-recent');
       closeDocMenu();
       if (state.batchMode) toggleBatchMode(false);
@@ -85,7 +84,6 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
     if (navMySpace) navMySpace.addEventListener('click', function () {
       state.docFilter = 'my-space';
       state.tagFilter = null;
-      state.colFilter = null;
       markNavActive('nav-my-space');
       closeDocMenu();
       if (state.batchMode) toggleBatchMode(false);
@@ -96,7 +94,6 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
     if (navWiki) navWiki.addEventListener('click', function () {
       state.docFilter = 'wiki';
       state.tagFilter = null;
-      state.colFilter = null;
       markNavActive('nav-wiki');
       closeDocMenu();
       if (state.batchMode) toggleBatchMode(false);
@@ -107,7 +104,6 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
     if (navFavorites) navFavorites.addEventListener('click', function () {
       state.docFilter = 'favorites';
       state.tagFilter = null;
-      state.colFilter = null;
       markNavActive('nav-favorites');
       closeDocMenu();
       if (state.batchMode) toggleBatchMode(false);
@@ -118,7 +114,6 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
     if (navTrash) navTrash.addEventListener('click', function () {
       state.docFilter = 'trash';
       state.tagFilter = null;
-      state.colFilter = null;
       markNavActive('nav-trash');
       closeDocMenu();
       if (state.batchMode) toggleBatchMode(false);
@@ -129,7 +124,6 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
     if (navSticky) navSticky.addEventListener('click', function () {
       state.docFilter = 'sticky';
       state.tagFilter = null;
-      state.colFilter = null;
       markNavActive('nav-sticky');
       closeDocMenu();
       if (state.batchMode) toggleBatchMode(false);
@@ -137,25 +131,15 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
       toast('已切换到「便利贴」', 'success');
     });
 
-    /* ================== 便签模块：标签区 / 便签集区 / 弹窗 / 便利贴 事件绑定 ================== */
+    /* ================== 便签模块：标签区 / 弹窗 / 便利贴 事件绑定 ================== */
 
-    // 标签区 / 便签集区 折叠切换
+    // 标签区折叠切换
     if (els.tagHead) els.tagHead.addEventListener('click', function () {
       var s = els.tagSection;
       s.classList.toggle('collapsed');
       if (s.classList.contains('collapsed')) els.tagList.style.display = 'none';
       else els.tagList.style.display = '';
     });
-    if (els.colHead) els.colHead.addEventListener('click', function (e) {
-      if (e.target.closest('.sb-sub-add')) return;
-      var s = els.colSection;
-      s.classList.toggle('collapsed');
-      if (s.classList.contains('collapsed')) els.colList.style.display = 'none';
-      else els.colList.style.display = '';
-    });
-
-    // 新建便签集按钮
-    if (els.btnNewCol) els.btnNewCol.addEventListener('click', function () { openCollectionNewModal(); });
 
     // FAB：新建便利贴
     var btnNewSticky = document.getElementById('btn-new-sticky');
@@ -163,13 +147,6 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
       var d = newSticky();
       renderList();
       if (d) toast('已新建便利贴', 'success');
-    });
-
-    // 批量加入便签集
-    if (els.btnBatchCol) els.btnBatchCol.addEventListener('click', function () {
-      var ids = getBatchSelectedIds();
-      if (!ids.length) { toast('请先选择要加入的文档', 'error'); return; }
-      openCollectionPickModal(ids);
     });
 
     // ---- 标签编辑弹窗 ----
@@ -185,29 +162,6 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
         });
       }
       els.tagEditModal.addEventListener('click', function (e) { if (e.target === els.tagEditModal) closeTagEditModal(); });
-    }
-
-    // ---- 加入便签集弹窗 ----
-    if (els.collectionPickModal) {
-      if (document.getElementById('collection-pick-close')) document.getElementById('collection-pick-close').addEventListener('click', closeCollectionPickModal);
-      if (document.getElementById('collection-pick-cancel')) document.getElementById('collection-pick-cancel').addEventListener('click', closeCollectionPickModal);
-      if (document.getElementById('collection-pick-confirm')) document.getElementById('collection-pick-confirm').addEventListener('click', collectionPickConfirm);
-      if (document.getElementById('collection-pick-new')) document.getElementById('collection-pick-new').addEventListener('click', pickModalCreateCollection);
-      if (els.collectionPickInput) {
-        els.collectionPickInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); pickModalCreateCollection(); } });
-      }
-      els.collectionPickModal.addEventListener('click', function (e) { if (e.target === els.collectionPickModal) closeCollectionPickModal(); });
-    }
-
-    // ---- 新建便签集弹窗 ----
-    if (els.collectionNewModal) {
-      if (document.getElementById('collection-new-close')) document.getElementById('collection-new-close').addEventListener('click', closeCollectionNewModal);
-      if (document.getElementById('collection-new-cancel')) document.getElementById('collection-new-cancel').addEventListener('click', closeCollectionNewModal);
-      if (document.getElementById('collection-new-confirm')) document.getElementById('collection-new-confirm').addEventListener('click', collectionNewConfirm);
-      if (els.collectionNewInput) {
-        els.collectionNewInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); collectionNewConfirm(); } });
-      }
-      els.collectionNewModal.addEventListener('click', function (e) { if (e.target === els.collectionNewModal) closeCollectionNewModal(); });
     }
 
     // ---- 便利贴编辑弹窗 ----
@@ -410,7 +364,13 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
     if (els.batchSelectAll) {
       els.batchSelectAll.addEventListener('change', function () {
         var on = els.batchSelectAll.checked;
-        (state.docs || []).forEach(function (d) { state.batchSelected[d.id] = on ? true : false; });
+        // 只对当前视图（普通列表 / 回收站 / 便利贴）下的可见文档全选
+        (state.docs || []).forEach(function (d) {
+          var inView = state.docFilter === 'trash' ? !!d.deleted
+            : state.docFilter === 'sticky' ? d.kind === 'sticky'
+            : !d.deleted;
+          if (inView) state.batchSelected[d.id] = on ? true : false;
+        });
         // 直接刷新列表 DOM 里的复选框状态（不走全量重渲染，避免焦点丢失）
         els.docList.querySelectorAll('.doc-item').forEach(function (it) {
           var id = it.getAttribute('data-doc-id');
@@ -420,11 +380,24 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
         refreshBatchCount();
       });
     }
-    // 4) 批量删除
+    // 4) 批量删除 / 批量彻底删除（回收站）
     if (els.batchDel) {
       els.batchDel.addEventListener('click', function () {
         var ids = getBatchSelectedIds();
         if (ids.length === 0) { toast('请先选择要删除的文档', 'error'); return; }
+        var inTrash = state.docFilter === 'trash';
+        var titleEl = document.getElementById('doc-batch-del-title');
+        var hintEl = document.getElementById('doc-batch-del-hint');
+        var footEl = document.getElementById('doc-batch-del-foot');
+        if (inTrash) {
+          if (titleEl) titleEl.textContent = '批量彻底删除';
+          if (hintEl) hintEl.textContent = '选中的文档将被彻底删除，且无法恢复。';
+          if (footEl) footEl.textContent = 'ⓘ 此操作不可撤销。';
+        } else {
+          if (titleEl) titleEl.textContent = '批量删除文档';
+          if (hintEl) hintEl.textContent = '确定要从「我的文档」中移除选中的文档吗？';
+          if (footEl) footEl.textContent = 'ⓘ 删除后无法恢复，磁盘文件不会被删除。';
+        }
         if (els.docBatchDelName) els.docBatchDelName.textContent = '共 ' + ids.length + ' 篇文档';
         openSingleModal('doc-batch-del-modal');
       });
@@ -433,9 +406,9 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
     if (els.docBatchDelClose) els.docBatchDelClose.addEventListener('click', function () { if (els.docBatchDelModal) els.docBatchDelModal.style.display = 'none'; });
     if (els.docBatchDelConfirm) els.docBatchDelConfirm.addEventListener('click', function () {
       var ids = getBatchSelectedIds();
-      var c = batchDelete(ids);
+      var c = state.docFilter === 'trash' ? batchDestroy(ids) : batchDelete(ids);
       if (els.docBatchDelModal) els.docBatchDelModal.style.display = 'none';
-      toast('批量删除完成：共 ' + c + ' 项', 'success');
+      toast(state.docFilter === 'trash' ? '批量彻底删除完成：共 ' + c + ' 项' : '批量删除完成：共 ' + c + ' 项', 'success');
     });
 
     // 5) 批量导出

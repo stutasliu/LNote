@@ -118,7 +118,7 @@ describe('E2E 冒烟测试', () => {
     expect(s.title).toBe('欢迎使用 L.Note');
   });
 
-  it('新建文档：列表 +1，语言为 markdown', async () => {
+  it('新建文档：列表 +1，语言为纯文本', async () => {
     const before = (await pageState()).docItems;
     await evalJs(
       cdp,
@@ -126,7 +126,7 @@ describe('E2E 冒烟测试', () => {
     );
     const after = await pageState();
     expect(after.docItems).toBe(before + 1);
-    expect(after.lang).toBe('markdown');
+    expect(after.lang).toBe('plaintext');
   });
 
   it('编辑内容：CodeMirror 值更新', async () => {
@@ -147,6 +147,11 @@ describe('E2E 冒烟测试', () => {
   });
 
   it('Markdown 预览可开关', async () => {
+    // 新建文档默认纯文本，预览仅对 Markdown / HTML 生效，先切到 Markdown
+    await evalJs(
+      cdp,
+      `var sel = document.getElementById('lang-select'); sel.value = 'markdown'; sel.dispatchEvent(new Event('change'));`
+    );
     await evalJs(cdp, `document.getElementById('btn-toggle-preview').click();`);
     const on = await pageState();
     expect(on.previewDisplay).toBe('flex');
