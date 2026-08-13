@@ -9,7 +9,8 @@ import { frFindNext, openFindModal } from './19-find-replace.js';
   var KIND_META = {
     flow: { icon: '🔀', label: '流程图' },
     mind: { icon: '🧠', label: '思维导图' },
-    note: { icon: '📋', label: '思维笔记' }
+    note: { icon: '📋', label: '思维笔记' },
+    sticky: { icon: '🗒️', label: '便利贴' }
   };
   var VISUAL_MODULES = { flow: 'InkpadFlow', mind: 'InkpadMind', note: 'InkpadNote' };
 

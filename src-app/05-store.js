@@ -2,6 +2,9 @@
 export { loadDocs, persist, uid, activeDoc };
 /* [esm] 导入依赖模块绑定 */
 import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
+
+  /* ---------------- 便签集存储键 ---------------- */
+  var COLLECTION_KEY = 'inkpad.collections.v1';
   /* ---------------- 数据层 ---------------- */
   function loadDocs() {
     var raw = null;
@@ -42,9 +45,20 @@ import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
       state.activeId = welcome.id;
       persist();
     }
-    if (state.activeId && !state.docs.some(function (d) { return d.id === state.activeId; })) {
-      state.activeId = state.docs.length ? state.docs[0].id : null;
+    if (state.activeId && !state.docs.some(function (d) { return d.id === state.activeId && !d.deleted; })) {
+      var firstAlive = null;
+      for (var i = 0; i < state.docs.length; i++) { if (!state.docs[i].deleted) { firstAlive = state.docs[i]; break; } }
+      state.activeId = firstAlive ? firstAlive.id : null;
     }
+    // 载入便签集
+    state.collections = [];
+    try {
+      var craw = localStorage.getItem(COLLECTION_KEY);
+      if (craw) {
+        var parsed = JSON.parse(craw);
+        if (Array.isArray(parsed)) state.collections = parsed;
+      }
+    } catch (e) { state.collections = []; }
   }
 
   /* 持久化：把「轻量索引」与「正文内容」分开存储。
@@ -60,10 +74,20 @@ import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
         if (d.lang) o.lang = d.lang;
         if (d.diskPath) o.diskPath = d.diskPath;
         if (d.encoding) o.encoding = d.encoding;
+        if (d.pinned) o.pinned = true;
+        if (d.favorite) o.favorite = true;
+        if (d.deleted) { o.deleted = true; if (d.deletedAt) o.deletedAt = d.deletedAt; }
+        // 便签模块字段
+        if (d.tags && d.tags.length) o.tags = d.tags.slice();
+        if (d.color) o.color = d.color;
         return o;
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(index));
     } catch (e) { console.warn('[inkpad] 索引持久化失败', e); }
+    // 便签集持久化
+    try {
+      localStorage.setItem(COLLECTION_KEY, JSON.stringify(state.collections || []));
+    } catch (e) { console.warn('[inkpad] 便签集持久化失败', e); }
     // 2) 正文逐文档存储（单个超限不影响列表；富文档大正文改为依赖磁盘文件）
     var seen = {};
     state.docs.forEach(function (d) {

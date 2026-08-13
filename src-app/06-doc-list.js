@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { renderList, pendingDelId, openDocDelConfirm, closeDocDelConfirm, deleteDoc, shortTime, fullTime };
+export { renderList, pendingDelId, openDocDelConfirm, closeDocDelConfirm, deleteDoc, shortTime, fullTime, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchExport, openDocMenu, closeDocMenu, renameDocId, renderSideSub, openTagEditModal, closeTagEditModal, openCollectionPickModal, closeCollectionPickModal, openCollectionNewModal, closeCollectionNewModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, collectionPickConfirm, pickModalCreateCollection, collectionNewConfirm, stickyEditSave };
 /* [esm] 导入依赖模块绑定 */
 import { $, bus, els, state } from './01-core.js';
 import { cm, docIcon } from './04-editor-init.js';
@@ -7,30 +7,405 @@ import { persist } from './05-store.js';
 import { openDoc } from './07-doc-open.js';
 import { folderState } from './14-filetree-image.js';
 import { openSingleModal } from './15-insert.js';
-import { toast } from './16-doc-ops.js';
-  /* ---------------- 渲染：侧栏 ---------------- */
+import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, findDoc, saveDocTags, collectAllTags, createCollection, addDocsToCollection, removeDocFromCollection, findCollection, newSticky, saveSticky } from './16-doc-ops.js';
+  /* ---------------- 渲染：侧栏（飞书风格：按时间分组 + 置顶优先） ---------------- */
   function renderList() {
     els.docList.innerHTML = '';
-    var sorted = state.docs.slice().sort(function (a, b) { return b.updated - a.updated; });
-    sorted.forEach(function (d) {
-      var item = document.createElement('div');
-      item.className = 'doc-item' + (d.id === state.activeId ? ' active' : '');
-      item.dataset.docId = d.id;
-      item.dataset.docPath = d.diskPath || '';
-      item.innerHTML =
-        '<span class="doc-emoji">' + docIcon(d) + '</span>' +
-        '<span class="doc-name"></span>' +
-        '<span class="doc-time">' + shortTime(d.updated) + '</span>';
-      item.querySelector('.doc-name').textContent = d.title || '无标题';
-      item.addEventListener('click', function () { openDoc(d.id); });
-      els.docList.appendChild(item);
+
+    // 先渲染侧栏标签区 / 便签集区（数据联动）
+    renderSideSub();
+
+    // 按当前过滤模式筛选文档
+    var filter = state.docFilter || 'recent';
+    var filtered = state.docs.filter(function (d) {
+      if (filter === 'trash') return d.deleted;
+      if (d.deleted) return false;
+      // 便利贴视图：只显示便利贴
+      if (filter === 'sticky') return d.kind === 'sticky';
+      // 其余视图：排除便利贴
+      if (d.kind === 'sticky') return false;
+      // 标签过滤（优先于集合与基础视图）
+      if (state.tagFilter) {
+        return (d.tags || []).indexOf(state.tagFilter) >= 0;
+      }
+      // 集合过滤
+      if (state.colFilter) {
+        var col = findCollection(state.colFilter);
+        return col && col.docIds.indexOf(d.id) >= 0;
+      }
+      if (filter === 'recent') return true;
+      if (filter === 'my-space') return true;
+      if (filter === 'wiki') return d.lang === 'markdown' || d.kind === 'doc' || (!d.lang && !d.kind);
+      if (filter === 'favorites') return d.favorite;
+      return true;
     });
-    // v0.20.36：导航抽屉「最近文档」计数 = 文档总数
-    var rc = document.getElementById('navRecentCount');
-    if (rc) rc.textContent = String(state.docs.length);
+
+    // 回收站模式：单独渲染
+    if (filter === 'trash') {
+      renderTrashList(filtered);
+      return;
+    }
+
+    // 便利贴模式：单独渲染（卡片式），隐藏批量入口
+    if (filter === 'sticky') {
+      if (els.batchToggle) els.batchToggle.style.display = 'none';
+      renderStickyList(filtered);
+      return;
+    }
+    if (els.batchToggle) els.batchToggle.style.display = '';
+
+    // 排序：置顶优先(pinned=true 在最前) + updated 倒序
+    var sorted = filtered.slice().sort(function (a, b) {
+      var ap = a.pinned ? 1 : 0, bp = b.pinned ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      return (b.updated || 0) - (a.updated || 0);
+    });
+
+    if (sorted.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'doc-item empty-hint';
+      empty.style.color = '#86909C';
+      empty.style.fontSize = '12px';
+      empty.style.padding = '8px 12px';
+      var hints = {
+        'recent': '暂无文档，点击下方 + 新建',
+        'my-space': '暂无文档',
+        'wiki': '暂无知识库文档（Markdown 文档会显示在此）',
+        'favorites': '暂无收藏文档，右键文档可收藏'
+      };
+      if (state.tagFilter) { empty.textContent = '暂无「#' + state.tagFilter + '」标签的文档'; }
+      else if (state.colFilter) { var c0 = findCollection(state.colFilter); empty.textContent = c0 ? '「' + c0.name + '」集合中暂无文档' : '暂无文档'; }
+      else { empty.textContent = hints[filter] || '暂无文档'; }
+      els.docList.appendChild(empty);
+      return;
+    }
+
+    // 先渲染「置顶」分组（若有）
+    var pinnedDocs = sorted.filter(function (d) { return d.pinned; });
+    if (pinnedDocs.length > 0) {
+      var pinnedLabel = document.createElement('div');
+      pinnedLabel.className = 'doc-group-label';
+      pinnedLabel.textContent = '置顶';
+      els.docList.appendChild(pinnedLabel);
+      pinnedDocs.forEach(function (d) {
+        els.docList.appendChild(createDocItem(d));
+      });
+    }
+
+    // 飞书风格：按时间分组（今天 / 昨天 / 本周 / 更早）—— 仅对未置顶文档
+    var groups = { '今天': [], '昨天': [], '本周': [], '更早': [] };
+    var now = new Date();
+    var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    var yesterdayStart = todayStart - 86400000;
+    var weekStart = todayStart - (now.getDay() * 86400000);
+
+    sorted.forEach(function (d) {
+      if (d.pinned) return;  // 已放入置顶分组，跳过
+      var ts = d.updated || 0;
+      if (ts >= todayStart) {
+        groups['今天'].push(d);
+      } else if (ts >= yesterdayStart) {
+        groups['昨天'].push(d);
+      } else if (ts >= weekStart) {
+        groups['本周'].push(d);
+      } else {
+        groups['更早'].push(d);
+      }
+    });
+
+    // 渲染分组
+    var groupOrder = ['今天', '昨天', '本周', '更早'];
+    groupOrder.forEach(function (label) {
+      var docs = groups[label];
+      if (docs.length === 0) return;
+
+      var labelEl = document.createElement('div');
+      labelEl.className = 'doc-group-label';
+      labelEl.textContent = label;
+      els.docList.appendChild(labelEl);
+
+      docs.forEach(function (d) {
+        els.docList.appendChild(createDocItem(d));
+      });
+    });
+
+    // 刷新批量计数
+    refreshBatchCount();
   }
 
-  /* ---------------- 删除文档 ---------------- */
+  function createDocItem(d) {
+    var item = document.createElement('div');
+    item.className = 'doc-item' + (d.id === state.activeId ? ' active' : '') + (state.batchMode ? ' batch-mode' : '');
+    item.dataset.docId = d.id;
+    item.dataset.docPath = d.diskPath || '';
+
+    // 批量模式：左侧显示复选框
+    var batchChk = state.batchMode
+      ? ('<label class="doc-batch-check" title="选择"><input type="checkbox" ' + (state.batchSelected[d.id] ? 'checked' : '') + '></label>')
+      : '';
+
+    // 收藏、置顶状态标记（小图标叠加）
+    var badgeFavorite = d.favorite ? '<span class="doc-badge doc-fav" title="已收藏">★</span>' : '';
+    var badgePinned = d.pinned ? '<span class="doc-badge doc-pin" title="已置顶">📌</span>' : '';
+
+    // 三点菜单按钮（非批量模式下显示，批量模式下隐藏）
+    var threeDotBtn = state.batchMode ? '' : '<button class="doc-more-btn" title="更多操作"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></svg></button>';
+
+    item.innerHTML =
+      batchChk +
+      '<span class="doc-emoji">' + docIcon(d) + '</span>' +
+      '<span class="doc-mid">' +
+        '<span class="doc-name-wrap">' +
+          badgePinned + badgeFavorite +
+          '<span class="doc-name"></span>' +
+        '</span>' +
+        '<span class="doc-time">' + shortTime(d.updated) + '</span>' +
+        (d.tags && d.tags.length ? '<span class="doc-tags">' + d.tags.map(function (t) { return '<span class="doc-tag" data-tag="' + encodeURIComponent(t) + '">#' + escapeHtml(t) + '</span>'; }).join('') + '</span>' : '') +
+      '</span>' +
+      threeDotBtn;
+
+    item.querySelector('.doc-name').textContent = d.title || '无标题';
+
+    // 1.5) 标签胶囊点击：进入该标签过滤视图（不打开文档）
+    var tagEls = item.querySelectorAll('.doc-tag');
+    Array.prototype.forEach.call(tagEls, function (te) {
+      te.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var t = te.getAttribute('data-tag');
+        t = t ? decodeURIComponent(t) : t;
+        state.tagFilter = t;
+        state.colFilter = null;
+        state.docFilter = 'recent';
+        markNavClean();
+        renderList();
+      });
+    });
+
+    // 1) 整体行点击：打开文档（批量模式下不再是打开，而是切换选中）
+    item.addEventListener('click', function (e) {
+      // 若点在三点按钮/复选框或操作菜单里，不走默认打开
+      if (e.target.closest('.doc-more-btn') || e.target.closest('.doc-menu') || e.target.closest('.doc-batch-check')) {
+        return;
+      }
+      if (state.batchMode) {
+        var cb = item.querySelector('.doc-batch-check input');
+        if (cb) { cb.checked = !cb.checked; state.batchSelected[d.id] = cb.checked ? true : false; refreshBatchCount(); }
+      } else {
+        openDoc(d.id);
+      }
+    });
+
+    // 2) 批量模式：复选框事件（阻止冒泡避免触发 item 点击导致重复切换）
+    if (state.batchMode) {
+      var cb2 = item.querySelector('.doc-batch-check input');
+      if (cb2) {
+        cb2.addEventListener('click', function (e) {
+          e.stopPropagation();
+          state.batchSelected[d.id] = cb2.checked ? true : false;
+          refreshBatchCount();
+        });
+      }
+    }
+
+    // 3) 三点按钮点击：打开行内操作菜单
+    var moreBtn = item.querySelector('.doc-more-btn');
+    if (moreBtn) {
+      moreBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        closeDocMenu();  // 先关闭其他
+        openDocMenu(item, d);
+      });
+    }
+    return item;
+  }
+
+  /* ---------------- 三点操作菜单 ---------------- */
+  var _openMenu = null; // 当前打开的菜单节点，便于关闭
+
+  function closeDocMenu() {
+    if (_openMenu) { try { _openMenu.parentNode.removeChild(_openMenu); } catch (e) {} _openMenu = null; }
+  }
+
+  // 全局点击关闭已打开的菜单（排除点击按钮本身或菜单内）
+  document.addEventListener('click', function (e) {
+    if (!_openMenu) return;
+    if (e.target.closest('.doc-menu') || e.target.closest('.doc-more-btn')) return;
+    closeDocMenu();
+  });
+
+  function openDocMenu(itemEl, d) {
+    var menu = document.createElement('div');
+    menu.className = 'doc-menu';
+    menu.innerHTML =
+      '<div class="doc-menu-item" data-cmd="duplicate"><svg viewBox="0 0 24 24"><path d="M8 4h8a2 2 0 0 1 2 2v8M16 8H8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>创建副本</span></div>' +
+      '<div class="doc-menu-item" data-cmd="rename"><svg viewBox="0 0 24 24"><path d="M4 20h4L20 8l-4-4L4 16v4z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>重命名</span></div>' +
+      '<div class="doc-menu-divider"></div>' +
+      '<div class="doc-menu-item" data-cmd="' + (d.favorite ? 'unfavorite' : 'favorite') + '"><svg viewBox="0 0 24 24"><path d="M12 17.3l-6.18 3.7 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63 7.19.61-5.46 4.73 1.64 7.03z" stroke="currentColor" stroke-width="1.6" fill="' + (d.favorite ? 'currentColor' : 'none') + '" stroke-linecap="round" stroke-linejoin="round"/></svg><span>' + (d.favorite ? '取消收藏' : '收藏') + '</span></div>' +
+      '<div class="doc-menu-item" data-cmd="' + (d.pinned ? 'unpin' : 'pin') + '"><svg viewBox="0 0 24 24"><path d="M6 4h12M12 4v6m-5 0h10l-2 6h-6l-2-6zM12 16v5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>' + (d.pinned ? '取消置顶' : '添加到置顶') + '</span></div>' +
+      '<div class="doc-menu-divider"></div>' +
+      '<div class="doc-menu-item" data-cmd="tag"><svg viewBox="0 0 24 24"><path d="M20 12l-8 8-8-8V4h8l8 8z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><circle cx="7" cy="7" r="1.5" fill="currentColor"/></svg><span>编辑标签</span></div>' +
+      '<div class="doc-menu-item" data-cmd="collection"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/></svg><span>加入便签集</span></div>' +
+      '<div class="doc-menu-divider"></div>' +
+      '<div class="doc-menu-item" data-cmd="export"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>导出</span></div>' +
+      '<div class="doc-menu-item doc-menu-danger" data-cmd="delete"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>删除</span></div>';
+
+    // 计算菜单位置：放在 itemEl 的右下/右上角，不越出侧栏
+    // 使用 fixed 绝对定位到 body
+    document.body.appendChild(menu);
+    var rect = itemEl.getBoundingClientRect();
+    var sb = els.sidebar.getBoundingClientRect();
+    var mw = 180, mh = menu.offsetHeight;
+    var top = rect.top;
+    var left = rect.right - mw - 2;
+    if (left < sb.left + 4) left = sb.left + 4;
+    if (top + mh > window.innerHeight) top = Math.max(sb.top, rect.bottom - mh);
+    menu.style.top = top + 'px';
+    menu.style.left = left + 'px';
+    _openMenu = menu;
+
+    // 菜单项点击
+    menu.querySelectorAll('.doc-menu-item').forEach(function (mi) {
+      mi.addEventListener('click', function () {
+        var cmd = mi.getAttribute('data-cmd');
+        closeDocMenu();
+        handleDocCmd(cmd, d);
+      });
+    });
+  }
+
+  // 处理单文档操作命令
+  function handleDocCmd(cmd, d) {
+    switch (cmd) {
+      case 'duplicate':
+        var cp = duplicateDoc(d.id);
+        bus.emit('docs:changed');
+        toast('已创建副本：' + (cp ? (cp.title || '无标题') : ''), 'success');
+        break;
+      case 'rename':
+        renameDocId = d.id;
+        if (els.docRenameInput) els.docRenameInput.value = d.title || '';
+        openSingleModal('doc-rename-modal');
+        setTimeout(function () { if (els.docRenameInput) els.docRenameInput.focus(); }, 100);
+        break;
+      case 'favorite':
+        toggleFavorite(d.id); bus.emit('docs:changed'); toast('已收藏', 'success');
+        break;
+      case 'unfavorite':
+        toggleFavorite(d.id); bus.emit('docs:changed'); toast('已取消收藏', 'success');
+        break;
+      case 'pin':
+        togglePin(d.id); bus.emit('docs:changed'); toast('已置顶', 'success');
+        break;
+      case 'unpin':
+        togglePin(d.id); bus.emit('docs:changed'); toast('已取消置顶', 'success');
+        break;
+      case 'export':
+        exportDocById(d.id);
+        break;
+      case 'tag':
+        openTagEditModal(d.id);
+        break;
+      case 'collection':
+        openCollectionPickModal([d.id]);
+        break;
+      case 'delete':
+        openDocDelConfirm(d.id);
+        break;
+    }
+  }
+
+  var renameDocId = null;  // 当前在重命名的 docId，由模态框确认时读取
+
+  /* ---------------- 回收站渲染 ---------------- */
+  function renderTrashList(trashedDocs) {
+    var sorted = trashedDocs.slice().sort(function (a, b) {
+      return (b.deletedAt || 0) - (a.deletedAt || 0);
+    });
+    if (sorted.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'doc-item empty-hint';
+      empty.style.color = '#86909C';
+      empty.style.fontSize = '12px';
+      empty.style.padding = '8px 12px';
+      empty.textContent = '回收站为空';
+      els.docList.appendChild(empty);
+      return;
+    }
+    sorted.forEach(function (d) {
+      var item = document.createElement('div');
+      item.className = 'doc-item trash-item';
+      item.dataset.docId = d.id;
+      var icon = docIcon(d);
+      var title = d.title || '无标题';
+      var delTime = d.deletedAt ? fullTime(d.deletedAt) : '';
+      item.innerHTML =
+        '<span class="doc-icon">' + icon + '</span>' +
+        '<div class="doc-info">' +
+          '<div class="doc-title-row">' +
+            '<span class="doc-title">' + escapeHtml(title) + '</span>' +
+          '</div>' +
+          '<div class="doc-meta-row">' +
+            '<span class="doc-time">删除于 ' + delTime + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="trash-actions">' +
+          '<button class="trash-btn restore" title="恢复">恢复</button>' +
+          '<button class="trash-btn destroy" title="彻底删除">删除</button>' +
+        '</div>';
+      // 恢复
+      item.querySelector('.restore').addEventListener('click', function (e) {
+        e.stopPropagation();
+        restoreDoc(d.id);
+      });
+      // 彻底删除
+      item.querySelector('.destroy').addEventListener('click', function (e) {
+        e.stopPropagation();
+        destroyDoc(d.id);
+      });
+      els.docList.appendChild(item);
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // 恢复文档
+  function restoreDoc(id) {
+    var d = state.docs.find(function (x) { return x.id === id; });
+    if (!d) return;
+    d.deleted = false;
+    d.deletedAt = null;
+    d.updated = Date.now();
+    persist();
+    renderList();
+    toast('已恢复：' + (d.title || '无标题'), 'success');
+  }
+
+  // 彻底删除
+  function destroyDoc(id) {
+    var idx = -1;
+    for (var i = 0; i < state.docs.length; i++) { if (state.docs[i].id === id) { idx = i; break; } }
+    if (idx < 0) return;
+    var removed = state.docs[idx];
+    if (removed.diskPath && folderState.openFiles) {
+      for (var p in folderState.openFiles) {
+        if (folderState.openFiles[p] === id) delete folderState.openFiles[p];
+      }
+    }
+    state.docs.splice(idx, 1);
+    if (removed.id) { try { localStorage.removeItem('inkpad.content.' + removed.id); } catch (e) {} }
+    // 从所有便签集中移除该文档引用
+    state.collections.forEach(function (col) {
+      var i2 = col.docIds.indexOf(removed.id);
+      if (i2 >= 0) col.docIds.splice(i2, 1);
+    });
+    persist();
+    renderList();
+    toast('已彻底删除：' + (removed.title || '无标题'));
+  }
+
+  /* ---------------- 删除文档（软删除到回收站） ---------------- */
   var pendingDelId = null;
   function openDocDelConfirm(id) {
     var d = null;
@@ -41,9 +416,7 @@ import { toast } from './16-doc-ops.js';
     if (d.diskPath) name += '（磁盘文件）';
     $('doc-del-name').textContent = name;
     var foot = $('doc-del-foot');
-    if (foot) foot.textContent = d.diskPath
-      ? '仅从列表移除记录，不会删除磁盘上的源文件。'
-      : '本地未保存的文档也会一并从列表移除（无法恢复）。';
+    if (foot) foot.textContent = '文档将移入回收站，可在左侧「回收站」中恢复或彻底删除。';
     openSingleModal('doc-del-modal');
   }
   function closeDocDelConfirm() {
@@ -54,34 +427,127 @@ import { toast } from './16-doc-ops.js';
     var idx = -1;
     for (var i = 0; i < state.docs.length; i++) { if (state.docs[i].id === id) { idx = i; break; } }
     if (idx < 0) return;
-    var removed = state.docs[idx];
-    // 同步清理文件树中已打开记录
-    if (removed.diskPath && folderState.openFiles) {
+    var d = state.docs[idx];
+    // 同步清理文件树中已打开记录（软删除不再打开）
+    if (d.diskPath && folderState.openFiles) {
       for (var p in folderState.openFiles) {
         if (folderState.openFiles[p] === id) delete folderState.openFiles[p];
       }
     }
-    state.docs.splice(idx, 1);
-    // 清理该文档遗留的正文
-    if (removed.id) { try { localStorage.removeItem('inkpad.content.' + removed.id); } catch (e) {} }
-    // 重新定位 activeId
+    // 软删除：标记 deleted/deletedAt，保留正文以便恢复
+    d.deleted = true;
+    d.deletedAt = Date.now();
+    // 清理批量选中记录
+    if (state.batchSelected && state.batchSelected[id]) delete state.batchSelected[id];
+    // 若删除的是当前文档，切到下一篇未删除文档
     if (state.activeId === id) {
-      state.activeId = state.docs.length ? state.docs[Math.max(0, idx - 1)].id : null;
+      var nextDoc = null;
+      for (var j = 0; j < state.docs.length; j++) {
+        if (state.docs[j].id !== id && !state.docs[j].deleted) { nextDoc = state.docs[j]; break; }
+      }
+      state.activeId = nextDoc ? nextDoc.id : null;
     }
     persist();
     bus.emit('docs:changed');
     if (state.activeId) {
       openDoc(state.activeId);
     } else {
-      // 没有文档了，清空编辑器
+      // 没有可打开文档了，清空编辑器
       els.title.value = '';
       els.statEdit.textContent = '';
       els.statEnc.textContent = '';
       els.statEditSep.style.display = 'none';
       if (cm) { cm.setValue(''); }
-      els.breadcrumb.textContent = '📝 文档';
+      els.breadcrumb.textContent = '📝';
     }
-    toast('已从「我的文档」移除：' + (removed.title || '无标题'));
+    renderList();
+    toast('已移入回收站：' + (d.title || '无标题'));
+  }
+
+  /* ---------------- 批量管理 ---------------- */
+
+  function getBatchSelectedIds() {
+    var ids = [];
+    for (var k in state.batchSelected) {
+      if (state.batchSelected[k]) ids.push(k);
+    }
+    return ids;
+  }
+
+  function toggleBatchMode(on) {
+    state.batchMode = on === false ? false : (on === true ? true : !state.batchMode);
+    if (!state.batchMode) {
+      state.batchSelected = {}; // 退出批量模式清空选中
+    }
+    // UI 同步
+    if (els.batchToggle) els.batchToggle.style.display = state.batchMode ? 'none' : '';
+    if (els.sbBatchBar) els.sbBatchBar.style.display = state.batchMode ? '' : 'none';
+    if (els.batchSelectAll) els.batchSelectAll.checked = false;
+    // 重渲染列表（切换复选框/三点按钮显示）
+    renderList();
+  }
+
+  function refreshBatchCount() {
+    var ids = getBatchSelectedIds();
+    if (els.batchCount) els.batchCount.textContent = '已选 ' + ids.length + ' 项';
+    if (els.batchSelectAll) {
+      var docs = state.docs || [];
+      els.batchSelectAll.checked = (docs.length > 0) && (ids.length === docs.length);
+      els.batchSelectAll.indeterminate = (ids.length > 0) && (ids.length < docs.length);
+    }
+  }
+
+  // 批量删除（软删除到回收站）
+  function batchDelete(ids) {
+    if (!ids || ids.length === 0) { toast('请先选择要删除的文档', 'error'); return 0; }
+    var count = 0;
+    ids.forEach(function (id) {
+      var idx = -1;
+      for (var i = 0; i < state.docs.length; i++) { if (state.docs[i].id === id) { idx = i; break; } }
+      if (idx < 0) return;
+      var d = state.docs[idx];
+      if (d.diskPath && folderState.openFiles) {
+        for (var p in folderState.openFiles) {
+          if (folderState.openFiles[p] === id) delete folderState.openFiles[p];
+        }
+      }
+      // 软删除：标记 deleted/deletedAt，保留正文
+      d.deleted = true;
+      d.deletedAt = Date.now();
+      if (state.batchSelected[id]) delete state.batchSelected[id];
+      count++;
+    });
+    // 若 activeId 被软删除，切到第一篇未删除文档
+    if (state.activeId && !state.docs.some(function (d) { return d.id === state.activeId && !d.deleted; })) {
+      var nextDoc = null;
+      for (var j = 0; j < state.docs.length; j++) {
+        if (!state.docs[j].deleted) { nextDoc = state.docs[j]; break; }
+      }
+      state.activeId = nextDoc ? nextDoc.id : null;
+    }
+    persist();
+    bus.emit('docs:changed');
+    if (state.activeId) { openDoc(state.activeId); }
+    else {
+      els.title.value = '';
+      els.statEdit.textContent = '';
+      els.statEnc.textContent = '';
+      els.statEditSep.style.display = 'none';
+      if (cm) { cm.setValue(''); }
+      els.breadcrumb.textContent = '📝';
+    }
+    return count;
+  }
+
+  // 批量导出（浏览器端采用循环逐个下载；桌面端 pywebview 下无法批量另存为，仍走逐个 Blob 下载）
+  function batchExport(ids) {
+    if (!ids || ids.length === 0) { toast('请先选择要导出的文档', 'error'); return 0; }
+    var count = 0;
+    ids.forEach(function (id) {
+      try { exportDocById(id); count++; } catch (e) { console.warn(e); }
+    });
+    if (count > 0) toast('批量导出完成：共 ' + count + ' 项', 'success');
+    return count;
   }
 
   function shortTime(ts) {
@@ -98,4 +564,359 @@ import { toast } from './16-doc-ops.js';
     function pad(n) { return (n < 10 ? '0' : '') + n; }
     return dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate()) +
       ' ' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+  }
+
+  /* ================= 便签模块：侧栏标签区 / 便签集区渲染 ================= */
+
+  // 清除主导航与 tab 的高亮（进入标签/集合过滤时）
+  function markNavClean() {
+    ['nav-recent', 'nav-my-space', 'nav-wiki', 'nav-favorites', 'nav-trash', 'nav-sticky', 'tab-docs', 'tab-files'].forEach(function (n) {
+      var el = document.getElementById(n);
+      if (el) el.classList.remove('active');
+    });
+  }
+
+  // 渲染侧栏标签区 + 便签集区
+  function renderSideSub() {
+    if (!els.tagList || !els.colList) return;
+
+    // ---- 标签区 ----
+    var tagMap = collectAllTags();
+    var tagNames = Object.keys(tagMap);
+    els.tagList.innerHTML = '';
+    if (tagNames.length) {
+      tagNames.sort(function (a, b) { return tagMap[b] - tagMap[a] || a.localeCompare(b); });
+      tagNames.forEach(function (t) {
+        var it = document.createElement('div');
+        it.className = 'sb-tag-item' + (state.tagFilter === t ? ' active' : '');
+        it.innerHTML = '<span class="sb-tag-name">#' + escapeHtml(t) + '</span><span class="sb-tag-num">' + tagMap[t] + '</span>';
+        it.addEventListener('click', function () {
+          state.tagFilter = (state.tagFilter === t) ? null : t;
+          state.colFilter = null;
+          state.docFilter = 'recent';
+          markNavClean();
+          renderList();
+        });
+        els.tagList.appendChild(it);
+      });
+    }
+    if (els.tagCount) els.tagCount.textContent = tagNames.length ? String(tagNames.length) : '';
+
+    // ---- 便签集区 ----
+    els.colList.innerHTML = '';
+    if (state.collections.length) {
+      state.collections.forEach(function (col) {
+        var it = document.createElement('div');
+        it.className = 'sb-col-item' + (state.colFilter === col.id ? ' active' : '');
+        it.innerHTML = '<span class="sb-col-name">' + escapeHtml(col.name) + '</span><span class="sb-col-num">' + col.docIds.length + '</span>';
+        it.addEventListener('click', function () {
+          state.colFilter = (state.colFilter === col.id) ? null : col.id;
+          state.tagFilter = null;
+          state.docFilter = 'recent';
+          markNavClean();
+          renderList();
+        });
+        // 集合右键菜单：重命名 / 删除
+        it.addEventListener('contextmenu', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          openColMenu(it, col);
+        });
+        els.colList.appendChild(it);
+      });
+    } else {
+      var ce = document.createElement('div');
+      ce.className = 'sb-sub-empty';
+      ce.textContent = '暂无便签集';
+      els.colList.appendChild(ce);
+    }
+  }
+
+  // 集合右键菜单（重命名 / 删除）
+  var _colMenu = null;
+  function openColMenu(itemEl, col) {
+    closeColMenu();
+    var menu = document.createElement('div');
+    menu.className = 'doc-menu';
+    menu.innerHTML =
+      '<div class="doc-menu-item" data-cmd="rename"><svg viewBox="0 0 24 24"><path d="M4 20h4L20 8l-4-4L4 16v4z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>重命名</span></div>' +
+      '<div class="doc-menu-divider"></div>' +
+      '<div class="doc-menu-item doc-menu-danger" data-cmd="delete"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>删除集合</span></div>';
+    document.body.appendChild(menu);
+    var rect = itemEl.getBoundingClientRect();
+    menu.style.top = rect.bottom + 'px';
+    menu.style.left = Math.max(8, rect.left) + 'px';
+    _colMenu = menu;
+    menu.querySelectorAll('.doc-menu-item').forEach(function (mi) {
+      mi.addEventListener('click', function () {
+        var cmd = mi.getAttribute('data-cmd');
+        closeColMenu();
+        if (cmd === 'rename') {
+          var name = prompt('重命名便签集「' + col.name + '」', col.name);
+          if (name != null && renameCollection(col.id, name)) {
+            toast('已重命名', 'success');
+            renderSideSub();
+            if (state.colFilter === col.id) renderList();
+          }
+        } else if (cmd === 'delete') {
+          if (confirm('确定删除便签集「' + col.name + '」？仅删除分组，不删除其中的文档。')) {
+            deleteCollection(col.id);
+            toast('已删除便签集', 'success');
+            renderSideSub();
+            renderList();
+          }
+        }
+      });
+    });
+  }
+  function closeColMenu() {
+    if (_colMenu) { try { _colMenu.parentNode.removeChild(_colMenu); } catch (e) {} _colMenu = null; }
+  }
+  document.addEventListener('click', function (e) {
+    if (!_colMenu) return;
+    if (e.target.closest('.doc-menu')) return;
+    closeColMenu();
+  });
+
+  /* ================= 便签模块：便利贴渲染 ================= */
+
+  function renderStickyList(stickies) {
+    var sorted = stickies.slice().sort(function (a, b) {
+      var ap = a.pinned ? 1 : 0, bp = b.pinned ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      return (b.updated || 0) - (a.updated || 0);
+    });
+    if (sorted.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'doc-item empty-hint';
+      empty.style.color = '#86909C';
+      empty.style.fontSize = '12px';
+      empty.style.padding = '8px 12px';
+      empty.textContent = '还没有便利贴，点击下方 + 新建';
+      els.docList.appendChild(empty);
+      return;
+    }
+    sorted.forEach(function (d) {
+      var item = document.createElement('div');
+      item.className = 'sticky-card' + (d.pinned ? ' pinned' : '');
+      item.style.background = d.color || '#FFD43B';
+      item.dataset.docId = d.id;
+      var title = d.title || '无标题';
+      var content = (d.content || '').replace(/\n/g, ' ').slice(0, 60);
+      item.innerHTML =
+        '<div class="sticky-card-head">' +
+          (d.pinned ? '<span class="sticky-pin-badge" title="已置顶">📌</span>' : '') +
+          '<span class="sticky-card-title">' + escapeHtml(title) + '</span>' +
+        '</div>' +
+        (content ? '<div class="sticky-card-content">' + escapeHtml(content) + '</div>' : '') +
+        '<div class="sticky-card-foot">' +
+          '<span class="sticky-card-time">' + shortTime(d.updated) + '</span>' +
+          '<span class="sticky-card-del" title="删除">🗑</span>' +
+        '</div>';
+      // 点击卡片：打开编辑浮层
+      item.addEventListener('click', function (e) {
+        if (e.target.closest('.sticky-card-del')) return;
+        openStickyEditModal(d.id);
+      });
+      // 删除按钮：软删除
+      item.querySelector('.sticky-card-del').addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (confirm('删除便利贴「' + title + '」？')) {
+          deleteDoc(d.id);
+        }
+      });
+      els.docList.appendChild(item);
+    });
+  }
+
+  /* ================= 便签模块：弹窗 ================= */
+
+  // ---- 编辑标签弹窗 ----
+  function openTagEditModal(docId) {
+    var d = findDoc(docId);
+    if (!d) return;
+    state.tagEditDocId = docId;
+    if (els.tagEditDocname) els.tagEditDocname.textContent = '文档：' + (d.title || '无标题');
+    renderTagEditModal();
+    els.tagEditModal.style.display = 'flex';
+    if (els.tagEditInput) setTimeout(function () { els.tagEditInput.focus(); }, 100);
+  }
+  function closeTagEditModal() {
+    state.tagEditDocId = null;
+    els.tagEditModal.style.display = 'none';
+  }
+  // 填充标签编辑弹窗内容
+  function renderTagEditModal() {
+    var d = findDoc(state.tagEditDocId);
+    if (!d) return;
+    var cur = d.tags || [];
+    // 当前标签
+    if (els.tagEditChips) {
+      els.tagEditChips.innerHTML = '';
+      cur.forEach(function (t) {
+        var c = document.createElement('span');
+        c.className = 'tag-chip';
+        c.innerHTML = '#' + escapeHtml(t) + ' <span class="tag-chip-x" data-tag="' + encodeURIComponent(t) + '">×</span>';
+        c.querySelector('.tag-chip-x').addEventListener('click', function (e) {
+          e.stopPropagation();
+          var raw = this.getAttribute('data-tag');
+          var tt = raw ? decodeURIComponent(raw) : raw;
+          var next = cur.filter(function (x) { return x !== tt; });
+          saveDocTags(state.tagEditDocId, next);
+          renderTagEditModal();
+          renderSideSub();
+          renderList();
+        });
+        els.tagEditChips.appendChild(c);
+      });
+      if (els.tagEditEmpty) els.tagEditEmpty.style.display = cur.length ? 'none' : '';
+    }
+    // 全部标签候选
+    var tagMap = collectAllTags();
+    var allNames = Object.keys(tagMap);
+    if (els.tagEditAllchips) {
+      els.tagEditAllchips.innerHTML = '';
+      var added = 0;
+      allNames.forEach(function (t) {
+        if (cur.indexOf(t) >= 0) return;
+        added++;
+        var c = document.createElement('span');
+        c.className = 'tag-chip tag-chip-add';
+        c.textContent = '#' + t;
+        c.addEventListener('click', function () {
+          var next = (findDoc(state.tagEditDocId).tags || []).slice();
+          if (next.indexOf(t) < 0 && next.length < 20) { next.push(t); saveDocTags(state.tagEditDocId, next); }
+          renderTagEditModal();
+          renderSideSub();
+          renderList();
+        });
+        els.tagEditAllchips.appendChild(c);
+      });
+      if (els.tagEditAllempty) els.tagEditAllempty.style.display = added ? 'none' : '';
+    }
+  }
+
+  // 从输入框添加标签
+  function tagAddFromInput() {
+    var t = (els.tagEditInput.value || '').trim();
+    if (!t) return;
+    if (t.length > 20) { toast('标签最长 20 字', 'error'); return; }
+    var d = findDoc(state.tagEditDocId);
+    if (!d) return;
+    var next = (d.tags || []).slice();
+    if (next.indexOf(t) >= 0) { toast('标签已存在', 'error'); els.tagEditInput.value = ''; return; }
+    if (next.length >= 20) { toast('最多 20 个标签', 'error'); return; }
+    next.push(t);
+    saveDocTags(state.tagEditDocId, next);
+    els.tagEditInput.value = '';
+    renderTagEditModal();
+    renderSideSub();
+    renderList();
+  }
+
+  // ---- 加入便签集弹窗（单文档 / 批量） ----
+  function openCollectionPickModal(docIds) {
+    state.colPickDocIds = docIds.slice();
+    renderCollectionPickList();
+    els.collectionPickModal.style.display = 'flex';
+  }
+  function closeCollectionPickModal() {
+    state.colPickDocIds = [];
+    els.collectionPickModal.style.display = 'none';
+  }
+  function renderCollectionPickList() {
+    var list = els.collectionPickList;
+    list.innerHTML = '';
+    var hint = '选择要将文档加入的便签集（可多选）';
+    if (state.colPickDocIds.length > 1) hint = '已选 ' + state.colPickDocIds.length + ' 篇文档，选择要加入的便签集';
+    if (els.collectionPickHint) els.collectionPickHint.textContent = hint;
+    if (!state.collections.length) {
+      els.collectionPickEmpty.style.display = '';
+      return;
+    }
+    els.collectionPickEmpty.style.display = 'none';
+    state.collections.forEach(function (col) {
+      var label = document.createElement('label');
+      label.className = 'collection-pick-row';
+      label.innerHTML = '<input type="checkbox" data-colid="' + col.id + '"> <span>' + escapeHtml(col.name) + '</span><span class="collection-pick-num">' + col.docIds.length + '</span>';
+      list.appendChild(label);
+    });
+  }
+  // 弹窗内新建便签集
+  function pickModalCreateCollection() {
+    var name = (els.collectionPickInput.value || '').trim();
+    if (!name) { toast('请输入便签集名称', 'error'); return; }
+    var col = createCollection(name);
+    if (col) { els.collectionPickInput.value = ''; renderCollectionPickList(); renderSideSub(); toast('已创建便签集「' + col.name + '」', 'success'); }
+  }
+  // 弹窗确认：把选中的集合加入文档
+  function collectionPickConfirm() {
+    var checked = [];
+    Array.prototype.forEach.call(els.collectionPickList.querySelectorAll('input[type=checkbox]:checked'), function (cb) {
+      checked.push(cb.getAttribute('data-colid'));
+    });
+    if (!checked.length) { toast('请至少选择一个便签集', 'error'); return; }
+    checked.forEach(function (cid) {
+      addDocsToCollection(cid, state.colPickDocIds);
+    });
+    toast('已加入 ' + checked.length + ' 个便签集', 'success');
+    closeCollectionPickModal();
+    renderSideSub();
+    renderList();
+  }
+
+  // ---- 新建便签集弹窗 ----
+  function openCollectionNewModal() {
+    els.collectionNewInput.value = '';
+    els.collectionNewModal.style.display = 'flex';
+    setTimeout(function () { els.collectionNewInput.focus(); }, 100);
+  }
+  function closeCollectionNewModal() {
+    els.collectionNewModal.style.display = 'none';
+  }
+  function collectionNewConfirm() {
+    var name = (els.collectionNewInput.value || '').trim();
+    if (!name) { toast('请输入便签集名称', 'error'); return; }
+    var col = createCollection(name);
+    if (col) {
+      closeCollectionNewModal();
+      renderSideSub();
+      renderList();
+      toast('已创建便签集「' + col.name + '」', 'success');
+    }
+  }
+
+  // ---- 便利贴编辑弹窗 ----
+  function openStickyEditModal(id) {
+    var d = findDoc(id);
+    if (!d) return;
+    state.stickyEditId = id;
+    if (els.stickyEditTitle) els.stickyEditTitle.value = d.title || '';
+    if (els.stickyEditContent) els.stickyEditContent.value = d.content || '';
+    if (els.stickyEditPin) els.stickyEditPin.checked = !!d.pinned;
+    state.stickyColor = d.color || '#FFD43B';
+    if (els.stickyColorRow) {
+      Array.prototype.forEach.call(els.stickyColorRow.children, function (el) {
+        el.classList.toggle('active', el.getAttribute('data-color') === state.stickyColor);
+      });
+    }
+    els.stickyEditModal.style.display = 'flex';
+  }
+  function closeStickyEditModal() {
+    state.stickyEditId = null;
+    els.stickyEditModal.style.display = 'none';
+  }
+  function stickyEditSave() {
+    if (!state.stickyEditId) return;
+    var ok = saveSticky(state.stickyEditId, {
+      title: els.stickyEditTitle.value,
+      content: els.stickyEditContent.value,
+      color: state.stickyColor,
+      pinned: els.stickyEditPin.checked
+    });
+    if (ok) {
+      closeStickyEditModal();
+      renderList();
+      toast('便利贴已保存', 'success');
+    }
   }

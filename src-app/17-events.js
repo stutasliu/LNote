@@ -1,10 +1,10 @@
 /* [esm] 导出本模块顶层绑定 */
-export { initEvents, toolMenu, convertMenu, pb, splitDrag, MIN_PANE, sideDrag, SIDE_MIN, SIDE_MAX, syncSideWidth, btnToggleSidebar, ttMenu, ctxMenu, docCtxMenu, docCtxId, ctxDebug, __ctxLast, paintCtxDebug, isPlainEditorTarget, openCtxMenu, openDocCtxMenu, closeCtxMenu, handleCtxCmd, handleDocCtxCmd, initCtxMenu, fontSize, applyFontSize };
+export { initEvents, toolMenu, convertMenu, pb, splitDrag, MIN_PANE, sideDrag, SIDE_MIN, SIDE_MAX, syncSideWidth, ttMenu, ctxMenu, docCtxMenu, docCtxId, ctxDebug, __ctxLast, paintCtxDebug, isPlainEditorTarget, openCtxMenu, openDocCtxMenu, closeCtxMenu, handleCtxCmd, handleDocCtxCmd, initCtxMenu, fontSize, applyFontSize };
 /* [esm] 导入依赖模块绑定 */
 import { $, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, els, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
 import { activeDoc } from './05-store.js';
-import { closeDocDelConfirm, deleteDoc, openDocDelConfirm, pendingDelId } from './06-doc-list.js';
+import { closeDocDelConfirm, deleteDoc, openDocDelConfirm, pendingDelId, openTagEditModal, openCollectionPickModal } from './06-doc-list.js';
 import { openDoc } from './07-doc-open.js';
 import { onVisualChange } from './08-visual.js';
 import { newRichDoc, newVisualDoc, saveDoc, syncFromEditor } from './09-rich-save.js';
@@ -13,7 +13,7 @@ import { clearJSONErrorHighlight, copyToClipboard, execEditorCmd, formatXML, run
 import { CLIP_KEY, openSnippetModal, recordClip, renderClipList } from './12-snippet-clip.js';
 import { getApi, hasApi } from './13-api-path.js';
 import { applyImgZoom, closeImageModal, fitImage, openFolder, switchSideTab } from './14-filetree-image.js';
-import { closeAllToolMenus, closeCalloutModal, closeCodeModal, closeIconModal, closeInsertMenu, closeTableModal, filterIcons, handlePastedImage, insertCallout, insertCode, insertImageFile, insertTable, openInsertMenu, openSingleModal, routeInsert, scheduleFoldDataUris } from './15-insert.js';
+import { closeAllToolMenus, closeCalloutModal, closeCodeModal, closeIconModal, closeInsertMenu, closeTableModal, filterIcons, handlePastedImage, insertCallout, insertCode, insertImageFile, insertTable, openInsertMenu, openSingleModal, routeInsert, scheduleFoldDataUris, showMenuAtMoreBtn } from './15-insert.js';
 import { exportDoc, importFile, newDoc, openCompareWindow, openEncModal, setLang, toast } from './16-doc-ops.js';
 import { openFindModal } from './19-find-replace.js';
   /* ---------------- 事件绑定 ----------------
@@ -59,7 +59,7 @@ import { openFindModal } from './19-find-replace.js';
     e.stopPropagation();
     var willOpen = toolMenu.style.display === 'none';
     if (willOpen) closeAllToolMenus();   // 展开前先关掉文本工具/插入菜单
-    toolMenu.style.display = willOpen ? 'block' : 'none';
+    if (willOpen) showMenuAtMoreBtn(toolMenu); else toolMenu.style.display = 'none';
   });
   document.addEventListener('click', function () {
     closeAllToolMenus();
@@ -77,7 +77,7 @@ import { openFindModal } from './19-find-replace.js';
     e.stopPropagation();
     var willOpen = convertMenu.style.display === 'none';
     if (willOpen) closeAllToolMenus();   // 展开前先关掉其它菜单
-    convertMenu.style.display = willOpen ? 'block' : 'none';
+    if (willOpen) showMenuAtMoreBtn(convertMenu); else convertMenu.style.display = 'none';
   });
   convertMenu.addEventListener('click', function (e) {
     var btn = e.target.closest('.menu-item');
@@ -218,21 +218,7 @@ import { openFindModal } from './19-find-replace.js';
     document.body.style.userSelect = '';
   });
 
-  var btnToggleSidebar = $('btn-toggle-sidebar') || $('btn-toggle-sidebar2');
-  if (btnToggleSidebar) {
-    btnToggleSidebar.addEventListener('click', function () {
-      els.sidebar.classList.add('collapsed');
-      els.sideSplitter.style.display = 'none';
-      els.btnExpandSidebar.style.display = '';
-    });
-  }
-  if (els.btnExpandSidebar) {
-    els.btnExpandSidebar.addEventListener('click', function () {
-      els.sidebar.classList.remove('collapsed');
-      els.sideSplitter.style.display = '';
-      els.btnExpandSidebar.style.display = 'none';
-    });
-  }
+  // 侧栏折叠/展开由 20-craft-init.js 单按钮统一处理
 
   // 🔍 查找替换（Ctrl+F）—— 打开仿 EverEdit 浮层
   $('btn-find').addEventListener('click', function () {
@@ -245,7 +231,7 @@ import { openFindModal } from './19-find-replace.js';
     e.stopPropagation();
     var willOpen = ttMenu.style.display === 'none';
     if (willOpen) closeAllToolMenus();   // 展开前先关掉 JSON 工具/插入菜单
-    ttMenu.style.display = willOpen ? 'block' : 'none';
+    if (willOpen) showMenuAtMoreBtn(ttMenu); else ttMenu.style.display = 'none';
   });
   ttMenu.addEventListener('click', function (e) {
     var mi = e.target.closest('.menu-item');
@@ -331,6 +317,13 @@ import { openFindModal } from './19-find-replace.js';
       case 'selectall': cm.execCommand('selectAll'); break;
       case 'del': document.execCommand('delete'); break;
       case 'cmt': cm.execCommand('toggleComment'); break;
+      // v0.20.45：右键菜单 JSON 工具（复用工具栏 JSON 工具集）
+      case 'json-format': runTool('format'); break;
+      case 'json-compress': runTool('compress'); break;
+      case 'json-escape': runTool('escape'); break;
+      case 'json-unescape': runTool('unescape'); break;
+      case 'json-unicode-zh': runTool('unicode-zh'); break;
+      case 'json-zh-unicode': runTool('zh-unicode'); break;
       default: execEditorCmd(cmd);
     }
   }
@@ -353,6 +346,12 @@ import { openFindModal } from './19-find-replace.js';
         break;
       case 'del':
         openDocDelConfirm(d.id);
+        break;
+      case 'tag':
+        openTagEditModal(d.id);
+        break;
+      case 'collection':
+        openCollectionPickModal([d.id]);
         break;
     }
   }
@@ -383,6 +382,12 @@ import { openFindModal } from './19-find-replace.js';
     function openMenu(e) {
       if (e && ctxMenu.contains(e.target)) return;          // 点的是菜单自身
       if (e && docCtxMenu && docCtxMenu.contains(e.target)) return; // 点的是文档菜单自身
+      // 侧边栏右键拦截：非文档项区域不弹任何菜单
+      var sidebar = document.getElementById('sidebar');
+      if (e && sidebar && sidebar.contains(e.target)) {
+        var docItem = e.target && e.target.closest ? e.target.closest('.doc-item') : null;
+        if (!docItem) return; // 侧边栏非文档项 → 不弹菜单
+      }
       if (e && e.preventDefault) e.preventDefault();
       if (e && e.stopPropagation) e.stopPropagation();
       var x = (e && typeof e.clientX === 'number') ? e.clientX : (window.innerWidth / 2);

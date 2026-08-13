@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { saveDiskDoc, openEncModal, openCompareWindow, setLang, newDoc, exportDoc, importFile, toastTimer, toast };
+export { saveDiskDoc, openEncModal, openCompareWindow, setLang, newDoc, exportDoc, importFile, toastTimer, toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, newSticky, saveSticky, findDoc, saveDocTags, collectAllTags, createCollection, renameCollection, deleteCollection, addDocsToCollection, removeDocFromCollection, findCollection };
 /* [esm] 导入依赖模块绑定 */
 import { $, LANGS, els, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
@@ -55,14 +55,27 @@ import { openSingleModal } from './15-insert.js';
   }
 
   /* ---------------- 文档操作 ---------------- */
-  function setLang(lang) {
+  function setLang(lang, skipAutoFormat) {
     var d = activeDoc();
     if (!d) return;
     d.lang = lang;
+    // v0.20.45：顶部语言切换为 JSON 时，自动序列化/格式化当前内容（仅文本类文档）。
+    // skipAutoFormat=true 用于工具已自行格式化后（如 JSON 格式化 / 压缩），避免二次处理。
+    if (lang === 'json' && !skipAutoFormat && (!d.kind || d.kind === 'text')) {
+      var raw = cm.getValue();
+      if (raw.trim()) {
+        try {
+          cm.setValue(JSON.stringify(JSON.parse(raw.trim()), null, 2));
+          toast('已自动格式化 JSON ✓', 'success');
+        } catch (e) {
+          toast('内容不是合法 JSON，已切换语言（未格式化）', 'error');
+        }
+      }
+    }
     cm.setOption('mode', LANGS[lang] ? LANGS[lang].mime : 'text/plain');
     els.langSelect.value = lang;
     els.statLang.textContent = LANGS[lang] ? LANGS[lang].label : '纯文本';
-    els.breadcrumb.textContent = lang === 'mermaid' ? '📊 图表' : '📝 文档';
+    els.breadcrumb.textContent = lang === 'mermaid' ? '📊' : '📝';
     syncFromEditor();
     updatePreviewBtn();
     updatePreviewVisibility();
@@ -174,4 +187,237 @@ import { openSingleModal } from './15-insert.js';
     els.toast.className = 'show' + (type ? ' ' + type : '');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { els.toast.className = ''; }, 2600);
+  }
+
+  /* ---------------- 单文档操作（按 id） ---------------- */
+
+  // 根据 id 找文档
+  function findDoc(id) {
+    for (var i = 0; i < state.docs.length; i++) {
+      if (state.docs[i].id === id) return state.docs[i];
+    }
+    return null;
+  }
+
+  // 重命名文档
+  function renameDoc(id, newTitle) {
+    var d = findDoc(id);
+    if (!d) return false;
+    d.title = newTitle || '无标题';
+    d.updated = Date.now();
+    persist();
+    return true;
+  }
+
+  // 创建副本
+  function duplicateDoc(id) {
+    var d = findDoc(id);
+    if (!d) return null;
+    var copy = {
+      id: uid(),
+      title: (d.title || '无标题') + '（副本）',
+      lang: d.lang,
+      content: d.content || '',
+      updated: Date.now()
+    };
+    if (d.kind) copy.kind = d.kind;
+    if (d.encoding) copy.encoding = d.encoding;
+    state.docs.push(copy);
+    persist();
+    return copy;
+  }
+
+  // 按 id 导出单文档（支持富文档/文本/可视化）
+  function exportDocById(id) {
+    var d = findDoc(id);
+    if (!d) { toast('文档不存在', 'error'); return; }
+    // 富文档
+    if (d.kind === 'rich') {
+      var md = d.content || '';
+      var rname = (d.title || '未命名').replace(/[\\/:*?"<>|]/g, '_') + '.md';
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+        window.pywebview.api.save_file(rname, md).then(function (saved) {
+          if (saved) toast('已导出到 ' + saved, 'success');
+        }).catch(function () { toast('导出失败', 'error'); });
+      } else {
+        var rblob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+        var ra = document.createElement('a'); ra.href = URL.createObjectURL(rblob); ra.download = rname; ra.click(); URL.revokeObjectURL(ra.href);
+        toast('已导出 ' + rname, 'success');
+      }
+      return;
+    }
+    var isVisualDoc = d.kind && d.kind !== 'text';
+    var ext = isVisualDoc ? '.json' : (LANGS[d.lang] ? LANGS[d.lang].ext : '.txt');
+    var name = (d.title || '未命名').replace(/[\\/:*?"<>|]/g, '_') + ext;
+    var content = d.content || '';
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+      window.pywebview.api.save_file(name, content).then(function (saved) {
+        if (saved) toast('已导出到 ' + saved, 'success');
+      }).catch(function () { toast('导出失败', 'error'); });
+    } else {
+      var blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast('已导出 ' + name, 'success');
+    }
+  }
+
+  // 切换收藏
+  function toggleFavorite(id) {
+    var d = findDoc(id);
+    if (!d) return false;
+    d.favorite = !d.favorite;
+    d.updated = Date.now();
+    persist();
+    return d.favorite;
+  }
+
+  // 切换置顶
+  function togglePin(id) {
+    var d = findDoc(id);
+    if (!d) return false;
+    d.pinned = !d.pinned;
+    d.updated = Date.now();
+    persist();
+    return d.pinned;
+  }
+
+  /* ================= 便签模块：便利贴 / 标签 / 便签集 ================= */
+
+  // 新建便利贴
+  function newSticky() {
+    var d = {
+      id: uid(),
+      title: '',
+      kind: 'sticky',
+      content: '',
+      color: '#FFD43B',
+      updated: Date.now()
+    };
+    state.docs.push(d);
+    persist();
+    state.stickyEditId = d.id;
+    state.stickyColor = d.color || '#FFD43B';
+    // 切到便利贴视图并打开编辑浮层（不设置 activeId，避免主编辑器被便利贴接管）
+    state.docFilter = 'sticky';
+    state.tagFilter = null;
+    state.colFilter = null;
+    openStickyEditor(d);
+    return d;
+  }
+
+  // 保存便利贴（失焦 / 保存按钮调用）
+  function saveSticky(id, opts) {
+    var d = findDoc(id);
+    if (!d || d.kind !== 'sticky') return false;
+    if (opts.title !== undefined) d.title = opts.title;
+    if (opts.content !== undefined) d.content = opts.content;
+    if (opts.color !== undefined) d.color = opts.color;
+    if (opts.pinned !== undefined) d.pinned = !!opts.pinned;
+    d.updated = Date.now();
+    persist();
+    return true;
+  }
+
+  // 打开便利贴编辑浮层
+  function openStickyEditor(d) {
+    if (!els.stickyEditModal) return;
+    els.stickyEditTitle.value = d.title || '';
+    els.stickyEditContent.value = d.content || '';
+    els.stickyEditPin.checked = !!d.pinned;
+    state.stickyColor = d.color || '#FFD43B';
+    // 高亮当前颜色
+    Array.prototype.forEach.call(els.stickyColorRow.children, function (el) {
+      el.classList.toggle('active', el.getAttribute('data-color') === state.stickyColor);
+    });
+    els.stickyEditModal.style.display = 'flex';
+  }
+
+  // 保存文档标签
+  function saveDocTags(id, tags) {
+    var d = findDoc(id);
+    if (!d) return false;
+    d.tags = tags.slice();
+    d.updated = Date.now();
+    persist();
+    return true;
+  }
+
+  // 汇总全部标签（去重 + 计数）
+  function collectAllTags() {
+    var map = {};
+    state.docs.forEach(function (d) {
+      if (d.deleted || d.kind === 'sticky') return;
+      (d.tags || []).forEach(function (t) {
+        map[t] = (map[t] || 0) + 1;
+      });
+    });
+    return map;
+  }
+
+  // 便签集操作
+  function findCollection(id) {
+    for (var i = 0; i < state.collections.length; i++) {
+      if (state.collections[i].id === id) return state.collections[i];
+    }
+    return null;
+  }
+
+  function createCollection(name) {
+    name = (name || '').trim();
+    if (!name) { toast('便签集名称不能为空', 'error'); return null; }
+    if (name.length > 20) { toast('名称最长 20 字', 'error'); return null; }
+    var col = { id: uid(), name: name, docIds: [] };
+    state.collections.push(col);
+    persist();
+    return col;
+  }
+
+  function renameCollection(id, name) {
+    var col = findCollection(id);
+    name = (name || '').trim();
+    if (!col) return false;
+    if (!name) { toast('名称不能为空', 'error'); return false; }
+    col.name = name;
+    persist();
+    return true;
+  }
+
+  function deleteCollection(id) {
+    for (var i = 0; i < state.collections.length; i++) {
+      if (state.collections[i].id === id) {
+        state.collections.splice(i, 1);
+        // 若正在浏览该集合，退出集合过滤
+        if (state.colFilter === id) { state.colFilter = null; }
+        persist();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // 将一批文档加入集合
+  function addDocsToCollection(colId, docIds) {
+    var col = findCollection(colId);
+    if (!col || !docIds || !docIds.length) return false;
+    var added = 0;
+    docIds.forEach(function (id) {
+      if (col.docIds.indexOf(id) < 0) { col.docIds.push(id); added++; }
+    });
+    if (added) persist();
+    return added > 0;
+  }
+
+  // 从集合移除文档
+  function removeDocFromCollection(colId, docId) {
+    var col = findCollection(colId);
+    if (!col) return false;
+    var idx = col.docIds.indexOf(docId);
+    if (idx < 0) return false;
+    col.docIds.splice(idx, 1);
+    persist();
+    return true;
   }

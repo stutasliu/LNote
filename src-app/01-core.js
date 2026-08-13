@@ -74,12 +74,47 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, $, els,
     toast: $('toast'), fileInput: $('file-input'),
     btnTogglePreview: $('btn-toggle-preview'),
     btnInsertImage: $('btn-insert-image'),
-    btnExpandSidebar: $('btn-expand-sidebar'),
+    btnExpandSidebar: $('btn-toggle-sidebar2'),
     btnSave: $('btn-save'),
     btnSaveAs: $('btn-save-as'),
     imageModal: $('image-modal'), imageView: $('image-view'), imageStage: $('image-stage'),
     imageName: $('image-name'), imgZoomReset: $('img-zoom-reset'),
-    imgClose: $('img-close'), imgZoomIn: $('img-zoom-in'), imgZoomOut: $('img-zoom-out'), imgFit: $('img-fit')
+    imgClose: $('img-close'), imgZoomIn: $('img-zoom-in'), imgZoomOut: $('img-zoom-out'), imgFit: $('img-fit'),
+    // 批量管理工具栏
+    batchToggle: $('btn-batch-toggle'),
+    sbBatchBar: $('sbBatchBar'),
+    batchSelectAll: $('sbBatchSelectAll'),
+    batchCount: $('sbBatchCount'),
+    batchExport: $('btn-batch-export'),
+    batchDel: $('btn-batch-del'),
+    batchExit: $('btn-batch-exit'),
+    // 重命名弹窗
+    docRenameModal: $('doc-rename-modal'),
+    docRenameInput: $('doc-rename-input'),
+    docRenameConfirm: $('doc-rename-confirm'),
+    docRenameCancel: $('doc-rename-cancel'),
+    docRenameClose: $('doc-rename-close'),
+    // 批量删除弹窗
+    docBatchDelModal: $('doc-batch-del-modal'),
+    docBatchDelName: $('doc-batch-del-name'),
+    docBatchDelConfirm: $('doc-batch-del-confirm'),
+    docBatchDelCancel: $('doc-batch-del-cancel'),
+    docBatchDelClose: $('doc-batch-del-close'),
+    // 便签模块：标签区 / 便签集区
+    tagSection: $('sb-tag-section'), tagHead: $('sb-tag-head'), tagList: $('sb-tag-list'), tagCount: $('sb-tag-count'),
+    colSection: $('sb-col-section'), colHead: $('sb-col-head'), colList: $('sb-col-list'), btnNewCol: $('btn-new-col'),
+    btnBatchCol: $('btn-batch-col'),
+    // 便签模块：模态框
+    tagEditModal: $('tag-edit-modal'), tagEditDocname: $('tag-edit-docname'),
+    tagEditChips: $('tag-edit-chips'), tagEditEmpty: $('tag-edit-empty'),
+    tagEditAllchips: $('tag-edit-allchips'), tagEditAllempty: $('tag-edit-allempty'),
+    tagEditInput: $('tag-edit-input'),
+    collectionPickModal: $('collection-pick-modal'), collectionPickList: $('collection-pick-list'),
+    collectionPickEmpty: $('collection-pick-empty'), collectionPickInput: $('collection-pick-input'),
+    collectionNewModal: $('collection-new-modal'), collectionNewInput: $('collection-new-input'),
+    stickyEditModal: $('sticky-edit-modal'), stickyEditTitle: $('sticky-edit-title'),
+    stickyEditContent: $('sticky-edit-content'), stickyEditPin: $('sticky-edit-pin'),
+    stickyColorRow: $('sticky-color-row')
   };
 
   /* ---------------- 事件总线（pub/sub，UI 更新解耦） ----------------
@@ -113,5 +148,17 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, $, els,
     // UI 瞬态（跨模块赋值的可变变量，见上）
     renderTimer: null,  // 预览渲染 debounce
     saveTimer: null,    // 富文档保存 debounce
-    mermaidSeq: 0       // mermaid 渲染序号（防过期渲染）
+    mermaidSeq: 0,      // mermaid 渲染序号（防过期渲染）
+    // 批量管理
+    batchMode: false,   // 是否进入批量选择模式
+    batchSelected: {},   // { docId: true } 已选中的文档 id 集合
+    docFilter: 'recent',  // 当前侧栏过滤模式：recent / my-space / wiki / favorites / trash / sticky
+    // 便签模块：标签 / 便签集 / 便利贴
+    tagFilter: null,      // 当前标签过滤（null 表示未过滤）
+    colFilter: null,      // 当前便签集过滤（集合 id，null 表示未过滤）
+    collections: [],      // 便签集数组 [{ id, name, docIds: [] }]
+    tagEditDocId: null,   // 正在编辑标签的文档 id
+    stickyEditId: null,   // 正在编辑的便利贴 id
+    stickyColor: '#FFD43B', // 便利贴当前选中颜色
+    colPickDocIds: []     // 「加入便签集」弹窗当前作用的文档 id 集合
   };
