@@ -114,7 +114,14 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, $, els,
     collectionNewModal: $('collection-new-modal'), collectionNewInput: $('collection-new-input'),
     stickyEditModal: $('sticky-edit-modal'), stickyEditTitle: $('sticky-edit-title'),
     stickyEditContent: $('sticky-edit-content'), stickyEditPin: $('sticky-edit-pin'),
-    stickyColorRow: $('sticky-color-row')
+    stickyColorRow: $('sticky-color-row'),
+    // 定时提醒 / 到期时间
+    stickyEditRemEnabled: $('sticky-edit-rem-enabled'), stickyRemRow: $('sticky-rem-row'),
+    stickyEditRemType: $('sticky-edit-rem-type'), stickyEditRemTime: $('sticky-edit-rem-time'),
+    stickyEditRemDate: $('sticky-edit-rem-date'), stickyEditRemDay: $('sticky-edit-rem-day'),
+    stickyRemOnce: $('sticky-rem-once'), stickyRemWeekly: $('sticky-rem-weekly'), stickyRemMonthly: $('sticky-rem-monthly'),
+    stickyEditDue: $('sticky-edit-due'),
+    stickyReminderModal: $('sticky-reminder-modal'), stickyReminderTitle: $('sticky-reminder-title'), stickyReminderContent: $('sticky-reminder-content')
   };
 
   /* ---------------- 事件总线（pub/sub，UI 更新解耦） ----------------
@@ -160,5 +167,10 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, $, els,
     tagEditDocId: null,   // 正在编辑标签的文档 id
     stickyEditId: null,   // 正在编辑的便利贴 id
     stickyColor: '#FFD43B', // 便利贴当前选中颜色
-    colPickDocIds: []     // 「加入便签集」弹窗当前作用的文档 id 集合
+    colPickDocIds: [],     // 「加入便签集」弹窗当前作用的文档 id 集合
+    // 定时标签：标签过期时间 / 提醒状态
+    tagMeta: {},          // { [tag]: { expiresAt: ts } } 标签过期时间
+    remindedKeys: {},     // { [key]: true } 已提醒过的提醒 key（避免同一分钟重复）
+    reminderTimer: null,  // 提醒轮询定时器
+    reminderSeq: 0        // 提醒弹窗序号（防止过期渲染）
   };

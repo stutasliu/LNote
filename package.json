@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "build:vendor": "node tools/build-vendor.js",
     "build:app": "node tools/build-app.js",
+    "build:exe": "python -m PyInstaller Inkpad.spec --noconfirm",
     "verify:app": "node tools/build-app.js --verify",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",

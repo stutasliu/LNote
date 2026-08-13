@@ -19,7 +19,7 @@ import { toast } from './16-doc-ops.js';
     mod.renderToolbar(els.visualToolbar);
     buildVisualExportMenu(els.visualToolbar, kind);
 
-    els.breadcrumb.textContent = meta.icon + ' ' + meta.label;
+    els.breadcrumb.textContent = meta.icon;
     els.statLang.textContent = meta.label;
     els.statCursor.textContent = '';
     updateVisualStatus();

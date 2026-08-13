@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { frSave, frLoad, bindFindReplaceModal, syncFrStateToUi, closeFrPopups, showFrPopup, showFrEmptyPopup, escHtml, toggleFavorite, toggleFindOnly, bindFindModalDrag, openFindModal, closeFindModal, pushHistory, setFrStatus, makeCursor, getScopeRange, findOne, comparePos, frFindNext, clearFrMarks, applyFrHighlight, scheduleFrHighlight, frCountMatches, getReplaceInput, frDoReplace, frReplaceOne, frReplaceAll, frOpenBatchModal, frBatchRun };
+export { frSave, frLoad, bindFindReplaceModal, syncFrStateToUi, closeFrPopups, showFrPopup, showFrEmptyPopup, escHtml, toggleFavorite, toggleFindOnly, openFindModal, closeFindModal, pushHistory, setFrStatus, makeCursor, getScopeRange, findOne, comparePos, frFindNext, clearFrMarks, applyFrHighlight, scheduleFrHighlight, frCountMatches, getReplaceInput, frDoReplace, frReplaceOne, frReplaceAll, frOpenBatchModal, frBatchRun };
 /* [esm] 导入依赖模块绑定 */
 import { $, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
@@ -9,15 +9,20 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
   /* ============================================================
    *  查找 / 替换 浮层  —— 仿 EverEdit「替换」面板
    * ============================================================ */
+  var FR_VERSION = 2;
   function frSave() {
+    frState._ver = FR_VERSION;
     try { localStorage.setItem(FR_STORAGE, JSON.stringify(frState)); } catch (_) {}
   }
   function frLoad() {
     try {
       var s = JSON.parse(localStorage.getItem(FR_STORAGE) || '{}');
-      // 兼容 v0.16.18 之前的老存储：expand 字段若不存在（用户没主动改过这个 UI 复选框），
-      // 按新默认开启；只有用户曾显式存过 false 才保留其选择。
+      if (s._ver !== FR_VERSION) {
+        s.collapsed = true;
+        s._ver = FR_VERSION;
+      }
       if (typeof s.expand === 'undefined') s.expand = true;
+      if (typeof s.collapsed === 'undefined') s.collapsed = true;
       Object.assign(frState, s);
     } catch (_) {}
   }
@@ -27,10 +32,8 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
     frLoad();
     syncFrStateToUi();
 
-    // 选择变化时同步收藏星标（Phase ESM：原为模块顶层副作用，
-    // 依赖 cm 已初始化，收敛进 bindFindReplaceModal 由装配调用）
+    // 选择变化时同步收藏星标
     cm.on && cm.on('change', function () {
-      // 节流
       clearTimeout(window.__frStarT);
       window.__frStarT = setTimeout(function () {
         var q = $('fr-find').value;
@@ -42,17 +45,47 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
     // 关闭
     $('fr-close').addEventListener('click', closeFindModal);
     $('fr-overlay').addEventListener('mousedown', function (e) {
-      // 点击非面板区域则关闭（overlay 已 pointer-events:none，正常情况下不会命中这里）
       if (e.target.id === 'fr-overlay') closeFindModal();
     });
 
-    // 标题栏拖动（在 bindFindReplaceModal 内注册，按钮区域不触发）
-    bindFindModalDrag();
+    // 拖拽标题栏移动弹窗
+    (function () {
+      var card = $('fr-card');
+      var header = card.querySelector('.fr-header');
+      var dragging = false, sx = 0, sy = 0, sl = 0, st = 0;
+      header.addEventListener('mousedown', function (e) {
+        if (e.target.closest('.fr-close-btn')) return;  // 点关闭按钮不触发拖拽
+        dragging = true;
+        sx = e.clientX; sy = e.clientY;
+        var rect = card.getBoundingClientRect();
+        sl = rect.left; st = rect.top;
+        card.style.left = sl + 'px';
+        card.style.top = st + 'px';
+        card.style.right = 'auto';
+        e.preventDefault();
+      });
+      document.addEventListener('mousemove', function (e) {
+        if (!dragging) return;
+        var nl = sl + (e.clientX - sx);
+        var nt = st + (e.clientY - sy);
+        // 限制不超出视口
+        nl = Math.max(0, Math.min(window.innerWidth - 100, nl));
+        nt = Math.max(0, Math.min(window.innerHeight - 40, nt));
+        card.style.left = nl + 'px';
+        card.style.top = nt + 'px';
+      });
+      document.addEventListener('mouseup', function () {
+        if (!dragging) return;
+        dragging = false;
+        var rect = card.getBoundingClientRect();
+        frState.pos = { left: rect.left, top: rect.top };
+        frSave();
+      });
+    })();
 
     // 关闭面板外的点击也关掉可能打开的 history popup
     document.addEventListener('mousedown', function (e) {
-      if (!e.target.closest('.fr-popup') && !e.target.closest('.fr-arrow')
-          && !e.target.closest('.fr-icon.star')) {
+      if (!e.target.closest('.fr-popup') && !e.target.closest('.fr-btn-icon')) {
         closeFrPopups();
       }
     });
@@ -66,11 +99,9 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
         closeFindModal();
       }
     });
-    // 查找词实时刷新高亮（输入即高亮所有匹配，使用 200ms debounce 避免大文档卡死）
     $('fr-find').addEventListener('input', function () {
       var has = frState.favorites.some(function (f) { return f.find === this.value; });
       $('fr-fav').classList.toggle('on', has);
-      scheduleFrHighlight();
     });
     $('fr-replace').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') {
@@ -84,6 +115,8 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
     // 主按钮
     $('fr-next').addEventListener('click', function () { frFindNext(false); });
     $('fr-find-arrow').addEventListener('click', function () { frFindNext(false); });
+    var prevBtn = $('fr-find-prev');
+    if (prevBtn) prevBtn.addEventListener('click', function () { frFindNext(true); });
     $('fr-replace-one').addEventListener('click', frReplaceOne);
     $('fr-replace-all').addEventListener('click', frReplaceAll);
     $('fr-batch').addEventListener('click', frOpenBatchModal);
@@ -141,7 +174,6 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
     // 全局快捷键 Esc 关
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && $('fr-overlay').style.display !== 'none') {
-        // 只在面板打开时拦截 Esc，避免干扰其它弹窗
         var open = document.querySelector('.modal-overlay[style*="flex"]')
                  || document.querySelector('.modal-overlay[style*="block"]');
         if (!open) closeFindModal();
@@ -164,16 +196,26 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
 
   /** 把 frState 同步到界面 */
   function syncFrStateToUi() {
-    // 折叠状态
-    var c = $('fr-card');
+    var replaceRow = $('fr-replace-row');
+    var replaceAllBtn = $('fr-replace-all');
+    var batchBtn = $('fr-batch');
+    var collapseBtn = $('fr-collapse');
+    var headerTitle = $('fr-header-title');
+
     if (frState.collapsed) {
-      $('fr-replace-row').style.display = 'none';
-      $('fr-collapse').textContent = '替换 >>';
-      $('fr-title-txt').textContent = '查找';
+      // 仅查找模式
+      replaceRow.style.display = 'none';
+      replaceAllBtn.style.display = 'none';
+      batchBtn.style.display = 'none';
+      collapseBtn.textContent = '≪ 替换';
+      if (headerTitle) headerTitle.textContent = '查找';
     } else {
-      $('fr-replace-row').style.display = '';
-      $('fr-collapse').innerHTML = '&lt;&lt; 查找(I)';
-      $('fr-title-txt').textContent = '替换';
+      // 查找+替换模式
+      replaceRow.style.display = '';
+      replaceAllBtn.style.display = '';
+      batchBtn.style.display = '';
+      collapseBtn.textContent = '≪ 查找';
+      if (headerTitle) headerTitle.textContent = '替换';
     }
   }
 
@@ -268,11 +310,37 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
       popup.appendChild(row);
     });
     document.body.appendChild(popup);
-    var r = anchor.getBoundingClientRect();
-    popup.style.left = (r.left + window.scrollX) + 'px';
-    popup.style.top  = (r.bottom + window.scrollY + 2) + 'px';
+    // 定位：查找/替换历史 → 对齐对应输入框左边缘、宽度一致；更多菜单 → 右对齐按钮
+    var posAnchor = anchor;
+    var alignMode = 'anchor';
+    if (which === 'find') {
+      posAnchor = $('fr-find').closest('.fr-input-wrap');
+      alignMode = 'input';
+    } else if (which === 'replace') {
+      posAnchor = $('fr-replace').closest('.fr-input-wrap');
+      alignMode = 'input';
+    } else if (which === 'more') {
+      alignMode = 'right';
+    }
+    var r = posAnchor.getBoundingClientRect();
+    popup.style.top  = (r.bottom + window.scrollY + 4) + 'px';
+    if (alignMode === 'input') {
+      popup.style.left = (r.left + window.scrollX) + 'px';
+      popup.style.minWidth = r.width + 'px';
+    } else if (alignMode === 'right') {
+      // 右对齐：弹窗右边缘 = 按钮右边缘
+      var popupW = popup.offsetWidth;
+      popup.style.left = (r.right - popupW + window.scrollX) + 'px';
+    } else {
+      popup.style.left = (r.left + window.scrollX) + 'px';
+    }
     var popupR = popup.getBoundingClientRect();
-    if (popupR.right > window.innerWidth - 8) {
+    if (alignMode === 'right') {
+      // 右对齐时防止超出左边
+      if (popupR.left < 8) {
+        popup.style.left = (8 + window.scrollX) + 'px';
+      }
+    } else if (popupR.right > window.innerWidth - 8) {
       popup.style.left = Math.max(8, window.innerWidth - popupR.width - 8 + window.scrollX) + 'px';
     }
   }
@@ -285,9 +353,12 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
     row.textContent = text;
     popup.appendChild(row);
     document.body.appendChild(popup);
-    var r = anchor.getBoundingClientRect();
+    // 空弹窗也对齐输入框（通过 anchor 的父级输入框）
+    var posAnchor = anchor.closest('.fr-input-wrap') || anchor;
+    var r = posAnchor.getBoundingClientRect();
     popup.style.left = (r.left + window.scrollX) + 'px';
-    popup.style.top  = (r.bottom + window.scrollY + 2) + 'px';
+    popup.style.top  = (r.bottom + window.scrollY + 4) + 'px';
+    popup.style.minWidth = r.width + 'px';
   }
 
   function escHtml(s) {
@@ -324,85 +395,22 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
     syncFrStateToUi();
   }
 
-  /** 让查找替换浮层可通过标题栏拖动到任意位置 */
-  function bindFindModalDrag() {
-    var card = $('fr-card');
-    var title = card.querySelector('.fr-title');
-    var drag = null; // {offsetX, offsetY} 或 null
-
-    function clamp(value, min, max) {
-      if (value < min) return min;
-      if (value > max) return max;
-      return value;
-    }
-
-    title.addEventListener('mousedown', function (e) {
-      // 标题栏上的按钮（关闭 ⭐ 等）不触发拖动
-      if (e.target.closest('button, .fr-x, .fr-icon')) return;
-      if (e.button !== 0) return;
-      e.preventDefault();
-      var rect = card.getBoundingClientRect();
-      // 用绝对位置（兼容 iframe/页面滚动）
-      drag = {
-        offsetX: e.clientX - rect.left,
-        offsetY: e.clientY - rect.top
-      };
-      // 首次拖动时（仍在默认 right:16 位置），把 right 改为 left 防止跳变
-      if (!card.style.left) {
-        card.style.left = rect.left + 'px';
-        card.style.top = rect.top + 'px';
-        card.style.right = 'auto';
-      }
-      title.classList.add('fr-dragging');
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-
-    function onMove(e) {
-      if (!drag) return;
-      e.preventDefault();
-      var vw = window.innerWidth, vh = window.innerHeight;
-      var left = e.clientX - drag.offsetX;
-      var top = e.clientY - drag.offsetY;
-      // 允许左右越界一点（最多 60% 在屏外），但上下界严格保留可见拖动手柄
-      left = clamp(left, -240, vw - 80);
-      top = clamp(top, 0, vh - 28);
-      card.style.left = left + 'px';
-      card.style.top = top + 'px';
-    }
-
-    function onUp() {
-      if (!drag) return;
-      var savedLeft = card.style.left, savedTop = card.style.top;
-      drag = null;
-      title.classList.remove('fr-dragging');
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      // 仅持久化数字像素
-      var p = parseFloat(savedLeft), t = parseFloat(savedTop);
-      if (isFinite(p) && isFinite(t)) {
-        frState.pos = { left: p, top: t };
-        frSave();
-      }
-    }
-  }
-
   /** 打开/关闭主面板 */
   function openFindModal(replaceMode) {
     openSingleModal('fr-overlay');
-    syncFrStateToUi();
     // 如果是替换模式 (Ctrl+H)，确保展开
     if (replaceMode) {
       frState.collapsed = false;
-      syncFrStateToUi();
     }
-    // 恢复上次的拖动位置
+    // 恢复上次的位置
     if (frState.pos) {
       var card = $('fr-card');
       card.style.left = frState.pos.left + 'px';
       card.style.top = frState.pos.top + 'px';
       card.style.right = 'auto';
     }
+    syncFrStateToUi();
+
     // 自动用当前选区填充
     var sel = cm.getSelection();
     if (sel && !$('fr-find').value) $('fr-find').value = sel;
@@ -421,7 +429,9 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
   function closeFindModal() {
     $('fr-overlay').style.display = 'none';
     closeFrPopups();
+    clearCurrentMatchMark();
     clearFrMarks();
+    state.frLastQuery = null;
     cm.focus();
   }
 
@@ -446,9 +456,6 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
     var opts = {
       caseFold: !frState.caseSens,
       wholeWord: frState.wholeWord,
-      // multiline 让 ^ 匹配每行行首、$ 匹配每行行尾——这是 sed/perl/grep 的默认行为。
-      // 一旦勾了「正则表达式」，用户对 ^/$ 的预期就是「每行匹配」，不应再藏到「高速模式」复选框里。
-      // non-regex 路径不依赖 multiline；fr-fast 复选框保留 UI 占位（向后兼容）。
       multiline: true
     };
     if (frState.expand) {
@@ -542,7 +549,7 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
     if (!cursor) return null;
     var hit;
     if (backward) {
-      // 反向：暂时使用正向遍历选最近一个 < fromPos（加迭代上限防大文档卡死）
+      // 反向：使用正向遍历选最近一个 < fromPos
       hit = null;
       var iter = 0;
       var c2 = makeCursor({ line: 0, ch: 0 }, q);
@@ -559,11 +566,17 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
         else break;
       }
     } else {
-      // 正向：直接 findNext 一次；空匹配也算命中（from===to 即可，正常 setSelection 是 0 宽选区）。
-      // CodeMirror SearchCursor 内部自带 afterEmptyMatch +1 逻辑，
-      // 重建 cursor 也只是从 fromPos 起步，不会原地循环。
-      if (cursor.findNext()) hit = { from: cursor.from(), to: cursor.to() };
-      else hit = null;
+      // 正向：也用迭代方式，更可靠（避免 SearchCursor 内部 multiline bug）
+      hit = null;
+      var iterF = 0;
+      var prevKF = '';
+      while (cursor.findNext()) {
+        if (++iterF > FR_BACK_MAX) break;
+        var pF = cursor.from(), kF = posKey(pF) + '-' + posKey(cursor.to());
+        if (kF === prevKF) break;
+        prevKF = kF;
+        if (comparePos(pF, fromPos) > 0) { hit = { from: pF, to: cursor.to() }; break; }
+      }
     }
     return hit;
   }
@@ -578,13 +591,15 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
     frState.findHistory = pushHistory(frState.findHistory, q);
     frSave();
 
-    var cur = cm.getCursor(backward ? 'from' : 'from');
+    var cur = cm.getCursor('from');
     var hit = findOne(cur, backward);
-    if (!hit && frState.cycle) {
-      // 回环：从头/尾再找
+    if (!hit) {
+      // 没开循环也做一次回环尝试，确保不会因为光标位置在文档末尾而找不到
       var restart = backward ? { line: cm.lineCount() - 1, ch: cm.getLine(cm.lineCount() - 1).length } : { line: 0, ch: 0 };
       hit = findOne(restart, backward);
-      if (hit) setFrStatus('已从文件' + (backward ? '末尾' : '开头') + '回环查找', 'ok');
+      if (hit && frState.cycle) {
+        setFrStatus('已从文件' + (backward ? '末尾' : '开头') + '回环查找', 'ok');
+      }
     }
     if (!hit) {
       setFrStatus('未找到匹配项', 'error');
@@ -621,9 +636,18 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
     }
     cm.setSelection(hit.from, hit.to);
     cm.scrollIntoView({ from: hit.from, to: hit.to }, 80);
-    // 保持选区为匹配范围，便于「替换」直接替换当前匹配
-    frCountMatches(q);
-    applyFrHighlight();
+    // 设置当前匹配的醒目高亮（即便"高亮"没开也生效）
+    setCurrentMatchMark(hit.from, hit.to);
+    // 聚焦编辑器，让选区蓝色可见
+    cm.focus();
+    // 仅在查询词变化时才重新统计+高亮，避免每次跳转都全文档扫描
+    if (state.frLastQuery !== q) {
+      state.frLastQuery = q;
+      setTimeout(function () {
+        frCountMatches(q);
+        applyFrHighlight();
+      }, 0);
+    }
   }
 
   /** 清除所有查找高亮 */
@@ -632,6 +656,25 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
       try { state.frMarks[i].clear(); } catch (_) {}
     }
     state.frMarks = [];
+  }
+
+  /** 清除当前匹配的单独高亮 */
+  function clearCurrentMatchMark() {
+    if (state.frCurrentMark) {
+      try { state.frCurrentMark.clear(); } catch (_) {}
+      state.frCurrentMark = null;
+    }
+  }
+  /** 设置当前匹配的单独高亮（蓝色边框醒目版，即便"高亮"没开也生效） */
+  function setCurrentMatchMark(from, to) {
+    clearCurrentMatchMark();
+    if (!from || !to) return;
+    try {
+      state.frCurrentMark = cm.markText(from, to, {
+        className: 'cm-fr-current',
+        clearWhenEmpty: false
+      });
+    } catch (_) {}
   }
 
   /** 高亮匹配开关（手动 markText，分批异步，避免单次同步创建几百个 mark 卡死 UI） */
@@ -902,8 +945,7 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
       // 当前已选中匹配 → 直接替换，并刷新高亮后跳到下一个
       frDoReplace(sel.anchor, sel.head, q, replacement);
       setFrStatus('已替换 1 处', 'ok');
-      frCountMatches(q);
-      applyFrHighlight();
+      state.frLastQuery = null;  // 文档已变，强制下次跳转时重新统计+高亮
       setTimeout(function () { frFindNext(false); }, 0);
     } else {
       // 未选中匹配 → 先查找下一个并选中（不替换），符合「查找→替换」两步习惯
@@ -1015,6 +1057,7 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
       }
     });
     setFrStatus('共替换 ' + count + (count >= HARD ? '+（达到上限）' : '') + ' 处', 'ok');
+    state.frLastQuery = null;
     applyFrHighlight();
   }
 

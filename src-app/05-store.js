@@ -5,6 +5,7 @@ import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
 
   /* ---------------- 便签集存储键 ---------------- */
   var COLLECTION_KEY = 'inkpad.collections.v1';
+  var TAGMETA_KEY = 'inkpad.tagmeta.v1';
   /* ---------------- 数据层 ---------------- */
   function loadDocs() {
     var raw = null;
@@ -59,6 +60,15 @@ import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
         if (Array.isArray(parsed)) state.collections = parsed;
       }
     } catch (e) { state.collections = []; }
+    // 载入标签过期时间元数据
+    state.tagMeta = {};
+    try {
+      var traw = localStorage.getItem(TAGMETA_KEY);
+      if (traw) {
+        var tparsed = JSON.parse(traw);
+        if (tparsed && typeof tparsed === 'object') state.tagMeta = tparsed;
+      }
+    } catch (e) { state.tagMeta = {}; }
   }
 
   /* 持久化：把「轻量索引」与「正文内容」分开存储。
@@ -80,6 +90,8 @@ import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
         // 便签模块字段
         if (d.tags && d.tags.length) o.tags = d.tags.slice();
         if (d.color) o.color = d.color;
+        if (d.reminder && d.reminder.enabled) o.reminder = d.reminder;
+        if (d.dueAt) o.dueAt = d.dueAt;
         return o;
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(index));
@@ -88,6 +100,10 @@ import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
     try {
       localStorage.setItem(COLLECTION_KEY, JSON.stringify(state.collections || []));
     } catch (e) { console.warn('[inkpad] 便签集持久化失败', e); }
+    // 标签过期时间元数据持久化
+    try {
+      localStorage.setItem(TAGMETA_KEY, JSON.stringify(state.tagMeta || {}));
+    } catch (e) { console.warn('[inkpad] 标签元数据持久化失败', e); }
     // 2) 正文逐文档存储（单个超限不影响列表；富文档大正文改为依赖磁盘文件）
     var seen = {};
     state.docs.forEach(function (d) {

@@ -125,24 +125,33 @@ describe('构建产物 dist-web 浏览器运行验证', () => {
   });
 
   it('关键产物资源可访问（合并 CSS / vendor-bundle / app.js / KaTeX 字体）', async () => {
+    // 从 index.html 动态解析指纹化资源名（CSS/字体带内容哈希，避免硬编码失效）
     const r = await evalJs(
       cdp,
       `(async () => {
-        var targets = ['assets/index-DZynoaPT.css', 'js/vendor-bundle.js', 'js/app.js', 'assets/KaTeX_Main-Regular-B22Nviop.woff2'];
+        var html = await (await fetch('index.html')).text();
+        var assets = [];
+        var reCss = /href="(?:\\.\\/)?(assets\\/[^"]+\\.css)"/g, m;
+        while ((m = reCss.exec(html))) assets.push(m[1]);
+        var reFont = /url\\((?:\\.\\/)?(assets\\/KaTeX_[^\\)]+\\.woff2)\\)/g;
+        var body = await (await fetch(html.match(/href="(?:\\.\\/)?(assets\\/[^"]+\\.css)"/)[1])).text();
+        while ((m = reFont.exec(body))) assets.push(m[1]);
+        assets.push('js/vendor-bundle.js', 'js/app.js');
         var out = {};
-        for (var i = 0; i < targets.length; i++) {
+        for (var i = 0; i < assets.length; i++) {
           try {
-            var res = await fetch(targets[i], { method: 'HEAD' });
-            out[targets[i]] = res.ok;
-          } catch (e) { out[targets[i]] = false; }
+            var res = await fetch(assets[i], { method: 'HEAD' });
+            out[assets[i]] = res.ok;
+          } catch (e) { out[assets[i]] = false; }
         }
-        return JSON.stringify(out);
+        return JSON.stringify({ cssName: assets[0], results: out });
       })()`
     ).then((s) => JSON.parse(s));
-    expect(r['assets/index-DZynoaPT.css']).toBe(true);
-    expect(r['js/vendor-bundle.js']).toBe(true);
-    expect(r['js/app.js']).toBe(true);
-    expect(r['assets/KaTeX_Main-Regular-B22Nviop.woff2']).toBe(true);
+    expect(r.cssName).toMatch(/^assets\/index-.+\.css$/);
+    // 所有解析出的资源（CSS、KaTeX 字体、js 产物）都必须可访问
+    for (const [name, ok] of Object.entries(r.results)) {
+      expect(ok, `资源不可访问: ${name}`).toBe(true);
+    }
   });
 
   it('编辑内容：CodeMirror 值更新', async () => {

@@ -6,7 +6,7 @@ import { richChanged } from './09-rich-save.js';
 import { dirOf, resolveImgSrc } from './13-api-path.js';
 import { openSingleModal } from './15-insert.js';
 import { _guessMimeFromPath } from './15-insert.js';
-import { toast, renameDoc, newSticky } from './16-doc-ops.js';
+import { toast, renameDoc, newSticky, matchReminder, fmtStamp } from './16-doc-ops.js';
 import { initEvents } from './17-events.js';
 import { initApp } from './18-bootstrap.js';
 import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchExport, renameDocId, closeDocMenu, pendingDelId, renderList, renderSideSub, openTagEditModal, closeTagEditModal, openCollectionPickModal, closeCollectionPickModal, openCollectionNewModal, closeCollectionNewModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, collectionPickConfirm, pickModalCreateCollection, collectionNewConfirm, stickyEditSave } from './06-doc-list.js';
@@ -223,8 +223,54 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
           });
         });
       }
+      // 定时提醒控件
+      if (els.stickyEditRemEnabled) {
+        els.stickyEditRemEnabled.addEventListener('change', function () {
+          els.stickyRemRow.style.display = els.stickyEditRemEnabled.checked ? '' : 'none';
+        });
+      }
+      if (els.stickyEditRemType) {
+        els.stickyEditRemType.addEventListener('change', function () {
+          var t = els.stickyEditRemType.value;
+          if (els.stickyRemOnce) els.stickyRemOnce.style.display = t === 'once' ? '' : 'none';
+          if (els.stickyRemWeekly) els.stickyRemWeekly.style.display = t === 'weekly' ? '' : 'none';
+          if (els.stickyRemMonthly) els.stickyRemMonthly.style.display = t === 'monthly' ? '' : 'none';
+        });
+      }
       els.stickyEditModal.addEventListener('click', function (e) { if (e.target === els.stickyEditModal) closeStickyEditModal(); });
     }
+
+    // ---- 定时提醒弹窗 ----
+    if (els.stickyReminderModal) {
+      if (document.getElementById('sticky-reminder-close')) document.getElementById('sticky-reminder-close').addEventListener('click', function () { els.stickyReminderModal.style.display = 'none'; });
+      if (document.getElementById('sticky-reminder-ok')) document.getElementById('sticky-reminder-ok').addEventListener('click', function () { els.stickyReminderModal.style.display = 'none'; });
+      els.stickyReminderModal.addEventListener('click', function (e) { if (e.target === els.stickyReminderModal) els.stickyReminderModal.style.display = 'none'; });
+    }
+
+    // ---- 提醒轮询：每分钟检查便利贴定时提醒 ----
+    function checkReminders() {
+      var now = new Date();
+      var hit = null;
+      state.docs.forEach(function (d) {
+        if (d.deleted || d.kind !== 'sticky') return;
+        var rem = d.reminder;
+        if (!rem || !rem.enabled) return;
+        if (!matchReminder(rem, now)) return;
+        var key = d.id + '|' + rem.type + '|' + rem.time + '|' + (rem.date || '') + '|' + (rem.day || '') + '|' + (rem.days || []).join(',');
+        if (state.remindedKeys[key]) return;
+        state.remindedKeys[key] = true;
+        hit = d;
+      });
+      if (hit) {
+        if (els.stickyReminderTitle) els.stickyReminderTitle.textContent = (hit.title || '无标题') + ' · ' + fmtStamp(Date.now());
+        if (els.stickyReminderContent) els.stickyReminderContent.textContent = hit.content || '（无内容）';
+        if (els.stickyReminderModal) els.stickyReminderModal.style.display = 'flex';
+        toast('提醒：' + (hit.title || '便利贴'), 'success');
+      }
+    }
+    // 启动轮询：立即执行一次 + 每 30 秒检查（分钟级精度足够）
+    checkReminders();
+    state.reminderTimer = setInterval(checkReminders, 30000);
 
     // 初始化：渲染标签区 / 便签集区
     renderSideSub();

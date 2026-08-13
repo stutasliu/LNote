@@ -27,7 +27,7 @@ import { bindFindReplaceModal } from './19-find-replace.js';
     highlight: true,
     fast: false,
     scope: 'current',
-    collapsed: false,         // false=替换面板, true=仅查找
+    collapsed: true,          // false=替换面板, true=仅查找
     findHistory: [],          // 字符串数组（最新在前）
     replaceHistory: [],
     favorites: [],            // [{find, replace}]

@@ -140,7 +140,21 @@
     stickyEditTitle: $("sticky-edit-title"),
     stickyEditContent: $("sticky-edit-content"),
     stickyEditPin: $("sticky-edit-pin"),
-    stickyColorRow: $("sticky-color-row")
+    stickyColorRow: $("sticky-color-row"),
+    // 定时提醒 / 到期时间
+    stickyEditRemEnabled: $("sticky-edit-rem-enabled"),
+    stickyRemRow: $("sticky-rem-row"),
+    stickyEditRemType: $("sticky-edit-rem-type"),
+    stickyEditRemTime: $("sticky-edit-rem-time"),
+    stickyEditRemDate: $("sticky-edit-rem-date"),
+    stickyEditRemDay: $("sticky-edit-rem-day"),
+    stickyRemOnce: $("sticky-rem-once"),
+    stickyRemWeekly: $("sticky-rem-weekly"),
+    stickyRemMonthly: $("sticky-rem-monthly"),
+    stickyEditDue: $("sticky-edit-due"),
+    stickyReminderModal: $("sticky-reminder-modal"),
+    stickyReminderTitle: $("sticky-reminder-title"),
+    stickyReminderContent: $("sticky-reminder-content")
   };
   var bus = {
     _map: {},
@@ -204,12 +218,22 @@
     // 正在编辑的便利贴 id
     stickyColor: "#FFD43B",
     // 便利贴当前选中颜色
-    colPickDocIds: []
+    colPickDocIds: [],
     // 「加入便签集」弹窗当前作用的文档 id 集合
+    // 定时标签：标签过期时间 / 提醒状态
+    tagMeta: {},
+    // { [tag]: { expiresAt: ts } } 标签过期时间
+    remindedKeys: {},
+    // { [key]: true } 已提醒过的提醒 key（避免同一分钟重复）
+    reminderTimer: null,
+    // 提醒轮询定时器
+    reminderSeq: 0
+    // 提醒弹窗序号（防止过期渲染）
   };
 
   // src-app/05-store.js
   var COLLECTION_KEY = "inkpad.collections.v1";
+  var TAGMETA_KEY = "inkpad.tagmeta.v1";
   function loadDocs() {
     var raw = null;
     try {
@@ -270,6 +294,16 @@
     } catch (e) {
       state.collections = [];
     }
+    state.tagMeta = {};
+    try {
+      var traw = localStorage.getItem(TAGMETA_KEY);
+      if (traw) {
+        var tparsed = JSON.parse(traw);
+        if (tparsed && typeof tparsed === "object") state.tagMeta = tparsed;
+      }
+    } catch (e) {
+      state.tagMeta = {};
+    }
   }
   function persist() {
     try {
@@ -287,6 +321,8 @@
         }
         if (d.tags && d.tags.length) o.tags = d.tags.slice();
         if (d.color) o.color = d.color;
+        if (d.reminder && d.reminder.enabled) o.reminder = d.reminder;
+        if (d.dueAt) o.dueAt = d.dueAt;
         return o;
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(index));
@@ -297,6 +333,11 @@
       localStorage.setItem(COLLECTION_KEY, JSON.stringify(state.collections || []));
     } catch (e) {
       console.warn("[inkpad] \u4FBF\u7B7E\u96C6\u6301\u4E45\u5316\u5931\u8D25", e);
+    }
+    try {
+      localStorage.setItem(TAGMETA_KEY, JSON.stringify(state.tagMeta || {}));
+    } catch (e) {
+      console.warn("[inkpad] \u6807\u7B7E\u5143\u6570\u636E\u6301\u4E45\u5316\u5931\u8D25", e);
     }
     var seen = {};
     state.docs.forEach(function(d) {
@@ -982,6 +1023,14 @@
     if (opts.content !== void 0) d.content = opts.content;
     if (opts.color !== void 0) d.color = opts.color;
     if (opts.pinned !== void 0) d.pinned = !!opts.pinned;
+    if (opts.reminder !== void 0) {
+      if (opts.reminder && opts.reminder.enabled) d.reminder = opts.reminder;
+      else delete d.reminder;
+    }
+    if (opts.dueAt !== void 0) {
+      if (opts.dueAt) d.dueAt = opts.dueAt;
+      else delete d.dueAt;
+    }
     d.updated = Date.now();
     persist();
     return true;
@@ -995,7 +1044,111 @@
     Array.prototype.forEach.call(els.stickyColorRow.children, function(el) {
       el.classList.toggle("active", el.getAttribute("data-color") === state.stickyColor);
     });
+    var rem = d.reminder;
+    if (els.stickyEditRemEnabled) {
+      els.stickyEditRemEnabled.checked = !!(rem && rem.enabled);
+      els.stickyRemRow.style.display = rem && rem.enabled ? "" : "none";
+      els.stickyEditRemType.value = rem && rem.type || "once";
+      els.stickyEditRemTime.value = rem && rem.time || "09:00";
+      els.stickyEditRemDate.value = rem && rem.date || "";
+      els.stickyEditRemDay.value = rem && rem.day || "";
+      Array.prototype.forEach.call(els.stickyRemWeekly.querySelectorAll("input[type=checkbox]"), function(cb) {
+        cb.checked = !!(rem && rem.type === "weekly" && rem.days && rem.days.indexOf(Number(cb.value)) >= 0);
+      });
+      syncRemSubUI();
+    }
+    if (els.stickyEditDue) els.stickyEditDue.value = d.dueAt ? toLocalInput(d.dueAt) : "";
     els.stickyEditModal.style.display = "flex";
+  }
+  function syncRemSubUI() {
+    if (!els.stickyEditRemType) return;
+    var t = els.stickyEditRemType.value;
+    if (els.stickyRemOnce) els.stickyRemOnce.style.display = t === "once" ? "" : "none";
+    if (els.stickyRemWeekly) els.stickyRemWeekly.style.display = t === "weekly" ? "" : "none";
+    if (els.stickyRemMonthly) els.stickyRemMonthly.style.display = t === "monthly" ? "" : "none";
+  }
+  function pad2(n) {
+    return (n < 10 ? "0" : "") + n;
+  }
+  function toLocalInput(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) + "T" + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  }
+  function fromLocalInput(v) {
+    if (!v) return null;
+    var t = new Date(v).getTime();
+    return isNaN(t) ? null : t;
+  }
+  function fmtStamp(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  }
+  function setTagExpiry(tag, days) {
+    if (days == null) {
+      clearTagExpiry(tag);
+      return;
+    }
+    var n = Number(days);
+    if (isNaN(n) || n < 1) {
+      toast("\u8BF7\u8F93\u5165\u6709\u6548\u7684\u5929\u6570\uFF08\u22651\uFF09", "error");
+      return;
+    }
+    state.tagMeta[tag] = { expiresAt: Date.now() + n * 864e5 };
+    persist();
+    toast("\u6807\u7B7E #" + tag + " \u5C06\u4E8E " + n + " \u5929\u540E\u8FC7\u671F", "success");
+  }
+  function clearTagExpiry(tag) {
+    if (state.tagMeta[tag]) {
+      delete state.tagMeta[tag];
+      persist();
+      toast("\u5DF2\u6E05\u9664\u6807\u7B7E #" + tag + " \u7684\u8FC7\u671F\u65F6\u95F4", "success");
+    }
+  }
+  function cleanupExpiredTags() {
+    var now = Date.now();
+    var expired = [];
+    for (var t in state.tagMeta) {
+      if (state.tagMeta[t] && state.tagMeta[t].expiresAt && state.tagMeta[t].expiresAt < now) {
+        expired.push(t);
+      }
+    }
+    if (!expired.length) return [];
+    var changed = false;
+    state.docs.forEach(function(d) {
+      if (!d.tags || !d.tags.length) return;
+      var before = d.tags.length;
+      d.tags = d.tags.filter(function(x) {
+        return expired.indexOf(x) < 0;
+      });
+      if (d.tags.length !== before) changed = true;
+    });
+    expired.forEach(function(t2) {
+      delete state.tagMeta[t2];
+    });
+    if (changed) {
+      persist();
+      toast("\u5DF2\u81EA\u52A8\u6E05\u7406\u8FC7\u671F\u6807\u7B7E\uFF1A#" + expired.join(" #"), "success");
+    } else {
+      persist();
+    }
+    return expired;
+  }
+  function matchReminder(rem, now) {
+    if (!rem || !rem.enabled) return false;
+    now = now || /* @__PURE__ */ new Date();
+    var hhmm = pad2(now.getHours()) + ":" + pad2(now.getMinutes());
+    if (rem.time !== hhmm) return false;
+    if (rem.type === "once") {
+      return rem.date === now.getFullYear() + "-" + pad2(now.getMonth() + 1) + "-" + pad2(now.getDate());
+    }
+    if (rem.type === "daily") return true;
+    if (rem.type === "weekly") {
+      return !!(rem.days && rem.days.indexOf(now.getDay()) >= 0);
+    }
+    if (rem.type === "monthly") {
+      return Number(rem.day) === now.getDate();
+    }
+    return false;
   }
   function saveDocTags(id, tags) {
     var d = findDoc(id);
@@ -2469,6 +2622,7 @@
   }
   function renderSideSub() {
     if (!els.tagList || !els.colList) return;
+    cleanupExpiredTags();
     var tagMap = collectAllTags();
     var tagNames = Object.keys(tagMap);
     els.tagList.innerHTML = "";
@@ -2478,14 +2632,21 @@
       });
       tagNames.forEach(function(t) {
         var it = document.createElement("div");
+        var meta = state.tagMeta[t];
+        var expMark = meta && meta.expiresAt ? ' <span class="sb-tag-exp" title="\u5230\u671F ' + fmtStamp(meta.expiresAt) + '">\u23F3</span>' : "";
         it.className = "sb-tag-item" + (state.tagFilter === t ? " active" : "");
-        it.innerHTML = '<span class="sb-tag-name">#' + escapeHtml(t) + '</span><span class="sb-tag-num">' + tagMap[t] + "</span>";
+        it.innerHTML = '<span class="sb-tag-name">#' + escapeHtml(t) + expMark + '</span><span class="sb-tag-num">' + tagMap[t] + "</span>";
         it.addEventListener("click", function() {
           state.tagFilter = state.tagFilter === t ? null : t;
           state.colFilter = null;
           state.docFilter = "recent";
           markNavClean();
           renderList();
+        });
+        it.addEventListener("contextmenu", function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          openTagMenu(it, t, meta);
         });
         els.tagList.appendChild(it);
       });
@@ -2518,6 +2679,53 @@
       els.colList.appendChild(ce);
     }
   }
+  var _tagMenu = null;
+  function openTagMenu(itemEl, tag, meta) {
+    closeTagMenu();
+    var menu = document.createElement("div");
+    menu.className = "doc-menu";
+    menu.innerHTML = '<div class="doc-menu-item" data-cmd="setexp"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M12 9v4l2.5 2.5M9 3h6" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg><span>\u8BBE\u7F6E\u8FC7\u671F\u65F6\u95F4</span></div>' + (meta && meta.expiresAt ? '<div class="doc-menu-item" data-cmd="clearexp"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>\u6E05\u9664\u8FC7\u671F\u65F6\u95F4</span></div>' : "");
+    if (!menu.innerHTML.trim()) {
+      menu.innerHTML = '<div class="doc-menu-item" data-cmd="setexp"><span>\u8BBE\u7F6E\u8FC7\u671F\u65F6\u95F4</span></div>';
+    }
+    document.body.appendChild(menu);
+    var rect = itemEl.getBoundingClientRect();
+    menu.style.top = rect.bottom + "px";
+    menu.style.left = Math.max(8, rect.left) + "px";
+    _tagMenu = menu;
+    menu.querySelectorAll(".doc-menu-item").forEach(function(mi) {
+      mi.addEventListener("click", function() {
+        var cmd = mi.getAttribute("data-cmd");
+        closeTagMenu();
+        if (cmd === "setexp") {
+          var cur = meta && meta.expiresAt ? Math.max(1, Math.round((meta.expiresAt - Date.now()) / 864e5)) : "";
+          var days = prompt("\u6807\u7B7E #" + tag + " \u591A\u5C11\u5929\u540E\u8FC7\u671F\uFF1F\uFF08\u8F93\u5165\u6570\u5B57\u5929\u6570\uFF09", cur);
+          if (days == null) return;
+          setTagExpiry(tag, days);
+          renderSideSub();
+          renderList();
+        } else if (cmd === "clearexp") {
+          clearTagExpiry(tag);
+          renderSideSub();
+          renderList();
+        }
+      });
+    });
+  }
+  function closeTagMenu() {
+    if (_tagMenu) {
+      try {
+        _tagMenu.parentNode.removeChild(_tagMenu);
+      } catch (e) {
+      }
+      _tagMenu = null;
+    }
+  }
+  document.addEventListener("click", function(e) {
+    if (!_tagMenu) return;
+    if (e.target.closest(".doc-menu")) return;
+    closeTagMenu();
+  });
   var _colMenu = null;
   function openColMenu(itemEl, col) {
     closeColMenu();
@@ -2565,6 +2773,21 @@
     if (e.target.closest(".doc-menu")) return;
     closeColMenu();
   });
+  function remText(rem) {
+    if (!rem || !rem.enabled) return "";
+    var t = rem.time || "";
+    if (rem.type === "once") return (rem.date || "") + " " + t;
+    if (rem.type === "daily") return "\u6BCF\u5929 " + t;
+    if (rem.type === "weekly") {
+      var names = ["\u65E5", "\u4E00", "\u4E8C", "\u4E09", "\u56DB", "\u4E94", "\u516D"];
+      var ds = (rem.days || []).slice().sort();
+      return "\u6BCF\u5468" + ds.map(function(d) {
+        return "\u5468" + names[d];
+      }).join("\u3001") + " " + t;
+    }
+    if (rem.type === "monthly") return "\u6BCF\u6708" + (rem.day || "?") + "\u65E5 " + t;
+    return t;
+  }
   function renderStickyList(stickies) {
     var sorted = stickies.slice().sort(function(a, b) {
       var ap = a.pinned ? 1 : 0, bp = b.pinned ? 1 : 0;
@@ -2588,7 +2811,17 @@
       item.dataset.docId = d.id;
       var title = d.title || "\u65E0\u6807\u9898";
       var content = (d.content || "").replace(/\n/g, " ").slice(0, 60);
-      item.innerHTML = '<div class="sticky-card-head">' + (d.pinned ? '<span class="sticky-pin-badge" title="\u5DF2\u7F6E\u9876">\u{1F4CC}</span>' : "") + '<span class="sticky-card-title">' + escapeHtml(title) + "</span></div>" + (content ? '<div class="sticky-card-content">' + escapeHtml(content) + "</div>" : "") + '<div class="sticky-card-foot"><span class="sticky-card-time">' + shortTime(d.updated) + '</span><span class="sticky-card-del" title="\u5220\u9664">\u{1F5D1}</span></div>';
+      var statusHtml = "";
+      if (d.reminder && d.reminder.enabled) {
+        statusHtml += '<span class="sticky-card-rem" title="\u5B9A\u65F6\u63D0\u9192">\u23F0 ' + remText(d.reminder) + "</span>";
+      }
+      if (d.dueAt) {
+        var nowTs = Date.now();
+        if (d.dueAt < nowTs) statusHtml += '<span class="sticky-card-due overdue" title="\u5DF2\u5230\u671F">\u5DF2\u5230\u671F</span>';
+        else if (d.dueAt - nowTs < 864e5) statusHtml += '<span class="sticky-card-due near" title="\u5373\u5C06\u5230\u671F">\u5373\u5C06\u5230\u671F</span>';
+        else statusHtml += '<span class="sticky-card-due" title="\u5230\u671F\u65F6\u95F4">' + fmtStamp(d.dueAt) + "</span>";
+      }
+      item.innerHTML = '<div class="sticky-card-head">' + (d.pinned ? '<span class="sticky-pin-badge" title="\u5DF2\u7F6E\u9876">\u{1F4CC}</span>' : "") + '<span class="sticky-card-title">' + escapeHtml(title) + "</span></div>" + (content ? '<div class="sticky-card-content">' + escapeHtml(content) + "</div>" : "") + (statusHtml ? '<div class="sticky-card-status">' + statusHtml + "</div>" : "") + '<div class="sticky-card-foot"><span class="sticky-card-time">' + shortTime(d.updated) + '</span><span class="sticky-card-del" title="\u5220\u9664">\u{1F5D1}</span></div>';
       item.addEventListener("click", function(e) {
         if (e.target.closest(".sticky-card-del")) return;
         openStickyEditModal(d.id);
@@ -2781,20 +3014,25 @@
     var d = findDoc(id);
     if (!d) return;
     state.stickyEditId = id;
-    if (els.stickyEditTitle) els.stickyEditTitle.value = d.title || "";
-    if (els.stickyEditContent) els.stickyEditContent.value = d.content || "";
-    if (els.stickyEditPin) els.stickyEditPin.checked = !!d.pinned;
-    state.stickyColor = d.color || "#FFD43B";
-    if (els.stickyColorRow) {
-      Array.prototype.forEach.call(els.stickyColorRow.children, function(el) {
-        el.classList.toggle("active", el.getAttribute("data-color") === state.stickyColor);
-      });
-    }
-    els.stickyEditModal.style.display = "flex";
+    openStickyEditor(d);
   }
   function closeStickyEditModal() {
     state.stickyEditId = null;
     els.stickyEditModal.style.display = "none";
+  }
+  function collectReminderFromUI() {
+    if (!els.stickyEditRemEnabled || !els.stickyEditRemEnabled.checked) return null;
+    var rem = { enabled: true, type: els.stickyEditRemType.value, time: els.stickyEditRemTime.value || "09:00" };
+    if (rem.type === "once") rem.date = els.stickyEditRemDate.value || "";
+    if (rem.type === "weekly") {
+      var days = [];
+      Array.prototype.forEach.call(els.stickyRemWeekly.querySelectorAll("input[type=checkbox]:checked"), function(cb) {
+        days.push(Number(cb.value));
+      });
+      rem.days = days;
+    }
+    if (rem.type === "monthly") rem.day = els.stickyEditRemDay.value || "";
+    return rem;
   }
   function stickyEditSave() {
     if (!state.stickyEditId) return;
@@ -2802,7 +3040,9 @@
       title: els.stickyEditTitle.value,
       content: els.stickyEditContent.value,
       color: state.stickyColor,
-      pinned: els.stickyEditPin.checked
+      pinned: els.stickyEditPin.checked,
+      reminder: collectReminderFromUI(),
+      dueAt: fromLocalInput(els.stickyEditDue.value)
     });
     if (ok) {
       closeStickyEditModal();
@@ -5425,12 +5665,12 @@
     var r = document.querySelector('input[name="ts-unit"]:checked');
     return r && r.value === "ms";
   }
-  function pad2(n) {
+  function pad22(n) {
     return (n < 10 ? "0" : "") + n;
   }
   function formatBeijing(ms) {
     var d = new Date(ms + 8 * 36e5);
-    return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate()) + " " + pad2(d.getUTCHours()) + ":" + pad2(d.getUTCMinutes()) + ":" + pad2(d.getUTCSeconds());
+    return d.getUTCFullYear() + "-" + pad22(d.getUTCMonth() + 1) + "-" + pad22(d.getUTCDate()) + " " + pad22(d.getUTCHours()) + ":" + pad22(d.getUTCMinutes()) + ":" + pad22(d.getUTCSeconds());
   }
   function refreshTsNow() {
     var now = Date.now();
@@ -7177,10 +7417,56 @@
           });
         });
       }
+      if (els.stickyEditRemEnabled) {
+        els.stickyEditRemEnabled.addEventListener("change", function() {
+          els.stickyRemRow.style.display = els.stickyEditRemEnabled.checked ? "" : "none";
+        });
+      }
+      if (els.stickyEditRemType) {
+        els.stickyEditRemType.addEventListener("change", function() {
+          var t = els.stickyEditRemType.value;
+          if (els.stickyRemOnce) els.stickyRemOnce.style.display = t === "once" ? "" : "none";
+          if (els.stickyRemWeekly) els.stickyRemWeekly.style.display = t === "weekly" ? "" : "none";
+          if (els.stickyRemMonthly) els.stickyRemMonthly.style.display = t === "monthly" ? "" : "none";
+        });
+      }
       els.stickyEditModal.addEventListener("click", function(e) {
         if (e.target === els.stickyEditModal) closeStickyEditModal();
       });
     }
+    if (els.stickyReminderModal) {
+      if (document.getElementById("sticky-reminder-close")) document.getElementById("sticky-reminder-close").addEventListener("click", function() {
+        els.stickyReminderModal.style.display = "none";
+      });
+      if (document.getElementById("sticky-reminder-ok")) document.getElementById("sticky-reminder-ok").addEventListener("click", function() {
+        els.stickyReminderModal.style.display = "none";
+      });
+      els.stickyReminderModal.addEventListener("click", function(e) {
+        if (e.target === els.stickyReminderModal) els.stickyReminderModal.style.display = "none";
+      });
+    }
+    function checkReminders() {
+      var now = /* @__PURE__ */ new Date();
+      var hit = null;
+      state.docs.forEach(function(d) {
+        if (d.deleted || d.kind !== "sticky") return;
+        var rem = d.reminder;
+        if (!rem || !rem.enabled) return;
+        if (!matchReminder(rem, now)) return;
+        var key = d.id + "|" + rem.type + "|" + rem.time + "|" + (rem.date || "") + "|" + (rem.day || "") + "|" + (rem.days || []).join(",");
+        if (state.remindedKeys[key]) return;
+        state.remindedKeys[key] = true;
+        hit = d;
+      });
+      if (hit) {
+        if (els.stickyReminderTitle) els.stickyReminderTitle.textContent = (hit.title || "\u65E0\u6807\u9898") + " \xB7 " + fmtStamp(Date.now());
+        if (els.stickyReminderContent) els.stickyReminderContent.textContent = hit.content || "\uFF08\u65E0\u5185\u5BB9\uFF09";
+        if (els.stickyReminderModal) els.stickyReminderModal.style.display = "flex";
+        toast("\u63D0\u9192\uFF1A" + (hit.title || "\u4FBF\u5229\u8D34"), "success");
+      }
+    }
+    checkReminders();
+    state.reminderTimer = setInterval(checkReminders, 3e4);
     renderSideSub();
     var fabNew = document.getElementById("fabNewDoc");
     var drawerFab = document.getElementById("drawerFab");

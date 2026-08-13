@@ -861,3 +861,96 @@
   margin-top: 10px;
   cursor: pointer;
 }
+
+/* ============ 便签模块：定时提醒 / 到期时间 ============ */
+.sticky-reminder-block { margin-top: 10px; }
+.sticky-rem-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #4E5969;
+  cursor: pointer;
+}
+.sticky-rem-row {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: #F7F8FA;
+  border-radius: 6px;
+}
+.sticky-rem-select { width: 100%; }
+.sticky-rem-time { width: 100%; }
+.sticky-rem-sub { display: flex; gap: 6px; flex-wrap: wrap; }
+.sticky-rem-day { width: 100%; }
+.sticky-wd {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  color: #4E5969;
+  cursor: pointer;
+}
+.sticky-wd input { width: 14px; height: 14px; }
+.sticky-due-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.sticky-due-label { font-size: 13px; color: #4E5969; flex-shrink: 0; }
+.sticky-due-input { flex: 1; }
+
+/* 便利贴卡片：提醒 / 到期状态 */
+.sticky-card-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.sticky-card-rem {
+  font-size: 10.5px;
+  color: #3370FF;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 3px;
+  padding: 2px 5px;
+}
+.sticky-card-due {
+  font-size: 10.5px;
+  color: #4E5969;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 3px;
+  padding: 2px 5px;
+}
+.sticky-card-due.overdue {
+  color: #F53F3F;
+  background: #FFECE8;
+  font-weight: 600;
+}
+.sticky-card-due.near {
+  color: #D48806;
+  background: #FFF7E6;
+  font-weight: 600;
+}
+
+/* 定时提醒弹窗 */
+.reminder-content {
+  font-size: 13px;
+  color: #4E5969;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  background: #F7F8FA;
+  border-radius: 6px;
+}
+
+/* 侧栏标签过期标记 */
+.sb-tag-exp {
+  font-size: 11px;
+  vertical-align: -1px;
+}

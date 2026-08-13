@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { insertAtCursor, canInsertBlock, insertBlock, CALLOUT_PREVIEW, insertCallout, insertCode, insertTable, insertCols, openInsertMenu, closeInsertMenu, closeAllToolMenus, openIconModal, closeIconModal, buildIconGrids, filterIcons, openCalloutModal, closeCalloutModal, openCodeModal, closeCodeModal, openTableModal, closeTableModal, closeAllInsertModals, openSingleModal, routeInsert, scheduleFoldDataUris, foldDataUris, extFromType, insertImageFile, _guessMimeFromPath, buildDataUri, handlePastedImage };
+export { insertAtCursor, canInsertBlock, insertBlock, CALLOUT_PREVIEW, insertCallout, insertCode, insertTable, insertCols, openInsertMenu, closeInsertMenu, closeAllToolMenus, showMenuAtMoreBtn, openIconModal, closeIconModal, buildIconGrids, filterIcons, openCalloutModal, closeCalloutModal, openCodeModal, closeCodeModal, openTableModal, closeTableModal, closeAllInsertModals, openSingleModal, routeInsert, scheduleFoldDataUris, foldDataUris, extFromType, insertImageFile, _guessMimeFromPath, buildDataUri, handlePastedImage };
 /* [esm] 导入依赖模块绑定 */
 import { $ } from './01-core.js';
 import { cm } from './04-editor-init.js';
@@ -78,9 +78,30 @@ import { closeFindModal } from './19-find-replace.js';
     if (!m) return;
     var willOpen = (m.style.display === 'none' || !m.style.display);
     if (willOpen) closeAllToolMenus();   // 展开前先关掉 JSON/文本工具菜单
-    m.style.display = willOpen ? 'block' : 'none';
+    if (willOpen) showMenuAtMoreBtn(m); else m.style.display = 'none';
   }
   function closeInsertMenu() { var m = $('insert-menu'); if (m) m.style.display = 'none'; }
+
+  /**
+   * v0.20.45：把工具栏下拉菜单临时挂到顶栏「更多」按钮旁显示。
+   * 标题移至顶栏后 #toolbar 为 display:none，JSON/转换/文本/插入四个菜单
+   * 若停留在隐藏容器内，即使被 .click() 触发也无法弹出。统一在展开时
+   * 将菜单移动到 .ab-more-wrap（position:relative）下，借其定位显示。
+   */
+  function showMenuAtMoreBtn(menu) {
+    if (!menu) return;
+    var moreBtn = document.getElementById('btn-more');
+    var host = moreBtn && moreBtn.parentNode ? moreBtn.parentNode : document.body;
+    if (menu.parentNode !== host) host.appendChild(menu);
+    menu.style.display = 'block';
+    if (!moreBtn) {
+      // 兜底：无「更多」按钮时固定到窗口右上角
+      menu.style.position = 'fixed';
+      menu.style.top = '52px';
+      menu.style.right = '16px';
+      menu.style.left = 'auto';
+    }
+  }
 
   /**
    * 关闭所有工具栏下拉菜单（JSON 工具 / 文本工具 / 插入）。

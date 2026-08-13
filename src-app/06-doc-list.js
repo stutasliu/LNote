@@ -7,7 +7,7 @@ import { persist } from './05-store.js';
 import { openDoc } from './07-doc-open.js';
 import { folderState } from './14-filetree-image.js';
 import { openSingleModal } from './15-insert.js';
-import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, findDoc, saveDocTags, collectAllTags, createCollection, addDocsToCollection, removeDocFromCollection, findCollection, newSticky, saveSticky } from './16-doc-ops.js';
+import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, findDoc, saveDocTags, collectAllTags, createCollection, addDocsToCollection, removeDocFromCollection, findCollection, newSticky, saveSticky, openStickyEditor, setTagExpiry, clearTagExpiry, cleanupExpiredTags, matchReminder, toLocalInput, fromLocalInput, fmtStamp } from './16-doc-ops.js';
   /* ---------------- 渲染：侧栏（飞书风格：按时间分组 + 置顶优先） ---------------- */
   function renderList() {
     els.docList.innerHTML = '';
@@ -580,6 +580,9 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
   function renderSideSub() {
     if (!els.tagList || !els.colList) return;
 
+    // ---- 清理已过期标签（解除文档关联） ----
+    cleanupExpiredTags();
+
     // ---- 标签区 ----
     var tagMap = collectAllTags();
     var tagNames = Object.keys(tagMap);
@@ -588,14 +591,22 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
       tagNames.sort(function (a, b) { return tagMap[b] - tagMap[a] || a.localeCompare(b); });
       tagNames.forEach(function (t) {
         var it = document.createElement('div');
+        var meta = state.tagMeta[t];
+        var expMark = (meta && meta.expiresAt) ? ' <span class="sb-tag-exp" title="到期 ' + fmtStamp(meta.expiresAt) + '">⏳</span>' : '';
         it.className = 'sb-tag-item' + (state.tagFilter === t ? ' active' : '');
-        it.innerHTML = '<span class="sb-tag-name">#' + escapeHtml(t) + '</span><span class="sb-tag-num">' + tagMap[t] + '</span>';
+        it.innerHTML = '<span class="sb-tag-name">#' + escapeHtml(t) + expMark + '</span><span class="sb-tag-num">' + tagMap[t] + '</span>';
         it.addEventListener('click', function () {
           state.tagFilter = (state.tagFilter === t) ? null : t;
           state.colFilter = null;
           state.docFilter = 'recent';
           markNavClean();
           renderList();
+        });
+        // 标签右键菜单：设置/清除过期时间
+        it.addEventListener('contextmenu', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          openTagMenu(it, t, meta);
         });
         els.tagList.appendChild(it);
       });
@@ -631,6 +642,49 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
       els.colList.appendChild(ce);
     }
   }
+
+  // 标签右键菜单（设置过期时间 / 清除过期时间）
+  var _tagMenu = null;
+  function openTagMenu(itemEl, tag, meta) {
+    closeTagMenu();
+    var menu = document.createElement('div');
+    menu.className = 'doc-menu';
+    menu.innerHTML =
+      '<div class="doc-menu-item" data-cmd="setexp"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M12 9v4l2.5 2.5M9 3h6" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg><span>设置过期时间</span></div>' +
+      (meta && meta.expiresAt ? '<div class="doc-menu-item" data-cmd="clearexp"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>清除过期时间</span></div>' : '');
+    if (!menu.innerHTML.trim()) { menu.innerHTML = '<div class="doc-menu-item" data-cmd="setexp"><span>设置过期时间</span></div>'; }
+    document.body.appendChild(menu);
+    var rect = itemEl.getBoundingClientRect();
+    menu.style.top = rect.bottom + 'px';
+    menu.style.left = Math.max(8, rect.left) + 'px';
+    _tagMenu = menu;
+    menu.querySelectorAll('.doc-menu-item').forEach(function (mi) {
+      mi.addEventListener('click', function () {
+        var cmd = mi.getAttribute('data-cmd');
+        closeTagMenu();
+        if (cmd === 'setexp') {
+          var cur = meta && meta.expiresAt ? Math.max(1, Math.round((meta.expiresAt - Date.now()) / 86400000)) : '';
+          var days = prompt('标签 #' + tag + ' 多少天后过期？（输入数字天数）', cur);
+          if (days == null) return;
+          setTagExpiry(tag, days);
+          renderSideSub();
+          renderList();
+        } else if (cmd === 'clearexp') {
+          clearTagExpiry(tag);
+          renderSideSub();
+          renderList();
+        }
+      });
+    });
+  }
+  function closeTagMenu() {
+    if (_tagMenu) { try { _tagMenu.parentNode.removeChild(_tagMenu); } catch (e) {} _tagMenu = null; }
+  }
+  document.addEventListener('click', function (e) {
+    if (!_tagMenu) return;
+    if (e.target.closest('.doc-menu')) return;
+    closeTagMenu();
+  });
 
   // 集合右键菜单（重命名 / 删除）
   var _colMenu = null;
@@ -680,6 +734,21 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
 
   /* ================= 便签模块：便利贴渲染 ================= */
 
+  // 格式化提醒描述（供卡片与弹窗展示）
+  function remText(rem) {
+    if (!rem || !rem.enabled) return '';
+    var t = rem.time || '';
+    if (rem.type === 'once') return (rem.date || '') + ' ' + t;
+    if (rem.type === 'daily') return '每天 ' + t;
+    if (rem.type === 'weekly') {
+      var names = ['日', '一', '二', '三', '四', '五', '六'];
+      var ds = (rem.days || []).slice().sort();
+      return '每周' + ds.map(function (d) { return '周' + names[d]; }).join('、') + ' ' + t;
+    }
+    if (rem.type === 'monthly') return '每月' + (rem.day || '?') + '日 ' + t;
+    return t;
+  }
+
   function renderStickyList(stickies) {
     var sorted = stickies.slice().sort(function (a, b) {
       var ap = a.pinned ? 1 : 0, bp = b.pinned ? 1 : 0;
@@ -703,12 +772,24 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
       item.dataset.docId = d.id;
       var title = d.title || '无标题';
       var content = (d.content || '').replace(/\n/g, ' ').slice(0, 60);
+      // 定时提醒 / 到期状态
+      var statusHtml = '';
+      if (d.reminder && d.reminder.enabled) {
+        statusHtml += '<span class="sticky-card-rem" title="定时提醒">⏰ ' + remText(d.reminder) + '</span>';
+      }
+      if (d.dueAt) {
+        var nowTs = Date.now();
+        if (d.dueAt < nowTs) statusHtml += '<span class="sticky-card-due overdue" title="已到期">已到期</span>';
+        else if (d.dueAt - nowTs < 86400000) statusHtml += '<span class="sticky-card-due near" title="即将到期">即将到期</span>';
+        else statusHtml += '<span class="sticky-card-due" title="到期时间">' + fmtStamp(d.dueAt) + '</span>';
+      }
       item.innerHTML =
         '<div class="sticky-card-head">' +
           (d.pinned ? '<span class="sticky-pin-badge" title="已置顶">📌</span>' : '') +
           '<span class="sticky-card-title">' + escapeHtml(title) + '</span>' +
         '</div>' +
         (content ? '<div class="sticky-card-content">' + escapeHtml(content) + '</div>' : '') +
+        (statusHtml ? '<div class="sticky-card-status">' + statusHtml + '</div>' : '') +
         '<div class="sticky-card-foot">' +
           '<span class="sticky-card-time">' + shortTime(d.updated) + '</span>' +
           '<span class="sticky-card-del" title="删除">🗑</span>' +
@@ -891,20 +972,26 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
     var d = findDoc(id);
     if (!d) return;
     state.stickyEditId = id;
-    if (els.stickyEditTitle) els.stickyEditTitle.value = d.title || '';
-    if (els.stickyEditContent) els.stickyEditContent.value = d.content || '';
-    if (els.stickyEditPin) els.stickyEditPin.checked = !!d.pinned;
-    state.stickyColor = d.color || '#FFD43B';
-    if (els.stickyColorRow) {
-      Array.prototype.forEach.call(els.stickyColorRow.children, function (el) {
-        el.classList.toggle('active', el.getAttribute('data-color') === state.stickyColor);
-      });
-    }
-    els.stickyEditModal.style.display = 'flex';
+    openStickyEditor(d);
   }
   function closeStickyEditModal() {
     state.stickyEditId = null;
     els.stickyEditModal.style.display = 'none';
+  }
+  // 收集编辑浮层中的提醒配置
+  function collectReminderFromUI() {
+    if (!els.stickyEditRemEnabled || !els.stickyEditRemEnabled.checked) return null;
+    var rem = { enabled: true, type: els.stickyEditRemType.value, time: els.stickyEditRemTime.value || '09:00' };
+    if (rem.type === 'once') rem.date = els.stickyEditRemDate.value || '';
+    if (rem.type === 'weekly') {
+      var days = [];
+      Array.prototype.forEach.call(els.stickyRemWeekly.querySelectorAll('input[type=checkbox]:checked'), function (cb) {
+        days.push(Number(cb.value));
+      });
+      rem.days = days;
+    }
+    if (rem.type === 'monthly') rem.day = els.stickyEditRemDay.value || '';
+    return rem;
   }
   function stickyEditSave() {
     if (!state.stickyEditId) return;
@@ -912,7 +999,9 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
       title: els.stickyEditTitle.value,
       content: els.stickyEditContent.value,
       color: state.stickyColor,
-      pinned: els.stickyEditPin.checked
+      pinned: els.stickyEditPin.checked,
+      reminder: collectReminderFromUI(),
+      dueAt: fromLocalInput(els.stickyEditDue.value)
     });
     if (ok) {
       closeStickyEditModal();

@@ -54,8 +54,8 @@ import { saveDiskDoc } from './16-doc-ops.js';
       ? ((d.blocks ? d.blocks.length : 0) + ' 块 · ' + chars + ' 字符')
       : (lines + ' 行 · ' + chars + ' 字符');
 
-    // App Bar 标题文字（去掉 emoji）
-    if (els.breadcrumb) els.breadcrumb.textContent = d.title || '无标题';
+    // App Bar 模式图标
+    if (els.breadcrumb) els.breadcrumb.textContent = kind === 'diagram' ? '📊' : (kind === 'rich' ? '📝' : '📝');
 
     // 大纲卡片：经典文档显示行大纲；富文档由底部飞书式大纲接管（清空）
     var outlineCard = document.getElementById('outlineCard');
@@ -155,7 +155,7 @@ import { saveDiskDoc } from './16-doc-ops.js';
 
     if (kind === 'rich') {
       els.previewPane.style.display = 'none';
-      els.breadcrumb.textContent = '富文档';
+      els.breadcrumb.textContent = '📝';
       els.statLang.textContent = '块编辑器';
       els.statCursor.textContent = '';
       els.btnInsertImage.style.display = 'none';
@@ -198,7 +198,7 @@ import { saveDiskDoc } from './16-doc-ops.js';
     els.langSelect.value = d.lang || 'plaintext';
 
     var isDiagram = d.lang === 'mermaid';
-    els.breadcrumb.textContent = isDiagram ? '📊 图表' : '📝 文档';
+    els.breadcrumb.textContent = isDiagram ? '📊' : '📝';
     els.statLang.textContent = LANGS[d.lang] ? LANGS[d.lang].label : '纯文本';
     els.btnTogglePreview.classList.toggle('active', isDiagram && state.previewOn);
 

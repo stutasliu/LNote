@@ -874,10 +874,58 @@ old = new"></textarea>
       <input type="text" class="tool-input" id="sticky-edit-title" placeholder="标题" maxlength="50">
       <textarea class="tool-input sticky-edit-content" id="sticky-edit-content" placeholder="写点什么…"></textarea>
       <label class="sticky-pin-row"><input type="checkbox" id="sticky-edit-pin"> 置顶显示</label>
+      <div class="sticky-reminder-block">
+        <label class="sticky-rem-title"><input type="checkbox" id="sticky-edit-rem-enabled"> 定时提醒</label>
+        <div class="sticky-rem-row" id="sticky-rem-row" style="display:none">
+          <select id="sticky-edit-rem-type" class="tool-select sticky-rem-select">
+            <option value="once">单次提醒</option>
+            <option value="daily">每天提醒</option>
+            <option value="weekly">每周提醒</option>
+            <option value="monthly">每月提醒</option>
+          </select>
+          <input type="time" id="sticky-edit-rem-time" class="tool-input sticky-rem-time" value="09:00">
+          <div class="sticky-rem-sub" id="sticky-rem-once">
+            <input type="date" id="sticky-edit-rem-date" class="tool-input">
+          </div>
+          <div class="sticky-rem-sub" id="sticky-rem-weekly" style="display:none">
+            <label class="sticky-wd"><input type="checkbox" value="1">一</label>
+            <label class="sticky-wd"><input type="checkbox" value="2">二</label>
+            <label class="sticky-wd"><input type="checkbox" value="3">三</label>
+            <label class="sticky-wd"><input type="checkbox" value="4">四</label>
+            <label class="sticky-wd"><input type="checkbox" value="5">五</label>
+            <label class="sticky-wd"><input type="checkbox" value="6">六</label>
+            <label class="sticky-wd"><input type="checkbox" value="0">日</label>
+          </div>
+          <div class="sticky-rem-sub" id="sticky-rem-monthly" style="display:none">
+            <input type="number" id="sticky-edit-rem-day" min="1" max="31" class="tool-input sticky-rem-day" placeholder="每月几号">
+          </div>
+        </div>
+      </div>
+      <div class="sticky-due-row">
+        <span class="sticky-due-label">到期时间</span>
+        <input type="datetime-local" id="sticky-edit-due" class="tool-input sticky-due-input">
+      </div>
     </div>
     <div class="modal-foot">
       <button class="tool-btn" id="sticky-edit-cancel">取消</button>
       <button class="tool-btn primary" id="sticky-edit-confirm">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 定时提醒弹窗 -->
+<div id="sticky-reminder-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card modal-card-sm">
+    <div class="modal-head">
+      <span class="modal-title">提醒</span>
+      <button class="icon-btn" id="sticky-reminder-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="tag-edit-docname" id="sticky-reminder-title">—</div>
+      <div class="reminder-content" id="sticky-reminder-content"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="tool-btn primary" id="sticky-reminder-ok">知道了</button>
     </div>
   </div>
 </div>

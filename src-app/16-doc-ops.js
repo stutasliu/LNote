@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { saveDiskDoc, openEncModal, openCompareWindow, setLang, newDoc, exportDoc, importFile, toastTimer, toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, newSticky, saveSticky, findDoc, saveDocTags, collectAllTags, createCollection, renameCollection, deleteCollection, addDocsToCollection, removeDocFromCollection, findCollection };
+export { saveDiskDoc, openEncModal, openCompareWindow, setLang, newDoc, exportDoc, importFile, toastTimer, toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, newSticky, saveSticky, findDoc, saveDocTags, collectAllTags, createCollection, renameCollection, deleteCollection, addDocsToCollection, removeDocFromCollection, findCollection, openStickyEditor, setTagExpiry, clearTagExpiry, cleanupExpiredTags, matchReminder, toLocalInput, fromLocalInput, fmtStamp };
 /* [esm] 导入依赖模块绑定 */
 import { $, LANGS, els, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
@@ -317,12 +317,20 @@ import { openSingleModal } from './15-insert.js';
     if (opts.content !== undefined) d.content = opts.content;
     if (opts.color !== undefined) d.color = opts.color;
     if (opts.pinned !== undefined) d.pinned = !!opts.pinned;
+    if (opts.reminder !== undefined) {
+      if (opts.reminder && opts.reminder.enabled) d.reminder = opts.reminder;
+      else delete d.reminder;
+    }
+    if (opts.dueAt !== undefined) {
+      if (opts.dueAt) d.dueAt = opts.dueAt;
+      else delete d.dueAt;
+    }
     d.updated = Date.now();
     persist();
     return true;
   }
 
-  // 打开便利贴编辑浮层
+  // 打开便利贴编辑浮层（填充标题/正文/颜色/置顶/提醒/到期）
   function openStickyEditor(d) {
     if (!els.stickyEditModal) return;
     els.stickyEditTitle.value = d.title || '';
@@ -333,7 +341,122 @@ import { openSingleModal } from './15-insert.js';
     Array.prototype.forEach.call(els.stickyColorRow.children, function (el) {
       el.classList.toggle('active', el.getAttribute('data-color') === state.stickyColor);
     });
+    // 定时提醒
+    var rem = d.reminder;
+    if (els.stickyEditRemEnabled) {
+      els.stickyEditRemEnabled.checked = !!(rem && rem.enabled);
+      els.stickyRemRow.style.display = (rem && rem.enabled) ? '' : 'none';
+      els.stickyEditRemType.value = (rem && rem.type) || 'once';
+      els.stickyEditRemTime.value = (rem && rem.time) || '09:00';
+      els.stickyEditRemDate.value = (rem && rem.date) || '';
+      els.stickyEditRemDay.value = (rem && rem.day) || '';
+      // 每周复选框
+      Array.prototype.forEach.call(els.stickyRemWeekly.querySelectorAll('input[type=checkbox]'), function (cb) {
+        cb.checked = !!(rem && rem.type === 'weekly' && rem.days && rem.days.indexOf(Number(cb.value)) >= 0);
+      });
+      syncRemSubUI();
+    }
+    // 到期时间
+    if (els.stickyEditDue) els.stickyEditDue.value = d.dueAt ? toLocalInput(d.dueAt) : '';
     els.stickyEditModal.style.display = 'flex';
+  }
+
+  // 根据提醒类型显示对应子区域（单次日期 / 每周 / 每月）
+  function syncRemSubUI() {
+    if (!els.stickyEditRemType) return;
+    var t = els.stickyEditRemType.value;
+    if (els.stickyRemOnce) els.stickyRemOnce.style.display = t === 'once' ? '' : 'none';
+    if (els.stickyRemWeekly) els.stickyRemWeekly.style.display = t === 'weekly' ? '' : 'none';
+    if (els.stickyRemMonthly) els.stickyRemMonthly.style.display = t === 'monthly' ? '' : 'none';
+  }
+
+  /* ---------------- 定时标签：时间工具 + 标签过期 ---------------- */
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  // 时间戳 → datetime-local 输入值（YYYY-MM-DDTHH:mm）
+  function toLocalInput(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+      'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+
+  // datetime-local 值 → 时间戳
+  function fromLocalInput(v) {
+    if (!v) return null;
+    var t = new Date(v).getTime();
+    return isNaN(t) ? null : t;
+  }
+
+  // 格式化时间戳为可读文本
+  function fmtStamp(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+      ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+
+  // 设置标签过期时间（days 天后过期；days=null 清除）
+  function setTagExpiry(tag, days) {
+    if (days == null) { clearTagExpiry(tag); return; }
+    var n = Number(days);
+    if (isNaN(n) || n < 1) { toast('请输入有效的天数（≥1）', 'error'); return; }
+    state.tagMeta[tag] = { expiresAt: Date.now() + n * 86400000 };
+    persist();
+    toast('标签 #' + tag + ' 将于 ' + n + ' 天后过期', 'success');
+  }
+
+  function clearTagExpiry(tag) {
+    if (state.tagMeta[tag]) {
+      delete state.tagMeta[tag];
+      persist();
+      toast('已清除标签 #' + tag + ' 的过期时间', 'success');
+    }
+  }
+
+  // 清理已过期标签：解除全部文档关联并删除元数据；返回被清理的标签数组
+  function cleanupExpiredTags() {
+    var now = Date.now();
+    var expired = [];
+    for (var t in state.tagMeta) {
+      if (state.tagMeta[t] && state.tagMeta[t].expiresAt && state.tagMeta[t].expiresAt < now) {
+        expired.push(t);
+      }
+    }
+    if (!expired.length) return [];
+    var changed = false;
+    state.docs.forEach(function (d) {
+      if (!d.tags || !d.tags.length) return;
+      var before = d.tags.length;
+      d.tags = d.tags.filter(function (x) { return expired.indexOf(x) < 0; });
+      if (d.tags.length !== before) changed = true;
+    });
+    expired.forEach(function (t) { delete state.tagMeta[t]; });
+    if (changed) {
+      persist();
+      toast('已自动清理过期标签：#' + expired.join(' #'), 'success');
+    } else {
+      persist();
+    }
+    return expired;
+  }
+
+  // 判断便利贴提醒是否命中当前时刻
+  function matchReminder(rem, now) {
+    if (!rem || !rem.enabled) return false;
+    now = now || new Date();
+    var hhmm = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
+    if (rem.time !== hhmm) return false;
+    if (rem.type === 'once') {
+      return rem.date === (now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate()));
+    }
+    if (rem.type === 'daily') return true;
+    if (rem.type === 'weekly') {
+      return !!(rem.days && rem.days.indexOf(now.getDay()) >= 0);
+    }
+    if (rem.type === 'monthly') {
+      return Number(rem.day) === now.getDate();
+    }
+    return false;
   }
 
   // 保存文档标签

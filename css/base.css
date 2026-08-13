@@ -15,10 +15,12 @@
   --hover: rgba(23, 30, 35, 0.05);
   --active: #D3DEF6;
   --active-text: #171E23;
-  --accent: #5B9BBF;
-  --accent-soft: #A7D8EE;
-  --primary-container: #E3F0F7;
-  --on-primary-container: #2A556E;
+  --accent: #3370FF;
+  --accent-soft: #A7C4FF;
+  --accent-hover: #2860E1;
+  --accent-rgb: 51, 112, 255;
+  --primary-container: #E8F0FF;
+  --on-primary-container: #1A3B80;
   --ai: #E73391;
   --danger: #EB5757;
   --radius: 10px;

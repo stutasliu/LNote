@@ -13,7 +13,7 @@ import { setLang, toast } from './16-doc-ops.js';
     if (!raw) { toast('内容为空', 'error'); return; }
     try {
       cm.setValue(jsonFormat(raw));
-      setLang('json');
+      setLang('json', true);   // 已格式化，跳过 setLang 的自动格式化
       toast('JSON 格式化完成 ✓', 'success');
     } catch (e) {
       highlightJSONError(e, raw);
@@ -317,7 +317,8 @@ import { setLang, toast } from './16-doc-ops.js';
       var hadSelection = !!cm.getSelection();
       withContent(fn);
       // 全文做 JSON 格式化/压缩时，顺带把语言切到 JSON（高亮更准确）
-      if (!hadSelection && (name === 'format' || name === 'compress')) setLang('json');
+      // v0.20.45：传入 true 跳过 setLang 自动格式化 —— 压缩场景内容需保持压缩态
+      if (!hadSelection && (name === 'format' || name === 'compress')) setLang('json', true);
       toast(TOOL_NAMES[name] + ' 完成 ✓', 'success');
     } catch (e) {
       // JSON 解析/格式化错误：尝试高亮定位
