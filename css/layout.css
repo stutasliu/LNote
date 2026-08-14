@@ -265,6 +265,7 @@
   font-family: inherit;
 }
 .sb-icon-btn:hover { background: #F2F3F5; color: #1F2329; }
+.sb-icon-btn.active { background: #E8F3FF; color: #3370FF; }
 .sb-icon-btn svg { width: 16px; height: 16px; }
 .sb-icon-btn.sb-icon-danger { color: #86909C; }
 .sb-icon-btn.sb-icon-danger:hover { background: #FFECE8; color: #F53F3F; }

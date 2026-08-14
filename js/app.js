@@ -95,6 +95,8 @@
     imgFit: $("img-fit"),
     // 批量管理工具栏
     batchToggle: $("btn-batch-toggle"),
+    btnSortToggle: $("btn-sort-toggle"),
+    // 文档按时间分组排序开关
     sbBatchBar: $("sbBatchBar"),
     batchSelectAll: $("sbBatchSelectAll"),
     batchCount: $("sbBatchCount"),
@@ -195,6 +197,8 @@
     // { docId: true } 已选中的文档 id 集合
     docFilter: "recent",
     // 当前侧栏过滤模式：recent / my-space / wiki / favorites / trash / sticky
+    sortGroup: false,
+    // 文档列表是否按时间分组排序（今天/昨天/本周/更早），默认关闭
     // 便签模块：标签 / 便利贴
     tagFilter: null,
     // 当前标签过滤（null 表示未过滤）
@@ -2084,6 +2088,14 @@
         els.docList.appendChild(createDocItem(d));
       });
     }
+    if (!state.sortGroup) {
+      sorted.forEach(function(d) {
+        if (d.pinned) return;
+        els.docList.appendChild(createDocItem(d));
+      });
+      refreshBatchCount();
+      return;
+    }
     var groups = { "\u4ECA\u5929": [], "\u6628\u5929": [], "\u672C\u5468": [], "\u66F4\u65E9": [] };
     var now = /* @__PURE__ */ new Date();
     var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -2115,6 +2127,26 @@
       });
     });
     refreshBatchCount();
+  }
+  var SORT_KEY = "inkpad.sortgroup";
+  function syncSortButton() {
+    try {
+      var v = localStorage.getItem(SORT_KEY);
+      state.sortGroup = v === "1";
+    } catch (e) {
+      state.sortGroup = false;
+    }
+    if (els.btnSortToggle) els.btnSortToggle.classList.toggle("active", !!state.sortGroup);
+  }
+  function toggleSortGroup() {
+    state.sortGroup = !state.sortGroup;
+    try {
+      localStorage.setItem(SORT_KEY, state.sortGroup ? "1" : "0");
+    } catch (e) {
+    }
+    if (els.btnSortToggle) els.btnSortToggle.classList.toggle("active", !!state.sortGroup);
+    renderList();
+    toast(state.sortGroup ? "\u5DF2\u5F00\u542F\u6309\u65F6\u95F4\u5206\u7EC4\u6392\u5E8F" : "\u5DF2\u5173\u95ED\u6309\u65F6\u95F4\u5206\u7EC4\u6392\u5E8F", "success");
   }
   function createDocItem(d) {
     var item = document.createElement("div");
@@ -7662,6 +7694,12 @@
         toggleBatchMode(true);
       });
     }
+    if (els.btnSortToggle) {
+      els.btnSortToggle.addEventListener("click", function() {
+        closeDocMenu();
+        toggleSortGroup();
+      });
+    }
     if (els.batchExit) {
       els.batchExit.addEventListener("click", function() {
         toggleBatchMode(false);
@@ -7767,6 +7805,7 @@
     });
   }
   initEvents();
+  syncSortButton();
   initApp();
   initCraftSidebar();
 })();

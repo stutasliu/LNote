@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { renderList, pendingDelId, openDocDelConfirm, closeDocDelConfirm, deleteDoc, shortTime, fullTime, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchDestroy, batchExport, openDocMenu, closeDocMenu, renameDocId, renderSideSub, openTagEditModal, closeTagEditModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, stickyEditSave };
+export { renderList, pendingDelId, openDocDelConfirm, closeDocDelConfirm, deleteDoc, shortTime, fullTime, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchDestroy, batchExport, openDocMenu, closeDocMenu, renameDocId, renderSideSub, openTagEditModal, closeTagEditModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, stickyEditSave, syncSortButton, toggleSortGroup };
 /* [esm] 导入依赖模块绑定 */
 import { $, bus, els, state } from './01-core.js';
 import { cm, docIcon } from './04-editor-init.js';
@@ -86,7 +86,17 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
       });
     }
 
-    // 飞书风格：按时间分组（今天 / 昨天 / 本周 / 更早）—— 仅对未置顶文档
+    // 排序开关关闭（默认）：其余文档直接平铺，不按时间分组
+    if (!state.sortGroup) {
+      sorted.forEach(function (d) {
+        if (d.pinned) return;
+        els.docList.appendChild(createDocItem(d));
+      });
+      refreshBatchCount();
+      return;
+    }
+
+    // 排序开关开启：飞书风格按时间分组（今天 / 昨天 / 本周 / 更早）—— 仅对未置顶文档
     var groups = { '今天': [], '昨天': [], '本周': [], '更早': [] };
     var now = new Date();
     var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -125,6 +135,27 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
 
     // 刷新批量计数
     refreshBatchCount();
+  }
+
+  /* ---------------- 文档排序开关（按时间分组，默认关闭） ---------------- */
+  var SORT_KEY = 'inkpad.sortgroup';
+
+  // 读取开关状态（默认关闭）并同步按钮高亮
+  function syncSortButton() {
+    try {
+      var v = localStorage.getItem(SORT_KEY);
+      state.sortGroup = v === '1';
+    } catch (e) { state.sortGroup = false; }
+    if (els.btnSortToggle) els.btnSortToggle.classList.toggle('active', !!state.sortGroup);
+  }
+
+  // 切换开关并重新渲染列表
+  function toggleSortGroup() {
+    state.sortGroup = !state.sortGroup;
+    try { localStorage.setItem(SORT_KEY, state.sortGroup ? '1' : '0'); } catch (e) {}
+    if (els.btnSortToggle) els.btnSortToggle.classList.toggle('active', !!state.sortGroup);
+    renderList();
+    toast(state.sortGroup ? '已开启按时间分组排序' : '已关闭按时间分组排序', 'success');
   }
 
   function createDocItem(d) {

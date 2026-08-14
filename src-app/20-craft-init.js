@@ -9,7 +9,7 @@ import { _guessMimeFromPath } from './15-insert.js';
 import { toast, renameDoc, newSticky, matchReminder, fmtStamp } from './16-doc-ops.js';
 import { initEvents } from './17-events.js';
 import { initApp } from './18-bootstrap.js';
-import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchDestroy, batchExport, renameDocId, closeDocMenu, pendingDelId, renderList, renderSideSub, openTagEditModal, closeTagEditModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, stickyEditSave } from './06-doc-list.js';
+import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchDestroy, batchExport, renameDocId, closeDocMenu, pendingDelId, renderList, renderSideSub, openTagEditModal, closeTagEditModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, stickyEditSave, syncSortButton, toggleSortGroup } from './06-doc-list.js';
 
   // 暴露给块编辑器（block-editor.js）使用的辅助函数
   window.InkpadApp = {
@@ -356,6 +356,10 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
     if (els.batchToggle) {
       els.batchToggle.addEventListener('click', function () { closeDocMenu(); toggleBatchMode(true); });
     }
+    // 0) 按时间分组排序开关
+    if (els.btnSortToggle) {
+      els.btnSortToggle.addEventListener('click', function () { closeDocMenu(); toggleSortGroup(); });
+    }
     // 2) 退出批量管理
     if (els.batchExit) {
       els.batchExit.addEventListener('click', function () { toggleBatchMode(false); });
@@ -458,5 +462,6 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
    *   2. initApp()     —— 18-bootstrap：弹窗绑定 + loadDocs + renderList + openDoc
    *   3. initCraftSidebar() —— 本模块：Craft 侧栏 UI */
   initEvents();
+  syncSortButton();   // 读取文档排序开关状态（默认关闭），供 initApp 内 renderList 使用
   initApp();
   initCraftSidebar();

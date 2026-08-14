@@ -83,6 +83,7 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, $, els,
     imgClose: $('img-close'), imgZoomIn: $('img-zoom-in'), imgZoomOut: $('img-zoom-out'), imgFit: $('img-fit'),
     // 批量管理工具栏
     batchToggle: $('btn-batch-toggle'),
+    btnSortToggle: $('btn-sort-toggle'),   // 文档按时间分组排序开关
     sbBatchBar: $('sbBatchBar'),
     batchSelectAll: $('sbBatchSelectAll'),
     batchCount: $('sbBatchCount'),
@@ -156,6 +157,7 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, $, els,
     batchMode: false,   // 是否进入批量选择模式
     batchSelected: {},   // { docId: true } 已选中的文档 id 集合
     docFilter: 'recent',  // 当前侧栏过滤模式：recent / my-space / wiki / favorites / trash / sticky
+    sortGroup: false,     // 文档列表是否按时间分组排序（今天/昨天/本周/更早），默认关闭
     // 便签模块：标签 / 便利贴
     tagFilter: null,      // 当前标签过滤（null 表示未过滤）
     tagEditDocId: null,   // 正在编辑标签的文档 id
