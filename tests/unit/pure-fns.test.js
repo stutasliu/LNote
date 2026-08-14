@@ -19,7 +19,7 @@ beforeAll(() => {
       'b64Encode', 'b64Decode', 'urlEncodeText', 'urlDecodeText',
       'titleCase', 'swapCase', 'fullToHalf', 'halfToFull',
       'dedupeLines', 'indentOf', 'pad2', 'formatBeijing', 'prettyXML',
-      'isWholeJson', 'matchBalanced', 'tryClose', 'longestJsonPrefix', 'extractJsonFragments'
+      'isWholeJson', 'matchBalanced', 'tryClose', 'longestJsonPrefix', 'extractJsonFragments', 'isJsonResidue', 'countRecovered'
     ]) +
     '\n' +
     extractFns('09-rich-save', ['sanitizeFileName']);
@@ -31,7 +31,7 @@ beforeAll(() => {
   });
   vm.runInContext(
     code +
-      '\nthis.__T = { jsonFormat, jsonCompress, strEscape, strUnescape, unicodeToZh, zhToUnicode, jsonToGet, b64Encode, b64Decode, urlEncodeText, urlDecodeText, titleCase, swapCase, fullToHalf, halfToFull, dedupeLines, indentOf, pad2, formatBeijing, prettyXML, sanitizeFileName };',
+      '\nthis.__T = { jsonFormat, jsonCompress, strEscape, strUnescape, unicodeToZh, zhToUnicode, jsonToGet, b64Encode, b64Decode, urlEncodeText, urlDecodeText, titleCase, swapCase, fullToHalf, halfToFull, dedupeLines, indentOf, pad2, formatBeijing, prettyXML, sanitizeFileName, isJsonResidue, countRecovered };',
     ctx
   );
   T = ctx.__T;
@@ -70,6 +70,17 @@ describe('JSON 工具', () => {
   });
   it('无 JSON 片段时抛错', () => {
     expect(() => T.jsonFormat('hello world 没有任何 json')).toThrow('未找到可序列化的 JSON 数据');
+  });
+  it('完整 JSON 后带截断尾巴：标记残余', () => {
+    const out = T.jsonFormat('{"a":1,"b":[1,2]},"outChannelName');
+    expect(out.includes('/* 数据不完整')).toBe(true);
+    expect(out.includes(',"outChannelName')).toBe(true); // 残余文本保留
+    expect(T.countRecovered('{"a":1,"b":[1,2]},"outChannelName')).toBe(1);
+  });
+  it('isJsonResidue 判定残余', () => {
+    expect(T.isJsonResidue(',"outChannelName')).toBe(true);
+    expect(T.isJsonResidue(' 日志B')).toBe(false);
+    expect(T.countRecovered('xx {"a":1} yy')).toBe(0); // 正常混合文本不误报
   });
   it('字符串内含花括号不误识别为 JSON 片段', () => {
     expect(T.jsonFormat('{"s":"text with {brace} inside"}')).toBe('{\n  "s": "text with {brace} inside"\n}');

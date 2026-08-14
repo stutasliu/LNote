@@ -5476,10 +5476,25 @@
     }
     return frags;
   }
+  function isJsonResidue(t) {
+    var s = t.trim();
+    if (!s) return false;
+    if (/^[,:}]/.test(s)) return true;
+    var q = 0;
+    for (var i = 0; i < s.length; i++) if (s[i] === '"') q++;
+    return q % 2 === 1;
+  }
   function countRecovered(t) {
     var n = 0;
     var frags = extractJsonFragments(t);
-    for (var k = 0; k < frags.length; k++) if (frags[k].recovered) n++;
+    var last = 0;
+    for (var k = 0; k < frags.length; k++) {
+      var f = frags[k];
+      if (isJsonResidue(t.slice(last, f.start))) n++;
+      if (f.recovered) n++;
+      last = f.end;
+    }
+    if (isJsonResidue(t.slice(last))) n++;
     return n;
   }
   function jsonFormat(t) {
@@ -5493,11 +5508,15 @@
     var last = 0;
     for (var k = 0; k < frags.length; k++) {
       var f = frags[k];
-      out += t.slice(last, f.start) + JSON.stringify(f.parsed, null, 2);
+      var pre = t.slice(last, f.start);
+      if (isJsonResidue(pre)) out += "\n/* \u6570\u636E\u4E0D\u5B8C\u6574\uFF1A\u6B64\u5904\u5B58\u5728\u672A\u5B8C\u6210\u7684 JSON \u6B8B\u7559\u5185\u5BB9 */";
+      out += pre + JSON.stringify(f.parsed, null, 2);
       if (f.recovered) out += "\n/* \u6570\u636E\u4E0D\u5B8C\u6574\uFF1A\u6B64\u6BB5 JSON \u539F\u6587\u88AB\u622A\u65AD\uFF0C\u5DF2\u81EA\u52A8\u8865\u5168\u95ED\u5408 */";
       last = f.end;
     }
-    out += t.slice(last);
+    var tail = t.slice(last);
+    if (isJsonResidue(tail)) out += "\n/* \u6570\u636E\u4E0D\u5B8C\u6574\uFF1A\u6B64\u5904\u5B58\u5728\u672A\u5B8C\u6210\u7684 JSON \u6B8B\u7559\u5185\u5BB9 */";
+    out += tail;
     return out;
   }
   function jsonCompress(t) {
@@ -5676,7 +5695,7 @@
       if (!hadSelection && (name === "format" || name === "compress") && isWholeJson(rawText)) setLang("json", true);
       var warns = countRecovered(scopeText);
       if (warns && name === "format") highlightRecovered();
-      toast(warns ? TOOL_NAMES[name] + " \u5B8C\u6210 \u2713 \u68C0\u6D4B\u5230 " + warns + " \u5904\u6570\u636E\u4E0D\u5B8C\u6574\uFF0C\u5DF2\u81EA\u52A8\u8865\u5168" + (name === "format" ? "\u5E76\u9AD8\u4EAE\u5B9A\u4F4D" : "") : TOOL_NAMES[name] + " \u5B8C\u6210 \u2713", "success");
+      toast(warns ? TOOL_NAMES[name] + " \u5B8C\u6210 \u2713 \u68C0\u6D4B\u5230 " + warns + " \u5904\u6570\u636E\u4E0D\u5B8C\u6574\uFF0C\u5DF2\u9AD8\u4EAE\u5B9A\u4F4D" : TOOL_NAMES[name] + " \u5B8C\u6210 \u2713", "success");
     } catch (e) {
       var em = e && e.message || String(e);
       if (/未找到可序列化的 JSON 数据/.test(em)) {

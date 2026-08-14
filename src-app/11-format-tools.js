@@ -313,11 +313,30 @@ import { setLang, toast } from './16-doc-ops.js';
     return frags;
   }
 
-  // 统计文本中「半截（被截断）」的 JSON 片段数量，用于提示用户
+  // 判断一段非 JSON 文本是否像「被截断的 JSON 残余」。
+  // 典型如完整 JSON 后的 ,"outChannelName —— 以 JSON 连接符（, : 等）开头，
+  // 或含未闭合的双引号（字符串被截断）。
+  function isJsonResidue(t) {
+    var s = t.trim();
+    if (!s) return false;
+    if (/^[,:}]/.test(s)) return true;
+    var q = 0;
+    for (var i = 0; i < s.length; i++) if (s[i] === '"') q++;
+    return q % 2 === 1;
+  }
+
+  // 统计文本中「数据不完整」的处数（半截片段 + JSON 残余文本）
   function countRecovered(t) {
     var n = 0;
     var frags = extractJsonFragments(t);
-    for (var k = 0; k < frags.length; k++) if (frags[k].recovered) n++;
+    var last = 0;
+    for (var k = 0; k < frags.length; k++) {
+      var f = frags[k];
+      if (isJsonResidue(t.slice(last, f.start))) n++;
+      if (f.recovered) n++;
+      last = f.end;
+    }
+    if (isJsonResidue(t.slice(last))) n++;
     return n;
   }
 
@@ -331,13 +350,19 @@ import { setLang, toast } from './16-doc-ops.js';
     var last = 0;
     for (var k = 0; k < frags.length; k++) {
       var f = frags[k];
-      out += t.slice(last, f.start) + JSON.stringify(f.parsed, null, 2);
+      var pre = t.slice(last, f.start);
+      // 片段前存在被截断的 JSON 残余（如 ,"outChannelName）：先标记
+      if (isJsonResidue(pre)) out += '\n/* 数据不完整：此处存在未完成的 JSON 残留内容 */';
+      out += pre + JSON.stringify(f.parsed, null, 2);
       // 半截恢复的片段：在片段后追加标记，提示原文此处数据不完整
       // （注释文本刻意避开 { } [ ] " 等字符，避免再次格式化时被误识别）
       if (f.recovered) out += '\n/* 数据不完整：此段 JSON 原文被截断，已自动补全闭合 */';
       last = f.end;
     }
-    out += t.slice(last);
+    var tail = t.slice(last);
+    // 片段尾部存在被截断的 JSON 残余：同样标记
+    if (isJsonResidue(tail)) out += '\n/* 数据不完整：此处存在未完成的 JSON 残留内容 */';
+    out += tail;
     return out;
   }
 
@@ -515,7 +540,7 @@ import { setLang, toast } from './16-doc-ops.js';
       var warns = countRecovered(scopeText);
       // 格式化时高亮定位不完整的片段（压缩结果保持紧凑，不做高亮）
       if (warns && name === 'format') highlightRecovered();
-      toast(warns ? (TOOL_NAMES[name] + ' 完成 ✓ 检测到 ' + warns + ' 处数据不完整，已自动补全' + (name === 'format' ? '并高亮定位' : '')) : (TOOL_NAMES[name] + ' 完成 ✓'), 'success');
+      toast(warns ? (TOOL_NAMES[name] + ' 完成 ✓ 检测到 ' + warns + ' 处数据不完整，已高亮定位') : (TOOL_NAMES[name] + ' 完成 ✓'), 'success');
     } catch (e) {
       var em = e && e.message || String(e);
       // 混合内容中未找到 JSON 片段：直接提示，不做错误高亮定位
