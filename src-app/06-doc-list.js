@@ -49,11 +49,13 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
     }
     if (els.batchToggle) els.batchToggle.style.display = '';
 
-    // 排序：置顶优先(pinned=true 在最前) + updated 倒序
+    // 排序开关：关闭（默认）时保持创建顺序（docs 数组顺序，点击文档不会跳动）；
+    // 开启时按最近使用（updated 倒序）。置顶在任何模式下都优先。
     var sorted = filtered.slice().sort(function (a, b) {
       var ap = a.pinned ? 1 : 0, bp = b.pinned ? 1 : 0;
       if (ap !== bp) return bp - ap;
-      return (b.updated || 0) - (a.updated || 0);
+      if (state.sortGroup) return (b.updated || 0) - (a.updated || 0);
+      return 0;   // 关闭排序：保持原始顺序（依赖稳定排序）
     });
 
     if (sorted.length === 0) {
@@ -155,7 +157,7 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
     try { localStorage.setItem(SORT_KEY, state.sortGroup ? '1' : '0'); } catch (e) {}
     if (els.btnSortToggle) els.btnSortToggle.classList.toggle('active', !!state.sortGroup);
     renderList();
-    toast(state.sortGroup ? '已开启按时间分组排序' : '已关闭按时间分组排序', 'success');
+    toast(state.sortGroup ? '已开启按最近使用排序（时间分组）' : '已关闭排序，列表保持创建顺序', 'success');
   }
 
   function createDocItem(d) {

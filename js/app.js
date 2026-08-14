@@ -2054,7 +2054,8 @@
     var sorted = filtered.slice().sort(function(a, b) {
       var ap = a.pinned ? 1 : 0, bp = b.pinned ? 1 : 0;
       if (ap !== bp) return bp - ap;
-      return (b.updated || 0) - (a.updated || 0);
+      if (state.sortGroup) return (b.updated || 0) - (a.updated || 0);
+      return 0;
     });
     if (sorted.length === 0) {
       var empty = document.createElement("div");
@@ -2146,7 +2147,7 @@
     }
     if (els.btnSortToggle) els.btnSortToggle.classList.toggle("active", !!state.sortGroup);
     renderList();
-    toast(state.sortGroup ? "\u5DF2\u5F00\u542F\u6309\u65F6\u95F4\u5206\u7EC4\u6392\u5E8F" : "\u5DF2\u5173\u95ED\u6309\u65F6\u95F4\u5206\u7EC4\u6392\u5E8F", "success");
+    toast(state.sortGroup ? "\u5DF2\u5F00\u542F\u6309\u6700\u8FD1\u4F7F\u7528\u6392\u5E8F\uFF08\u65F6\u95F4\u5206\u7EC4\uFF09" : "\u5DF2\u5173\u95ED\u6392\u5E8F\uFF0C\u5217\u8868\u4FDD\u6301\u521B\u5EFA\u987A\u5E8F", "success");
   }
   function createDocItem(d) {
     var item = document.createElement("div");
