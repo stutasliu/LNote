@@ -3878,8 +3878,16 @@
     }
     if (frState.pos) {
       var card = $("fr-card");
-      card.style.left = frState.pos.left + "px";
-      card.style.top = frState.pos.top + "px";
+      var cw = card.offsetWidth || 520;
+      var ch = card.offsetHeight || 340;
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var left = frState.pos.left, top = frState.pos.top;
+      if (left + cw < 0 || left > vw - 40 || top + ch < 0 || top > vh - 20) {
+        left = Math.max(8, Math.round((vw - cw) / 2));
+        top = Math.max(8, Math.round(vh / 3));
+      }
+      card.style.left = left + "px";
+      card.style.top = top + "px";
       card.style.right = "auto";
     }
     syncFrStateToUi();
