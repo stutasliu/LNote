@@ -16,7 +16,8 @@ import { setLang, toast } from './16-doc-ops.js';
       // 仅当全文整体是合法 JSON 时才切换语言（混合内容保持原语言）
       if (isWholeJson(raw)) setLang('json', true);
       var warns = countRecovered(raw);
-      toast(warns ? ('JSON 格式化完成 ✓ 检测到 ' + warns + ' 处数据不完整，已在文中标注') : 'JSON 格式化完成 ✓', 'success');
+      if (warns) highlightRecovered();   // 高亮定位不完整的片段
+      toast(warns ? ('JSON 格式化完成 ✓ 检测到 ' + warns + ' 处数据不完整，已高亮定位') : 'JSON 格式化完成 ✓', 'success');
     } catch (e) {
       if (/未找到可序列化的 JSON 数据/.test(e && e.message || '')) {
         toast(e.message, 'error');
@@ -108,6 +109,33 @@ import { setLang, toast } from './16-doc-ops.js';
       } catch (e) {}
     });
     jsonErrMarks = [];
+  }
+
+  // 格式化后把「数据不完整」的标记注释行高亮，帮助定位问题位置
+  function highlightRecovered() {
+    clearJSONErrorHighlight();
+    var val = cm.getValue();
+    if (!val) return;
+    var lines = val.split('\n');
+    var first = -1;
+    for (var i = 0; i < lines.length; i++) {
+      var idx = lines[i].indexOf('/* 数据不完整');
+      if (idx >= 0) {
+        var handle = cm.addLineClass(i, 'background', 'json-err-line');
+        var mark = cm.markText(
+          { line: i, ch: idx },
+          { line: i, ch: lines[i].length },
+          { className: 'json-err-char' }
+        );
+        jsonErrMarks.push({ lineHandle: handle, mark: mark });
+        if (first < 0) first = i;
+      }
+    }
+    if (first >= 0) {
+      cm.setCursor({ line: first, ch: 0 });
+      cm.scrollIntoView({ line: first, ch: 0 }, 120);
+      cm.focus();
+    }
   }
 
   function formatXML() {
@@ -485,7 +513,9 @@ import { setLang, toast } from './16-doc-ops.js';
       // v0.21.2：仅当全文整体是合法 JSON 时才切换语言；混合内容保持原语言
       if (!hadSelection && (name === 'format' || name === 'compress') && isWholeJson(rawText)) setLang('json', true);
       var warns = countRecovered(scopeText);
-      toast(warns ? (TOOL_NAMES[name] + ' 完成 ✓ 检测到 ' + warns + ' 处数据不完整，已自动补全' + (name === 'format' ? '并在文中标注' : '')) : (TOOL_NAMES[name] + ' 完成 ✓'), 'success');
+      // 格式化时高亮定位不完整的片段（压缩结果保持紧凑，不做高亮）
+      if (warns && name === 'format') highlightRecovered();
+      toast(warns ? (TOOL_NAMES[name] + ' 完成 ✓ 检测到 ' + warns + ' 处数据不完整，已自动补全' + (name === 'format' ? '并高亮定位' : '')) : (TOOL_NAMES[name] + ' 完成 ✓'), 'success');
     } catch (e) {
       var em = e && e.message || String(e);
       // 混合内容中未找到 JSON 片段：直接提示，不做错误高亮定位

@@ -5192,7 +5192,8 @@
       cm.setValue(jsonFormat(raw));
       if (isWholeJson(raw)) setLang("json", true);
       var warns = countRecovered(raw);
-      toast(warns ? "JSON \u683C\u5F0F\u5316\u5B8C\u6210 \u2713 \u68C0\u6D4B\u5230 " + warns + " \u5904\u6570\u636E\u4E0D\u5B8C\u6574\uFF0C\u5DF2\u5728\u6587\u4E2D\u6807\u6CE8" : "JSON \u683C\u5F0F\u5316\u5B8C\u6210 \u2713", "success");
+      if (warns) highlightRecovered();
+      toast(warns ? "JSON \u683C\u5F0F\u5316\u5B8C\u6210 \u2713 \u68C0\u6D4B\u5230 " + warns + " \u5904\u6570\u636E\u4E0D\u5B8C\u6574\uFF0C\u5DF2\u9AD8\u4EAE\u5B9A\u4F4D" : "JSON \u683C\u5F0F\u5316\u5B8C\u6210 \u2713", "success");
     } catch (e) {
       if (/未找到可序列化的 JSON 数据/.test(e && e.message || "")) {
         toast(e.message, "error");
@@ -5282,6 +5283,31 @@
       }
     });
     jsonErrMarks = [];
+  }
+  function highlightRecovered() {
+    clearJSONErrorHighlight();
+    var val = cm.getValue();
+    if (!val) return;
+    var lines = val.split("\n");
+    var first = -1;
+    for (var i = 0; i < lines.length; i++) {
+      var idx = lines[i].indexOf("/* \u6570\u636E\u4E0D\u5B8C\u6574");
+      if (idx >= 0) {
+        var handle = cm.addLineClass(i, "background", "json-err-line");
+        var mark = cm.markText(
+          { line: i, ch: idx },
+          { line: i, ch: lines[i].length },
+          { className: "json-err-char" }
+        );
+        jsonErrMarks.push({ lineHandle: handle, mark });
+        if (first < 0) first = i;
+      }
+    }
+    if (first >= 0) {
+      cm.setCursor({ line: first, ch: 0 });
+      cm.scrollIntoView({ line: first, ch: 0 }, 120);
+      cm.focus();
+    }
   }
   function formatXML() {
     var raw = cm.getValue().trim();
@@ -5649,7 +5675,8 @@
       withContent(fn);
       if (!hadSelection && (name === "format" || name === "compress") && isWholeJson(rawText)) setLang("json", true);
       var warns = countRecovered(scopeText);
-      toast(warns ? TOOL_NAMES[name] + " \u5B8C\u6210 \u2713 \u68C0\u6D4B\u5230 " + warns + " \u5904\u6570\u636E\u4E0D\u5B8C\u6574\uFF0C\u5DF2\u81EA\u52A8\u8865\u5168" + (name === "format" ? "\u5E76\u5728\u6587\u4E2D\u6807\u6CE8" : "") : TOOL_NAMES[name] + " \u5B8C\u6210 \u2713", "success");
+      if (warns && name === "format") highlightRecovered();
+      toast(warns ? TOOL_NAMES[name] + " \u5B8C\u6210 \u2713 \u68C0\u6D4B\u5230 " + warns + " \u5904\u6570\u636E\u4E0D\u5B8C\u6574\uFF0C\u5DF2\u81EA\u52A8\u8865\u5168" + (name === "format" ? "\u5E76\u9AD8\u4EAE\u5B9A\u4F4D" : "") : TOOL_NAMES[name] + " \u5B8C\u6210 \u2713", "success");
     } catch (e) {
       var em = e && e.message || String(e);
       if (/未找到可序列化的 JSON 数据/.test(em)) {
