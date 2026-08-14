@@ -13,10 +13,16 @@ import { setLang, toast } from './16-doc-ops.js';
     if (!raw) { toast('内容为空', 'error'); return; }
     try {
       cm.setValue(jsonFormat(raw));
-      setLang('json', true);   // 已格式化，跳过 setLang 的自动格式化
-      toast('JSON 格式化完成 ✓', 'success');
+      // 仅当全文整体是合法 JSON 时才切换语言（混合内容保持原语言）
+      if (isWholeJson(raw)) setLang('json', true);
+      var warns = countRecovered(raw);
+      toast(warns ? ('JSON 格式化完成 ✓ 检测到 ' + warns + ' 处数据不完整，已在文中标注') : 'JSON 格式化完成 ✓', 'success');
     } catch (e) {
-      highlightJSONError(e, raw);
+      if (/未找到可序列化的 JSON 数据/.test(e && e.message || '')) {
+        toast(e.message, 'error');
+      } else {
+        highlightJSONError(e, raw);
+      }
     }
   }
 
@@ -159,12 +165,169 @@ import { setLang, toast } from './16-doc-ops.js';
     else cm.setValue(fn(cm.getValue()));
   }
 
+  // 整体是否是合法 JSON（用于判断是否切换语言高亮）
+  function isWholeJson(t) {
+    try { JSON.parse(t.trim()); return true; } catch (e) { return false; }
+  }
+
+  // 从 start 处找配对的括号结束位置（正确处理字符串与转义），找不到返回 -1
+  function matchBalanced(text, start) {
+    var openCh = text[start];
+    var closeCh = openCh === '{' ? '}' : ']';
+    var depth = 0;
+    var inStr = false;
+    var esc = false;
+    for (var i = start; i < text.length; i++) {
+      var c = text[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (c === '\\') esc = true;
+        else if (c === '"') inStr = false;
+        continue;
+      }
+      if (c === '"') { inStr = true; continue; }
+      if (c === openCh) depth++;
+      else if (c === closeCh) {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+    return -1;
+  }
+
+  // 在 [start, end) 内扫描括号栈；若到 end 时栈非空则自动补全缺失的闭合括号，
+  // 补全后整体可被 JSON.parse 解析则返回 { end, value, closed }（closed 为补全的括号数），
+  // 否则返回 null。中途括号不匹配（如多余的 `]`/`}`）也返回 null。
+  function tryClose(text, start, end) {
+    var stack = [];
+    var inStr = false, esc = false;
+    for (var i = start; i < end; i++) {
+      var c = text[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (c === '\\') esc = true;
+        else if (c === '"') inStr = false;
+        continue;
+      }
+      if (c === '"') { inStr = true; continue; }
+      if (c === '{' || c === '[') stack.push(c);
+      else if (c === '}' || c === ']') {
+        var want = c === '}' ? '{' : '[';
+        if (stack.length && stack[stack.length - 1] === want) stack.pop();
+        else return null;
+      }
+    }
+    if (!stack.length) return null;   // 完整闭合的片段不在半截恢复里处理
+    var closers = '';
+    for (var k = stack.length - 1; k >= 0; k--) closers += stack[k] === '{' ? '}' : ']';
+    try {
+      var p = JSON.parse(text.slice(start, end) + closers);
+      if (p !== null && typeof p === 'object') return { end: end, value: p, closed: stack.length };
+    } catch (e) {}
+    return null;
+  }
+
+  // 半截 JSON 恢复：从 start 找最长可通过「自动补全闭合括号」恢复的 JSON 前缀。
+  // 先试完整段，失败则从后往前在结构/空白边界处截断逐个尝试。
+  // 超过 30000 字符不做恢复，避免卡顿。
+  function longestJsonPrefix(text, start, limit) {
+    var n = limit >= 0 ? limit : text.length;
+    if (n - start > 30000) return null;
+    var r = tryClose(text, start, n);
+    if (r) return r;
+    for (var j = n - 1; j > start; j--) {
+      var c = text[j];
+      if (c === ',' || c === ':' || c === '{' || c === '[' || c === '}' || c === ']' ||
+          c === ' ' || c === '\n' || c === '\r' || c === '\t') {
+        r = tryClose(text, start, j);
+        if (r) return r;
+      }
+    }
+    return null;
+  }
+
+  // 从混合文本中提取 JSON 片段（含半截数据）：
+  // 返回 [{ start, end, parsed, recovered, closed }]，
+  // recovered=true 表示该片段原文不完整（已自动补全闭合），closed 为补全的括号数。
+  function extractJsonFragments(text) {
+    var frags = [];
+    var i = 0;
+    var n = text.length;
+    while (i < n) {
+      var c = text[i];
+      if (c === '{' || c === '[') {
+        var end = matchBalanced(text, i);
+        var segEnd = -1;
+        var parsed = null;
+        var recovered = false;
+        var closed = 0;
+        if (end >= 0) {
+          var sub = text.slice(i, end + 1);
+          try { parsed = JSON.parse(sub); segEnd = end + 1; } catch (e) { parsed = null; }
+        }
+        if (!parsed) {
+          var rec = longestJsonPrefix(text, i, end >= 0 ? end + 1 : n);
+          if (rec && rec.end > i) {
+            parsed = rec.value;
+            segEnd = rec.end;
+            recovered = rec.closed > 0;
+            closed = rec.closed || 0;
+          }
+        }
+        if (parsed && parsed !== null && typeof parsed === 'object') {
+          frags.push({ start: i, end: segEnd, parsed: parsed, recovered: recovered, closed: closed });
+          i = segEnd;
+          continue;
+        }
+      }
+      i++;
+    }
+    return frags;
+  }
+
+  // 统计文本中「半截（被截断）」的 JSON 片段数量，用于提示用户
+  function countRecovered(t) {
+    var n = 0;
+    var frags = extractJsonFragments(t);
+    for (var k = 0; k < frags.length; k++) if (frags[k].recovered) n++;
+    return n;
+  }
+
   function jsonFormat(t) {
-    return JSON.stringify(JSON.parse(t.trim()), null, 2);
+    // 整体是合法 JSON → 原样格式化
+    try { return JSON.stringify(JSON.parse(t.trim()), null, 2); } catch (e) {}
+    // 混合内容：只把其中的 JSON 片段序列化（半截数据尽力恢复），其余文本保留
+    var frags = extractJsonFragments(t);
+    if (!frags.length) throw new Error('未找到可序列化的 JSON 数据');
+    var out = '';
+    var last = 0;
+    for (var k = 0; k < frags.length; k++) {
+      var f = frags[k];
+      out += t.slice(last, f.start) + JSON.stringify(f.parsed, null, 2);
+      // 半截恢复的片段：在片段后追加标记，提示原文此处数据不完整
+      // （注释文本刻意避开 { } [ ] " 等字符，避免再次格式化时被误识别）
+      if (f.recovered) out += '\n/* 数据不完整：此段 JSON 原文被截断，已自动补全闭合 */';
+      last = f.end;
+    }
+    out += t.slice(last);
+    return out;
   }
 
   function jsonCompress(t) {
-    return JSON.stringify(JSON.parse(t.trim()));
+    // 整体是合法 JSON → 原样压缩
+    try { return JSON.stringify(JSON.parse(t.trim())); } catch (e) {}
+    // 混合内容：只压缩其中的 JSON 片段，其余文本保留
+    var frags = extractJsonFragments(t);
+    if (!frags.length) throw new Error('未找到可压缩的 JSON 数据');
+    var out = '';
+    var last = 0;
+    for (var k = 0; k < frags.length; k++) {
+      var f = frags[k];
+      out += t.slice(last, f.start) + JSON.stringify(f.parsed);
+      last = f.end;
+    }
+    out += t.slice(last);
+    return out;
   }
 
   function strEscape(t) {
@@ -315,17 +478,23 @@ import { setLang, toast } from './16-doc-ops.js';
     var rawText = cm.getValue();
     try {
       var hadSelection = !!cm.getSelection();
+      var scopeText = hadSelection ? cm.getSelection() : rawText;   // 处理前的文本，用于统计半截片段
       withContent(fn);
       // 全文做 JSON 格式化/压缩时，顺带把语言切到 JSON（高亮更准确）
       // v0.20.45：传入 true 跳过 setLang 自动格式化 —— 压缩场景内容需保持压缩态
-      if (!hadSelection && (name === 'format' || name === 'compress')) setLang('json', true);
-      toast(TOOL_NAMES[name] + ' 完成 ✓', 'success');
+      // v0.21.2：仅当全文整体是合法 JSON 时才切换语言；混合内容保持原语言
+      if (!hadSelection && (name === 'format' || name === 'compress') && isWholeJson(rawText)) setLang('json', true);
+      var warns = countRecovered(scopeText);
+      toast(warns ? (TOOL_NAMES[name] + ' 完成 ✓ 检测到 ' + warns + ' 处数据不完整，已自动补全' + (name === 'format' ? '并在文中标注' : '')) : (TOOL_NAMES[name] + ' 完成 ✓'), 'success');
     } catch (e) {
-      // JSON 解析/格式化错误：尝试高亮定位
-      if (e instanceof SyntaxError || /JSON|JSON\.|position\s+\d+/.test(e && e.message || '')) {
+      var em = e && e.message || String(e);
+      // 混合内容中未找到 JSON 片段：直接提示，不做错误高亮定位
+      if (/未找到可序列化的 JSON 数据/.test(em)) {
+        toast(em, 'error');
+      } else if (e instanceof SyntaxError || /JSON|JSON\.|position\s+\d+/.test(em)) {
         highlightJSONError(e, rawText);
       } else {
-        toast(e && e.message ? e.message : String(e), 'error');
+        toast(em, 'error');
       }
     }
   }

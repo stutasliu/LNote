@@ -5190,10 +5190,15 @@
     }
     try {
       cm.setValue(jsonFormat(raw));
-      setLang("json", true);
-      toast("JSON \u683C\u5F0F\u5316\u5B8C\u6210 \u2713", "success");
+      if (isWholeJson(raw)) setLang("json", true);
+      var warns = countRecovered(raw);
+      toast(warns ? "JSON \u683C\u5F0F\u5316\u5B8C\u6210 \u2713 \u68C0\u6D4B\u5230 " + warns + " \u5904\u6570\u636E\u4E0D\u5B8C\u6574\uFF0C\u5DF2\u5728\u6587\u4E2D\u6807\u6CE8" : "JSON \u683C\u5F0F\u5316\u5B8C\u6210 \u2713", "success");
     } catch (e) {
-      highlightJSONError(e, raw);
+      if (/未找到可序列化的 JSON 数据/.test(e && e.message || "")) {
+        toast(e.message, "error");
+      } else {
+        highlightJSONError(e, raw);
+      }
     }
   }
   function highlightJSONError(err, content) {
@@ -5325,11 +5330,166 @@
     if (sel) cm.replaceSelection(fn(sel));
     else cm.setValue(fn(cm.getValue()));
   }
+  function isWholeJson(t) {
+    try {
+      JSON.parse(t.trim());
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  function matchBalanced(text, start) {
+    var openCh = text[start];
+    var closeCh = openCh === "{" ? "}" : "]";
+    var depth = 0;
+    var inStr = false;
+    var esc = false;
+    for (var i = start; i < text.length; i++) {
+      var c = text[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (c === "\\") esc = true;
+        else if (c === '"') inStr = false;
+        continue;
+      }
+      if (c === '"') {
+        inStr = true;
+        continue;
+      }
+      if (c === openCh) depth++;
+      else if (c === closeCh) {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+    return -1;
+  }
+  function tryClose(text, start, end) {
+    var stack = [];
+    var inStr = false, esc = false;
+    for (var i = start; i < end; i++) {
+      var c = text[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (c === "\\") esc = true;
+        else if (c === '"') inStr = false;
+        continue;
+      }
+      if (c === '"') {
+        inStr = true;
+        continue;
+      }
+      if (c === "{" || c === "[") stack.push(c);
+      else if (c === "}" || c === "]") {
+        var want = c === "}" ? "{" : "[";
+        if (stack.length && stack[stack.length - 1] === want) stack.pop();
+        else return null;
+      }
+    }
+    if (!stack.length) return null;
+    var closers = "";
+    for (var k = stack.length - 1; k >= 0; k--) closers += stack[k] === "{" ? "}" : "]";
+    try {
+      var p = JSON.parse(text.slice(start, end) + closers);
+      if (p !== null && typeof p === "object") return { end, value: p, closed: stack.length };
+    } catch (e) {
+    }
+    return null;
+  }
+  function longestJsonPrefix(text, start, limit) {
+    var n = limit >= 0 ? limit : text.length;
+    if (n - start > 3e4) return null;
+    var r = tryClose(text, start, n);
+    if (r) return r;
+    for (var j = n - 1; j > start; j--) {
+      var c = text[j];
+      if (c === "," || c === ":" || c === "{" || c === "[" || c === "}" || c === "]" || c === " " || c === "\n" || c === "\r" || c === "	") {
+        r = tryClose(text, start, j);
+        if (r) return r;
+      }
+    }
+    return null;
+  }
+  function extractJsonFragments(text) {
+    var frags = [];
+    var i = 0;
+    var n = text.length;
+    while (i < n) {
+      var c = text[i];
+      if (c === "{" || c === "[") {
+        var end = matchBalanced(text, i);
+        var segEnd = -1;
+        var parsed = null;
+        var recovered = false;
+        var closed = 0;
+        if (end >= 0) {
+          var sub = text.slice(i, end + 1);
+          try {
+            parsed = JSON.parse(sub);
+            segEnd = end + 1;
+          } catch (e) {
+            parsed = null;
+          }
+        }
+        if (!parsed) {
+          var rec = longestJsonPrefix(text, i, end >= 0 ? end + 1 : n);
+          if (rec && rec.end > i) {
+            parsed = rec.value;
+            segEnd = rec.end;
+            recovered = rec.closed > 0;
+            closed = rec.closed || 0;
+          }
+        }
+        if (parsed && parsed !== null && typeof parsed === "object") {
+          frags.push({ start: i, end: segEnd, parsed, recovered, closed });
+          i = segEnd;
+          continue;
+        }
+      }
+      i++;
+    }
+    return frags;
+  }
+  function countRecovered(t) {
+    var n = 0;
+    var frags = extractJsonFragments(t);
+    for (var k = 0; k < frags.length; k++) if (frags[k].recovered) n++;
+    return n;
+  }
   function jsonFormat(t) {
-    return JSON.stringify(JSON.parse(t.trim()), null, 2);
+    try {
+      return JSON.stringify(JSON.parse(t.trim()), null, 2);
+    } catch (e) {
+    }
+    var frags = extractJsonFragments(t);
+    if (!frags.length) throw new Error("\u672A\u627E\u5230\u53EF\u5E8F\u5217\u5316\u7684 JSON \u6570\u636E");
+    var out = "";
+    var last = 0;
+    for (var k = 0; k < frags.length; k++) {
+      var f = frags[k];
+      out += t.slice(last, f.start) + JSON.stringify(f.parsed, null, 2);
+      if (f.recovered) out += "\n/* \u6570\u636E\u4E0D\u5B8C\u6574\uFF1A\u6B64\u6BB5 JSON \u539F\u6587\u88AB\u622A\u65AD\uFF0C\u5DF2\u81EA\u52A8\u8865\u5168\u95ED\u5408 */";
+      last = f.end;
+    }
+    out += t.slice(last);
+    return out;
   }
   function jsonCompress(t) {
-    return JSON.stringify(JSON.parse(t.trim()));
+    try {
+      return JSON.stringify(JSON.parse(t.trim()));
+    } catch (e) {
+    }
+    var frags = extractJsonFragments(t);
+    if (!frags.length) throw new Error("\u672A\u627E\u5230\u53EF\u538B\u7F29\u7684 JSON \u6570\u636E");
+    var out = "";
+    var last = 0;
+    for (var k = 0; k < frags.length; k++) {
+      var f = frags[k];
+      out += t.slice(last, f.start) + JSON.stringify(f.parsed);
+      last = f.end;
+    }
+    out += t.slice(last);
+    return out;
   }
   function strEscape(t) {
     return JSON.stringify(t).slice(1, -1);
@@ -5485,14 +5645,19 @@
     var rawText = cm.getValue();
     try {
       var hadSelection = !!cm.getSelection();
+      var scopeText = hadSelection ? cm.getSelection() : rawText;
       withContent(fn);
-      if (!hadSelection && (name === "format" || name === "compress")) setLang("json", true);
-      toast(TOOL_NAMES[name] + " \u5B8C\u6210 \u2713", "success");
+      if (!hadSelection && (name === "format" || name === "compress") && isWholeJson(rawText)) setLang("json", true);
+      var warns = countRecovered(scopeText);
+      toast(warns ? TOOL_NAMES[name] + " \u5B8C\u6210 \u2713 \u68C0\u6D4B\u5230 " + warns + " \u5904\u6570\u636E\u4E0D\u5B8C\u6574\uFF0C\u5DF2\u81EA\u52A8\u8865\u5168" + (name === "format" ? "\u5E76\u5728\u6587\u4E2D\u6807\u6CE8" : "") : TOOL_NAMES[name] + " \u5B8C\u6210 \u2713", "success");
     } catch (e) {
-      if (e instanceof SyntaxError || /JSON|JSON\.|position\s+\d+/.test(e && e.message || "")) {
+      var em = e && e.message || String(e);
+      if (/未找到可序列化的 JSON 数据/.test(em)) {
+        toast(em, "error");
+      } else if (e instanceof SyntaxError || /JSON|JSON\.|position\s+\d+/.test(em)) {
         highlightJSONError(e, rawText);
       } else {
-        toast(e && e.message ? e.message : String(e), "error");
+        toast(em, "error");
       }
     }
   }

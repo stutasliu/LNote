@@ -18,7 +18,8 @@ beforeAll(() => {
       'unicodeToZh', 'zhToUnicode', 'jsonToGet',
       'b64Encode', 'b64Decode', 'urlEncodeText', 'urlDecodeText',
       'titleCase', 'swapCase', 'fullToHalf', 'halfToFull',
-      'dedupeLines', 'indentOf', 'pad2', 'formatBeijing', 'prettyXML'
+      'dedupeLines', 'indentOf', 'pad2', 'formatBeijing', 'prettyXML',
+      'isWholeJson', 'matchBalanced', 'tryClose', 'longestJsonPrefix', 'extractJsonFragments'
     ]) +
     '\n' +
     extractFns('09-rich-save', ['sanitizeFileName']);
@@ -42,6 +43,36 @@ describe('JSON 工具', () => {
   });
   it('jsonCompress 压缩去空白', () => {
     expect(T.jsonCompress('{ "a" : 1 }')).toBe('{"a":1}');
+  });
+  it('混合文本只格式化 JSON 片段，其余文本保留', () => {
+    const out = T.jsonFormat('连接服务器: {"status":"ok","code":200} 耗时 120ms');
+    expect(out.startsWith('连接服务器: ')).toBe(true);
+    expect(out.includes('"status": "ok"')).toBe(true);
+    expect(out.includes('耗时 120ms')).toBe(true);
+    expect(out.includes('/* 数据不完整')).toBe(false); // 完整片段不产生标记
+  });
+  it('半截 JSON（缺闭合括号）自动补全恢复并标注', () => {
+    const out = T.jsonFormat('收到数据 {"name":"test","items":[1,2,3] 未闭合');
+    expect(out.startsWith('收到数据 ')).toBe(true);
+    expect(out.includes('"name": "test"')).toBe(true);
+    expect(out.includes('"items"')).toBe(true);
+    expect(out.includes('未闭合')).toBe(true);
+    expect(out.includes('/* 数据不完整')).toBe(true); // 标记提示原文被截断
+  });
+  it('半截数组自动补全恢复并标注', () => {
+    const out = T.jsonFormat('数组半截 [1,2,3, {"x": 1}');
+    expect(out.includes('"x": 1')).toBe(true);
+    expect(out.includes('/* 数据不完整')).toBe(true);
+  });
+  it('混合文本压缩：仅 JSON 片段压缩为单行', () => {
+    const out = T.jsonCompress('{"a": 1}\n文本{"b": [1, 2]}');
+    expect(out).toBe('{"a":1}\n文本{"b":[1,2]}');
+  });
+  it('无 JSON 片段时抛错', () => {
+    expect(() => T.jsonFormat('hello world 没有任何 json')).toThrow('未找到可序列化的 JSON 数据');
+  });
+  it('字符串内含花括号不误识别为 JSON 片段', () => {
+    expect(T.jsonFormat('{"s":"text with {brace} inside"}')).toBe('{\n  "s": "text with {brace} inside"\n}');
   });
   it('jsonToGet 对象转 query', () => {
     expect(T.jsonToGet('{"a":1,"b":"x y"}')).toBe('a=1&b=x%20y');
