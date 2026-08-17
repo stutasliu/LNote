@@ -465,1346 +465,6 @@
     return null;
   }
 
-  // src-app/10-status-preview.js
-  var statDebounceTimer = null;
-  var STAT_DEBOUNCE_MS = 180;
-  var STAT_BIG_DOC = 200 * 1024;
-  function countCharsAndWords(text) {
-    var chars = text.length;
-    var cjk = 0, words = 0;
-    var inWord = false;
-    for (var i = 0; i < text.length; i++) {
-      var c = text.charCodeAt(i);
-      var isCjk = c >= 19968 && c <= 40959;
-      var isWordChar = isCjk || c >= 48 && c <= 57 || c >= 65 && c <= 90 || c >= 97 && c <= 122 || c === 95 || c === 36;
-      if (isCjk) cjk++;
-      if (isWordChar) {
-        if (!inWord) {
-          words++;
-          inWord = true;
-        }
-      } else {
-        inWord = false;
-      }
-    }
-    return { chars, cjk, words };
-  }
-  function updateStatus() {
-    var cur = cm.getCursor();
-    els.statCursor.textContent = "\u884C " + (cur.line + 1) + ", \u5217 " + (cur.ch + 1);
-    if (statDebounceTimer) return;
-    statDebounceTimer = setTimeout(function() {
-      statDebounceTimer = null;
-      var text = cm.getValue();
-      var sel = cm.getSelection();
-      var out;
-      if (text.length > STAT_BIG_DOC) {
-        out = {
-          chars: text.length,
-          cjk: "~",
-          words: "~"
-        };
-      } else {
-        out = countCharsAndWords(text);
-      }
-      var base = out.chars + " \u5B57\u7B26 \xB7 " + out.words + " \u8BCD";
-      els.statCount.textContent = sel ? base + " \xB7 \u9009\u4E2D " + sel.length + " \u5B57\u7B26" : base;
-    }, STAT_DEBOUNCE_MS);
-  }
-  function updatePreviewVisibility() {
-    var d = activeDoc();
-    var isMermaid = d && d.lang === "mermaid";
-    var isMd = d && d.lang === "markdown";
-    var isHtml = d && d.lang === "html";
-    var show = state.previewOn && (isMermaid || isMd || isHtml);
-    els.previewPane.style.display = show ? "flex" : "none";
-    els.splitter.style.display = show ? "block" : "none";
-    els.btnTogglePreview.classList.toggle("active", !!show);
-    els.btnPreviewTop.classList.toggle("active", !!show);
-    els.btnPreviewTop.title = show ? "\u5173\u95ED\u9884\u89C8" : "\u9884\u89C8";
-    if (isMd) els.btnTogglePreview.textContent = "\u{1F441} MD\u9884\u89C8";
-    else if (isHtml) els.btnTogglePreview.textContent = "\u{1F441} HTML\u9884\u89C8";
-    else els.btnTogglePreview.textContent = "\u{1F441} \u56FE\u8868\u9884\u89C8";
-    if (!show) return;
-    if (isMermaid) {
-      els.previewTitle.textContent = "\u56FE\u8868\u9884\u89C8";
-      els.previewHint.textContent = "\u62D6\u62FD\u5E73\u79FB \xB7 Ctrl+\u6EDA\u8F6E\u7F29\u653E \xB7 \u53CC\u51FB\u590D\u4F4D";
-      els.mdOut.style.display = "none";
-      els.htmlOut.style.display = "none";
-      els.mermaidOut.style.display = "";
-    } else if (isHtml) {
-      els.previewTitle.textContent = "HTML \u9884\u89C8";
-      els.previewHint.textContent = "\u672C\u5730\u5B9E\u65F6\u6E32\u67D3 \xB7 \u4FEE\u6539\u81EA\u52A8\u5237\u65B0";
-      els.mdOut.style.display = "none";
-      els.htmlOut.style.display = "";
-      els.mermaidOut.style.display = "none";
-    } else {
-      els.previewTitle.textContent = "Markdown \u9884\u89C8";
-      els.previewHint.textContent = "\u652F\u6301 GFM \u8868\u683C \xB7 \u4EE3\u7801\u5757 \xB7 ```mermaid \u56FE\u8868";
-      els.mermaidOut.style.display = "none";
-      els.htmlOut.style.display = "none";
-      els.mdOut.style.display = "";
-    }
-    scheduleRender();
-  }
-  function scheduleRender() {
-    clearTimeout(state.renderTimer);
-    state.renderTimer = setTimeout(function() {
-      var d = activeDoc();
-      if (!d || !state.previewOn) return;
-      if (d.lang === "mermaid") renderMermaid();
-      else if (d.lang === "markdown") renderMarkdownPreview();
-      else if (d.lang === "html") renderHtmlPreview();
-    }, 300);
-  }
-  function renderMermaid() {
-    var d = activeDoc();
-    if (!d || d.lang !== "mermaid" || !state.previewOn) return;
-    var code = cm.getValue().trim();
-    els.mermaidOut.innerHTML = "";
-    var oldErr = document.querySelector(".mermaid-error");
-    if (oldErr) oldErr.remove();
-    if (!code) {
-      els.previewEmpty.style.display = "";
-      return;
-    }
-    els.previewEmpty.style.display = "none";
-    var seq = ++state.mermaidSeq;
-    mermaid.render("mmd-" + seq, code).then(function(res) {
-      if (seq !== state.mermaidSeq) return;
-      els.mermaidOut.innerHTML = res.svg;
-      prepareSvg();
-    }).catch(function(err) {
-      if (seq !== state.mermaidSeq) return;
-      var div = document.createElement("div");
-      div.className = "mermaid-error";
-      div.textContent = "\u56FE\u8868\u8BED\u6CD5\u9519\u8BEF\uFF1A\n" + (err && err.message ? err.message : String(err));
-      els.previewPane.querySelector("#preview-body").appendChild(div);
-    });
-  }
-  function renderHtmlPreview() {
-    var d = activeDoc();
-    if (!d || d.lang !== "html" || !state.previewOn) return;
-    var src = cm.getValue();
-    els.previewEmpty.style.display = "none";
-    if (!src.trim()) {
-      els.htmlFrame.srcdoc = '<body style="font-family:sans-serif;color:#999;padding:40px;text-align:center">\u5728\u5DE6\u4FA7\u8F93\u5165 HTML\uFF0C\u8FD9\u91CC\u5B9E\u65F6\u6E32\u67D3</body>';
-      return;
-    }
-    var baseDir = d.diskPath ? dirOf(d.diskPath) : null;
-    inlineHtmlImages(src, baseDir).then(function(html) {
-      if (html) els.htmlFrame.srcdoc = html;
-    });
-  }
-  function inlineHtmlImages(html, baseDir) {
-    var re = /(<img\b[^>]*\ssrc\s*=\s*)(["'])(.*?)\2/gi;
-    var found = [];
-    var mm;
-    while (mm = re.exec(html)) {
-      var src = mm[3];
-      if (/^(https?:|data:|blob:)/i.test(src)) continue;
-      var abs = isAbsPath(src) ? normPath(src) : baseDir ? joinPath(baseDir, src) : null;
-      if (!abs) continue;
-      found.push({ full: mm[0], pre: mm[1], q: mm[2], abs });
-    }
-    if (!found.length) return Promise.resolve(html);
-    var out = html;
-    return Promise.all(found.map(function(it) {
-      if (!hasApi()) {
-        it.url = toFileUrl(it.abs);
-        return Promise.resolve();
-      }
-      return getApi().read_file_b64(it.abs).then(function(res) {
-        if (res && res.b64) it.url = "data:" + (res.mime || "image/png") + ";base64," + res.b64;
-        else it.url = toFileUrl(it.abs);
-      }).catch(function() {
-        it.url = toFileUrl(it.abs);
-      });
-    })).then(function() {
-      found.forEach(function(it) {
-        if (it.url) out = out.split(it.full).join(it.pre + it.q + it.url + it.q);
-      });
-      return out;
-    });
-  }
-  function renderMarkdownPreview() {
-    var d = activeDoc();
-    if (!d || d.lang !== "markdown" || !state.previewOn) return;
-    var text = cm.getValue();
-    var oldErr = document.querySelector(".mermaid-error");
-    if (oldErr) oldErr.remove();
-    els.previewEmpty.style.display = "none";
-    if (!text.trim()) {
-      els.mdOut.innerHTML = '<div class="preview-empty"><div class="preview-empty-icon">\u{1F4DD}</div><p>\u5728\u5DE6\u4FA7\u8F93\u5165 Markdown<br>\u8FD9\u91CC\u4F1A\u5B9E\u65F6\u6E32\u67D3\u9884\u89C8</p></div>';
-      return;
-    }
-    window.InkpadMd.renderInto(els.mdOut, text);
-    resolveMarkdownImages(d);
-  }
-  function resolveMarkdownImages(d) {
-    var baseDir = d.diskPath ? dirOf(d.diskPath) : null;
-    var imgs = els.mdOut.querySelectorAll("img");
-    Array.prototype.forEach.call(imgs, function(img) {
-      var src = img.getAttribute("src") || "";
-      var url = resolveImgSrc(src, baseDir);
-      if (url) img.src = url;
-    });
-  }
-  var panState = { down: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 };
-  state.zoomLevel = 1;
-  var svgNatural = null;
-  function prepareSvg() {
-    var svg = els.mermaidOut.querySelector("svg");
-    if (!svg) {
-      svgNatural = null;
-      return;
-    }
-    svg.style.maxWidth = "none";
-    var vb = svg.viewBox && svg.viewBox.baseVal;
-    var w = vb && vb.width ? vb.width : svg.getBoundingClientRect().width;
-    var h = vb && vb.height ? vb.height : svg.getBoundingClientRect().height;
-    if (!w || !h) {
-      svgNatural = null;
-      return;
-    }
-    svgNatural = { w, h };
-    applyZoom();
-  }
-  function applyZoom() {
-    if (!svgNatural) return;
-    var svg = els.mermaidOut.querySelector("svg");
-    if (!svg) return;
-    svg.style.width = svgNatural.w * state.zoomLevel + "px";
-    svg.style.height = svgNatural.h * state.zoomLevel + "px";
-  }
-
-  // src-app/16-doc-ops.js
-  function saveDiskDoc(d) {
-    if (!d || !d.diskPath || !hasApi()) return;
-    getApi().write_text_file(d.diskPath, d.content, d.encoding).then(function(ok) {
-      if (ok) {
-        els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
-        els.statSaved.style.color = "#0f7b0f";
-      }
-    }).catch(function() {
-      els.statSaved.textContent = "\u78C1\u76D8\u4FDD\u5B58\u5931\u8D25";
-      els.statSaved.style.color = "var(--danger)";
-    });
-  }
-  function openEncModal() {
-    var d = activeDoc();
-    if (!d || d.kind && d.kind !== "text") {
-      toast("\u8BF7\u5148\u6253\u5F00\u6587\u672C\u6587\u6863", "error");
-      return;
-    }
-    $("enc-current").textContent = d.diskPath ? "\u78C1\u76D8\u6587\u4EF6 \xB7 " + (d.encoding || "UTF-8") : "\u672C\u5730\u6587\u6863\uFF08\u672A\u5173\u8054\u78C1\u76D8\u6587\u4EF6\uFF09";
-    var sel = $("enc-select");
-    var cur = d.encoding || "UTF-8";
-    var matched = false;
-    for (var i = 0; i < sel.options.length; i++) {
-      if (sel.options[i].value === cur) {
-        sel.selectedIndex = i;
-        matched = true;
-        break;
-      }
-    }
-    if (!matched) sel.selectedIndex = 0;
-    $("enc-reload").disabled = !d.diskPath;
-    openSingleModal("enc-modal");
-  }
-  function openCompareWindow() {
-    if (!hasApi()) {
-      toast("\u6587\u4EF6\u6BD4\u8F83\u9700\u5728\u684C\u9762\u7248\u4E2D\u4F7F\u7528", "error");
-      return;
-    }
-    var d = activeDoc();
-    var aText = "", aName = "\u6587\u4EF6 A";
-    if (d && (!d.kind || d.kind === "text")) {
-      aText = cm.getValue();
-      aName = (d.title || "\u5F53\u524D\u6587\u6863") + "\uFF08\u5F53\u524D\u6587\u6863\uFF09";
-    }
-    getApi().open_compare_window(aText, aName, "", "\u6587\u4EF6 B").then(function(ok) {
-      if (ok) toast("\u6BD4\u8F83\u7A97\u53E3\u5DF2\u6253\u5F00\uFF0C\u53EF\u76F4\u63A5\u7C98\u8D34\u5185\u5BB9\u5BF9\u6BD4", "success");
-      else toast("\u65B0\u7A97\u53E3\u6253\u5F00\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5", "error");
-    }).catch(function() {
-      toast("\u65B0\u7A97\u53E3\u6253\u5F00\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5", "error");
-    });
-  }
-  function setLang(lang, skipAutoFormat) {
-    var d = activeDoc();
-    if (!d) return;
-    d.lang = lang;
-    if (lang === "json" && !skipAutoFormat && (!d.kind || d.kind === "text")) {
-      var raw = cm.getValue();
-      if (raw.trim()) {
-        try {
-          cm.setValue(JSON.stringify(JSON.parse(raw.trim()), null, 2));
-          toast("\u5DF2\u81EA\u52A8\u683C\u5F0F\u5316 JSON \u2713", "success");
-        } catch (e) {
-          toast("\u5185\u5BB9\u4E0D\u662F\u5408\u6CD5 JSON\uFF0C\u5DF2\u5207\u6362\u8BED\u8A00\uFF08\u672A\u683C\u5F0F\u5316\uFF09", "error");
-        }
-      }
-    }
-    cm.setOption("mode", LANGS[lang] ? LANGS[lang].mime : "text/plain");
-    els.langSelect.value = lang;
-    els.statLang.textContent = LANGS[lang] ? LANGS[lang].label : "\u7EAF\u6587\u672C";
-    els.breadcrumb.textContent = lang === "mermaid" ? "\u{1F4CA}" : "\u{1F4DD}";
-    syncFromEditor();
-    updatePreviewBtn();
-    updatePreviewVisibility();
-  }
-  function nextAutoTitle() {
-    var base = "\u672A\u547D\u540D\u6587\u6863";
-    var max = 0;
-    (state.docs || []).forEach(function(doc) {
-      var t = doc.title || "";
-      if (t === base) {
-        max = Math.max(max, 1);
-        return;
-      }
-      var m = t.match(/^未命名文档\s+(\d+)$/);
-      if (m) max = Math.max(max, parseInt(m[1], 10));
-    });
-    return max ? base + " " + (max + 1) : base;
-  }
-  function newDoc(lang, title, content) {
-    var d = {
-      id: uid(),
-      title: title || nextAutoTitle(),
-      lang: lang || "plaintext",
-      content: content || "",
-      updated: Date.now()
-    };
-    state.docs.push(d);
-    persist();
-    openDoc(d.id);
-    if (!title) els.title.focus();
-    return d;
-  }
-  function exportDoc() {
-    var d = activeDoc();
-    if (!d) return;
-    if (d.kind === "rich") {
-      var md = window.InkpadBlocks ? window.InkpadBlocks.toMarkdown() : d.content;
-      var rname = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ".md";
-      if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
-        window.pywebview.api.save_file(rname, md).then(function(saved) {
-          if (saved) toast("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
-        }).catch(function() {
-          toast("\u5BFC\u51FA\u5931\u8D25", "error");
-        });
-      } else {
-        var rblob = new Blob([md], { type: "text/markdown;charset=utf-8" });
-        var ra = document.createElement("a");
-        ra.href = URL.createObjectURL(rblob);
-        ra.download = rname;
-        ra.click();
-        URL.revokeObjectURL(ra.href);
-        toast("\u5DF2\u5BFC\u51FA " + rname, "success");
-      }
-      return;
-    }
-    var isVisualDoc = d.kind && d.kind !== "text";
-    if (isVisualDoc && state.currentVisual) {
-      d.content = JSON.stringify(state.currentVisual.model);
-    }
-    var ext = isVisualDoc ? ".json" : LANGS[d.lang] ? LANGS[d.lang].ext : ".txt";
-    var name = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ext;
-    var content = isVisualDoc ? d.content : cm.getValue();
-    if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
-      window.pywebview.api.save_file(name, content).then(function(saved) {
-        if (saved) toast("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
-      }).catch(function() {
-        toast("\u5BFC\u51FA\u5931\u8D25", "error");
-      });
-      return;
-    }
-    var blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = name;
-    a.click();
-    URL.revokeObjectURL(a.href);
-    toast("\u5DF2\u5BFC\u51FA " + name, "success");
-  }
-  function importFile(file) {
-    var reader = new FileReader();
-    reader.onload = function() {
-      var content = String(reader.result || "");
-      var name = file.name.replace(/\.[^.]+$/, "");
-      var ext = (file.name.match(/\.([^.]+)$/) || [])[1] || "";
-      if (ext.toLowerCase() === "json" && isRichDocContent(content)) {
-        var d2 = {
-          id: uid(),
-          title: name,
-          kind: "rich",
-          encoding: "utf-8",
-          content,
-          updated: Date.now()
-        };
-        state.docs.push(d2);
-        persist();
-        openDoc(d2.id);
-        toast("\u5DF2\u5BFC\u5165\u5BCC\u6587\u6863\uFF1A" + file.name, "success");
-        return;
-      }
-      var langMap = {
-        md: "markdown",
-        markdown: "markdown",
-        json: "json",
-        xml: "xml",
-        html: "html",
-        htm: "html",
-        js: "javascript",
-        mjs: "javascript",
-        py: "python",
-        css: "css",
-        sql: "sql",
-        yaml: "yaml",
-        yml: "yaml",
-        sh: "shell",
-        bat: "shell",
-        mmd: "mermaid",
-        mermaid: "mermaid",
-        c: "clike",
-        h: "clike",
-        java: "clike",
-        cpp: "clike",
-        cc: "clike",
-        hpp: "clike",
-        cs: "clike",
-        txt: "plaintext",
-        log: "plaintext",
-        xhtml: "html"
-      };
-      var d = newDoc(langMap[ext.toLowerCase()] || "plaintext", name, content);
-      toast("\u5DF2\u5BFC\u5165\u300C" + file.name + "\u300D", "success");
-      if (d.lang === "html") state.previewOn = true;
-      openDoc(d.id);
-    };
-    reader.readAsText(file);
-  }
-  var toastTimer = null;
-  function toast(msg, type) {
-    els.toast.textContent = msg;
-    els.toast.className = "show" + (type ? " " + type : "");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function() {
-      els.toast.className = "";
-    }, 2600);
-  }
-  function findDoc(id) {
-    for (var i = 0; i < state.docs.length; i++) {
-      if (state.docs[i].id === id) return state.docs[i];
-    }
-    return null;
-  }
-  function renameDoc(id, newTitle) {
-    var d = findDoc(id);
-    if (!d) return false;
-    d.title = newTitle || "\u65E0\u6807\u9898";
-    d.updated = Date.now();
-    persist();
-    return true;
-  }
-  function duplicateDoc(id) {
-    var d = findDoc(id);
-    if (!d) return null;
-    var copy = {
-      id: uid(),
-      title: (d.title || "\u65E0\u6807\u9898") + "\uFF08\u526F\u672C\uFF09",
-      lang: d.lang,
-      content: d.content || "",
-      updated: Date.now()
-    };
-    if (d.kind) copy.kind = d.kind;
-    if (d.encoding) copy.encoding = d.encoding;
-    state.docs.push(copy);
-    persist();
-    return copy;
-  }
-  function exportDocById(id) {
-    var d = findDoc(id);
-    if (!d) {
-      toast("\u6587\u6863\u4E0D\u5B58\u5728", "error");
-      return;
-    }
-    if (d.kind === "rich") {
-      var md = d.content || "";
-      var rname = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ".md";
-      if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
-        window.pywebview.api.save_file(rname, md).then(function(saved) {
-          if (saved) toast("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
-        }).catch(function() {
-          toast("\u5BFC\u51FA\u5931\u8D25", "error");
-        });
-      } else {
-        var rblob = new Blob([md], { type: "text/markdown;charset=utf-8" });
-        var ra = document.createElement("a");
-        ra.href = URL.createObjectURL(rblob);
-        ra.download = rname;
-        ra.click();
-        URL.revokeObjectURL(ra.href);
-        toast("\u5DF2\u5BFC\u51FA " + rname, "success");
-      }
-      return;
-    }
-    var isVisualDoc = d.kind && d.kind !== "text";
-    var ext = isVisualDoc ? ".json" : LANGS[d.lang] ? LANGS[d.lang].ext : ".txt";
-    var name = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ext;
-    var content = d.content || "";
-    if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
-      window.pywebview.api.save_file(name, content).then(function(saved) {
-        if (saved) toast("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
-      }).catch(function() {
-        toast("\u5BFC\u51FA\u5931\u8D25", "error");
-      });
-    } else {
-      var blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-      var a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = name;
-      a.click();
-      URL.revokeObjectURL(a.href);
-      toast("\u5DF2\u5BFC\u51FA " + name, "success");
-    }
-  }
-  function toggleFavorite(id) {
-    var d = findDoc(id);
-    if (!d) return false;
-    d.favorite = !d.favorite;
-    d.updated = Date.now();
-    persist();
-    return d.favorite;
-  }
-  function togglePin(id) {
-    var d = findDoc(id);
-    if (!d) return false;
-    d.pinned = !d.pinned;
-    d.updated = Date.now();
-    persist();
-    return d.pinned;
-  }
-  function newSticky() {
-    var d = {
-      id: uid(),
-      title: "",
-      kind: "sticky",
-      content: "",
-      color: "#FFD43B",
-      updated: Date.now()
-    };
-    state.docs.push(d);
-    persist();
-    state.stickyEditId = d.id;
-    state.stickyColor = d.color || "#FFD43B";
-    state.docFilter = "sticky";
-    state.tagFilter = null;
-    openStickyEditor(d);
-    return d;
-  }
-  function saveSticky(id, opts) {
-    var d = findDoc(id);
-    if (!d || d.kind !== "sticky") return false;
-    if (opts.title !== void 0) d.title = opts.title;
-    if (opts.content !== void 0) d.content = opts.content;
-    if (opts.color !== void 0) d.color = opts.color;
-    if (opts.pinned !== void 0) d.pinned = !!opts.pinned;
-    if (opts.reminder !== void 0) {
-      if (opts.reminder && opts.reminder.enabled) d.reminder = opts.reminder;
-      else delete d.reminder;
-    }
-    if (opts.dueAt !== void 0) {
-      if (opts.dueAt) d.dueAt = opts.dueAt;
-      else delete d.dueAt;
-    }
-    d.updated = Date.now();
-    persist();
-    return true;
-  }
-  function openStickyEditor(d) {
-    if (!els.stickyEditModal) return;
-    els.stickyEditTitle.value = d.title || "";
-    els.stickyEditContent.value = d.content || "";
-    els.stickyEditPin.checked = !!d.pinned;
-    state.stickyColor = d.color || "#FFD43B";
-    Array.prototype.forEach.call(els.stickyColorRow.children, function(el) {
-      el.classList.toggle("active", el.getAttribute("data-color") === state.stickyColor);
-    });
-    var rem = d.reminder;
-    if (els.stickyEditRemEnabled) {
-      els.stickyEditRemEnabled.checked = !!(rem && rem.enabled);
-      els.stickyRemRow.style.display = rem && rem.enabled ? "" : "none";
-      els.stickyEditRemType.value = rem && rem.type || "once";
-      els.stickyEditRemTime.value = rem && rem.time || "09:00";
-      els.stickyEditRemDate.value = rem && rem.date || "";
-      els.stickyEditRemDay.value = rem && rem.day || "";
-      Array.prototype.forEach.call(els.stickyRemWeekly.querySelectorAll("input[type=checkbox]"), function(cb) {
-        cb.checked = !!(rem && rem.type === "weekly" && rem.days && rem.days.indexOf(Number(cb.value)) >= 0);
-      });
-      syncRemSubUI();
-    }
-    if (els.stickyEditDue) els.stickyEditDue.value = d.dueAt ? toLocalInput(d.dueAt) : "";
-    els.stickyEditModal.style.display = "flex";
-  }
-  function syncRemSubUI() {
-    if (!els.stickyEditRemType) return;
-    var t = els.stickyEditRemType.value;
-    if (els.stickyRemOnce) els.stickyRemOnce.style.display = t === "once" ? "" : "none";
-    if (els.stickyRemWeekly) els.stickyRemWeekly.style.display = t === "weekly" ? "" : "none";
-    if (els.stickyRemMonthly) els.stickyRemMonthly.style.display = t === "monthly" ? "" : "none";
-  }
-  function pad2(n) {
-    return (n < 10 ? "0" : "") + n;
-  }
-  function toLocalInput(ts) {
-    var d = new Date(ts);
-    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) + "T" + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
-  }
-  function fromLocalInput(v) {
-    if (!v) return null;
-    var t = new Date(v).getTime();
-    return isNaN(t) ? null : t;
-  }
-  function fmtStamp(ts) {
-    var d = new Date(ts);
-    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
-  }
-  function setTagExpiry(tag, days) {
-    if (days == null) {
-      clearTagExpiry(tag);
-      return;
-    }
-    var n = Number(days);
-    if (isNaN(n) || n < 1) {
-      toast("\u8BF7\u8F93\u5165\u6709\u6548\u7684\u5929\u6570\uFF08\u22651\uFF09", "error");
-      return;
-    }
-    state.tagMeta[tag] = { expiresAt: Date.now() + n * 864e5 };
-    persist();
-    toast("\u6807\u7B7E #" + tag + " \u5C06\u4E8E " + n + " \u5929\u540E\u8FC7\u671F", "success");
-  }
-  function clearTagExpiry(tag) {
-    if (state.tagMeta[tag]) {
-      delete state.tagMeta[tag];
-      persist();
-      toast("\u5DF2\u6E05\u9664\u6807\u7B7E #" + tag + " \u7684\u8FC7\u671F\u65F6\u95F4", "success");
-    }
-  }
-  function cleanupExpiredTags() {
-    var now = Date.now();
-    var expired = [];
-    for (var t in state.tagMeta) {
-      if (state.tagMeta[t] && state.tagMeta[t].expiresAt && state.tagMeta[t].expiresAt < now) {
-        expired.push(t);
-      }
-    }
-    if (!expired.length) return [];
-    var changed = false;
-    state.docs.forEach(function(d) {
-      if (!d.tags || !d.tags.length) return;
-      var before = d.tags.length;
-      d.tags = d.tags.filter(function(x) {
-        return expired.indexOf(x) < 0;
-      });
-      if (d.tags.length !== before) changed = true;
-    });
-    expired.forEach(function(t2) {
-      delete state.tagMeta[t2];
-    });
-    if (changed) {
-      persist();
-      toast("\u5DF2\u81EA\u52A8\u6E05\u7406\u8FC7\u671F\u6807\u7B7E\uFF1A#" + expired.join(" #"), "success");
-    } else {
-      persist();
-    }
-    return expired;
-  }
-  function matchReminder(rem, now) {
-    if (!rem || !rem.enabled) return false;
-    now = now || /* @__PURE__ */ new Date();
-    var hhmm = pad2(now.getHours()) + ":" + pad2(now.getMinutes());
-    if (rem.time !== hhmm) return false;
-    if (rem.type === "once") {
-      return rem.date === now.getFullYear() + "-" + pad2(now.getMonth() + 1) + "-" + pad2(now.getDate());
-    }
-    if (rem.type === "daily") return true;
-    if (rem.type === "weekly") {
-      return !!(rem.days && rem.days.indexOf(now.getDay()) >= 0);
-    }
-    if (rem.type === "monthly") {
-      return Number(rem.day) === now.getDate();
-    }
-    return false;
-  }
-  function saveDocTags(id, tags) {
-    var d = findDoc(id);
-    if (!d) return false;
-    d.tags = tags.slice();
-    d.updated = Date.now();
-    persist();
-    return true;
-  }
-  function collectAllTags() {
-    var map = {};
-    state.docs.forEach(function(d) {
-      if (d.deleted || d.kind === "sticky") return;
-      (d.tags || []).forEach(function(t) {
-        map[t] = (map[t] || 0) + 1;
-      });
-    });
-    return map;
-  }
-
-  // src-app/02-rich-outline.js
-  var richOutline = {
-    visible: false,
-    // 大纲面板是否显示
-    items: [],
-    // [{ id, type, text }]
-    activeId: null,
-    // 当前滚动所在标题
-    observer: null,
-    // IntersectionObserver 实例
-    filterKw: "",
-    // 搜索关键字
-    dragState: null
-    // splitter 拖拽
-  };
-  function richOutlineVisible(v) {
-    v = !!v;
-    richOutline.visible = v;
-    if (els.richOutline) {
-      els.richOutline.style.display = v ? "flex" : "none";
-    }
-    if (els.richOutlineSplitter) {
-      els.richOutlineSplitter.style.display = v ? "" : "none";
-    }
-    if (els.btnRichOutline) {
-      els.btnRichOutline.classList.toggle("primary", v);
-      els.btnRichOutline.title = v ? "\u6536\u8D77\u5927\u7EB2\uFF08\u98DE\u4E66\u5F0F\u4FA7\u680F\uFF09" : "\u5BCC\u6587\u6863\u5927\u7EB2 / \u76EE\u5F55\uFF08\u98DE\u4E66\u5F0F\u4FA7\u680F\uFF09";
-    }
-    if (v && window.InkpadBlocks) {
-      try {
-        window.InkpadBlocks.notifyOutline();
-      } catch (e) {
-      }
-      setupRichOutlineObserver();
-    } else if (!v && richOutline.observer) {
-      try {
-        richOutline.observer.disconnect();
-      } catch (e) {
-      }
-      richOutline.observer = null;
-    }
-  }
-  function renderRichOutline(items) {
-    if (!els.outlineList) return;
-    richOutline.items = Array.isArray(items) ? items.slice() : [];
-    var kw = (richOutline.filterKw || "").trim().toLowerCase();
-    var i;
-    els.outlineList.innerHTML = "";
-    if (!richOutline.items.length) {
-      els.outlineList.appendChild(els.outlineEmpty);
-      els.outlineEmpty.style.display = "";
-    } else {
-      els.outlineEmpty.style.display = "none";
-      for (i = 0; i < richOutline.items.length; i++) {
-        var it = richOutline.items[i];
-        var row = document.createElement("div");
-        row.className = "outline-item outline-" + it.type;
-        row.setAttribute("data-id", it.id);
-        row.setAttribute("data-type", it.type);
-        row.title = it.text;
-        var mark = document.createElement("span");
-        mark.className = "outline-mark";
-        mark.textContent = it.type.toUpperCase();
-        var txt = document.createElement("span");
-        txt.className = "outline-text";
-        txt.textContent = it.text;
-        row.appendChild(mark);
-        row.appendChild(txt);
-        if (kw && it.text.toLowerCase().indexOf(kw) < 0) row.classList.add("hide");
-        row.addEventListener("click", function(ev) {
-          var id = ev.currentTarget.getAttribute("data-id");
-          scrollToOutlineItem(id);
-        });
-        els.outlineList.appendChild(row);
-      }
-    }
-    var shown = els.outlineList.querySelectorAll(".outline-item:not(.hide)").length;
-    els.outlineCount.textContent = shown + (kw ? "/" + richOutline.items.length : "");
-    if (richOutline.activeId) {
-      var activeEl = els.outlineList.querySelector('[data-id="' + richOutline.activeId + '"]');
-      if (activeEl) activeEl.classList.add("active");
-    }
-    if (els.outlineFoot) {
-      els.outlineFoot.style.display = richOutline.items.length ? "" : "none";
-    }
-    if (richOutline.observer) {
-      try {
-        richOutline.observer.disconnect();
-      } catch (e) {
-      }
-      setupRichOutlineObserver();
-    }
-  }
-  function scrollToOutlineItem(id) {
-    if (!window.InkpadBlocks) return;
-    if (!richOutline.activeId || richOutline.activeId !== id) {
-      var prev = els.outlineList.querySelectorAll(".outline-item.active");
-      for (var i = 0; i < prev.length; i++) prev[i].classList.remove("active");
-      var node = els.outlineList.querySelector('[data-id="' + id + '"]');
-      if (node) {
-        node.classList.add("active");
-        if (node.scrollIntoView) {
-          try {
-            node.scrollIntoView({ block: "nearest" });
-          } catch (e) {
-          }
-        }
-      }
-      richOutline.activeId = id;
-    }
-    window.InkpadBlocks.scrollToOutlineItem(id);
-  }
-  function setupRichOutlineObserver() {
-    if (!els.richPane || !window.IntersectionObserver) return;
-    if (richOutline.observer) {
-      try {
-        richOutline.observer.disconnect();
-      } catch (e) {
-      }
-      richOutline.observer = null;
-    }
-    var anchors = els.richPane.querySelectorAll(".ink-anchor");
-    if (!anchors.length) return;
-    var visibleSet = {};
-    richOutline.observer = new IntersectionObserver(function(entries) {
-      entries.forEach(function(entry) {
-        var id = entry.target.id.replace(/^ink-/, "");
-        if (entry.isIntersecting) visibleSet[id] = entry.intersectionRatio || 1e-4;
-        else delete visibleSet[id];
-      });
-      var bestId = null, bestRatio = 0;
-      Object.keys(visibleSet).forEach(function(id) {
-        if (visibleSet[id] > bestRatio) {
-          bestRatio = visibleSet[id];
-          bestId = id;
-        }
-      });
-      if (!bestId && richOutline.items.length) {
-        var ids = richOutline.items.map(function(x) {
-          return x.id;
-        });
-        if (richOutline.activeId) {
-          var curIdx = ids.indexOf(richOutline.activeId);
-          var paneTop = els.richPane.getBoundingClientRect().top;
-          var bestDiff = Infinity;
-          anchors.forEach(function(a) {
-            var d = a.getBoundingClientRect().top - paneTop;
-            if (d >= -8 && d < bestDiff) {
-              bestDiff = d;
-              bestId = a.id.replace(/^ink-/, "");
-            }
-          });
-        }
-      }
-      if (bestId && bestId !== richOutline.activeId) {
-        richOutline.activeId = bestId;
-        var prev = els.outlineList.querySelectorAll(".outline-item.active");
-        for (var i = 0; i < prev.length; i++) prev[i].classList.remove("active");
-        var node = els.outlineList.querySelector('[data-id="' + bestId + '"]');
-        if (node) {
-          node.classList.add("active");
-          if (node.scrollIntoView) {
-            try {
-              node.scrollIntoView({ block: "nearest" });
-            } catch (e) {
-            }
-          }
-        }
-      }
-    }, {
-      root: els.richPane,
-      rootMargin: "0px 0px -75% 0px",
-      threshold: [0, 0.1, 0.5, 1]
-    });
-    anchors.forEach(function(a) {
-      richOutline.observer.observe(a);
-    });
-  }
-  function bindRichOutline() {
-    if (!els.btnRichOutline) return;
-    els.btnRichOutline.addEventListener("click", function() {
-      if (!activeDoc() || activeDoc().kind !== "rich") {
-        toast("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u5BCC\u6587\u6863", "warn");
-        return;
-      }
-      richOutlineVisible(!richOutline.visible);
-    });
-    els.btnCloseOutline && els.btnCloseOutline.addEventListener("click", function() {
-      richOutlineVisible(false);
-    });
-    els.outlineSearch && els.outlineSearch.addEventListener("input", function() {
-      richOutline.filterKw = els.outlineSearch.value;
-      renderRichOutline(richOutline.items);
-    });
-    els.btnOutlineUp && els.btnOutlineUp.addEventListener("click", function() {
-      var ids = richOutline.items.map(function(x) {
-        return x.id;
-      });
-      if (!ids.length) return;
-      var curIdx = ids.indexOf(richOutline.activeId);
-      if (curIdx < 0) curIdx = ids.length;
-      var prev = ids[Math.max(0, curIdx - 1)];
-      if (prev) scrollToOutlineItem(prev);
-    });
-    els.btnOutlineDown && els.btnOutlineDown.addEventListener("click", function() {
-      var ids = richOutline.items.map(function(x) {
-        return x.id;
-      });
-      if (!ids.length) return;
-      var curIdx = ids.indexOf(richOutline.activeId);
-      var next = ids[(curIdx + 1) % ids.length];
-      if (next) scrollToOutlineItem(next);
-    });
-    els.btnOutlineReload && els.btnOutlineReload.addEventListener("click", function() {
-      if (window.InkpadBlocks) {
-        try {
-          window.InkpadBlocks.notifyOutline();
-        } catch (e) {
-        }
-      }
-    });
-    if (els.richOutlineSplitter) {
-      els.richOutlineSplitter.addEventListener("mousedown", function(ev) {
-        ev.preventDefault();
-        var rect = els.richOutline.getBoundingClientRect();
-        richOutline.dragState = { startX: ev.clientX, startW: rect.width };
-        document.body.style.cursor = "col-resize";
-        document.body.style.userSelect = "none";
-      });
-    }
-    window.addEventListener("mousemove", function(e) {
-      if (!richOutline.dragState) return;
-      var newW = richOutline.dragState.startW + (e.clientX - richOutline.dragState.startX);
-      if (newW < 160) newW = 160;
-      if (newW > 460) newW = 460;
-      els.richOutline.style.flex = "0 0 " + newW + "px";
-    });
-    window.addEventListener("mouseup", function() {
-      if (richOutline.dragState) {
-        richOutline.dragState = null;
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-      }
-    });
-    if (window.InkpadBlocks) {
-      window.InkpadBlocks.setOutlineListener(renderRichOutline);
-    }
-  }
-
-  // src-app/08-visual.js
-  function openVisual(d, kind) {
-    var mod = window[VISUAL_MODULES[kind]];
-    var meta = KIND_META[kind];
-    var model = null;
-    try {
-      model = JSON.parse(d.content);
-    } catch (e) {
-      model = null;
-    }
-    if (!model || typeof model !== "object") model = mod.defaultModel();
-    state.currentVisual = { kind, doc: d, model, module: mod };
-    mod.init(els.visualCanvas, model, onVisualChange);
-    mod.renderToolbar(els.visualToolbar);
-    buildVisualExportMenu(els.visualToolbar, kind);
-    els.breadcrumb.textContent = meta.icon;
-    els.statLang.textContent = meta.label;
-    els.statCursor.textContent = "";
-    updateVisualStatus();
-  }
-  function onVisualChange() {
-    if (!state.currentVisual) return;
-    state.currentVisual.doc.content = JSON.stringify(state.currentVisual.model);
-    state.currentVisual.doc.title = els.title.value;
-    state.currentVisual.doc.updated = Date.now();
-    els.statSaved.textContent = "\u4FDD\u5B58\u4E2D\u2026";
-    els.statSaved.style.color = "";
-    els.statEdit.textContent = "\u6700\u540E\u7F16\u8F91 " + fullTime(state.currentVisual.doc.updated);
-    clearTimeout(state.saveTimer);
-    state.saveTimer = setTimeout(function() {
-      persist();
-      els.statSaved.textContent = "\u5DF2\u4FDD\u5B58";
-      els.statSaved.style.color = "#0f7b0f";
-      bus.emit("docs:changed");
-    }, 400);
-    updateVisualStatus();
-  }
-  function updateVisualStatus() {
-    if (!state.currentVisual) return;
-    els.statCount.textContent = state.currentVisual.module.count(state.currentVisual.model);
-  }
-  var VISUAL_EXPORTS = {
-    flow: [
-      ["PNG \u56FE\u7247", "png", ".png"],
-      ["\u9AD8\u6E05 PNG", "png-hd", ".png"],
-      ["JPG \u56FE\u7247", "jpg", ".jpg"],
-      ["\u9AD8\u6E05 JPG", "jpg-hd", ".jpg"],
-      ["SVG \u77E2\u91CF\u56FE", "svg", ".svg"],
-      ["\u9AD8\u6E05 PDF", "pdf", ".pdf"],
-      ["Word\uFF08.docx\uFF09", "docx", ".docx"],
-      ["PPT\uFF08.pptx\uFF09", "pptx", ".pptx"],
-      ["Markdown", "md", ".md"],
-      ["Excel\uFF08.csv\uFF09", "csv", ".csv"],
-      ["JSON \u5DE5\u7A0B\u6587\u4EF6", "json", ".json"]
-    ],
-    mind: [
-      ["PNG \u56FE\u7247", "png", ".png"],
-      ["\u9AD8\u6E05 PNG", "png-hd", ".png"],
-      ["JPG \u56FE\u7247", "jpg", ".jpg"],
-      ["\u9AD8\u6E05 JPG", "jpg-hd", ".jpg"],
-      ["SVG \u77E2\u91CF\u56FE", "svg", ".svg"],
-      ["\u9AD8\u6E05 PDF", "pdf", ".pdf"],
-      ["Word\uFF08.docx\uFF09", "docx", ".docx"],
-      ["PPT\uFF08.pptx\uFF09", "pptx", ".pptx"],
-      ["Markdown", "md", ".md"],
-      ["Excel\uFF08.csv\uFF09", "csv", ".csv"],
-      ["XMind \u6587\u4EF6", "xmind", ".xmind"],
-      ["FreeMind \u6587\u4EF6\uFF08.mm\uFF09", "mm", ".mm"],
-      ["JSON \u5DE5\u7A0B\u6587\u4EF6", "json", ".json"]
-    ]
-  };
-  function buildVisualExportMenu(bar, kind) {
-    var list = VISUAL_EXPORTS[kind];
-    if (!list) return;
-    var wrap = document.createElement("div");
-    wrap.className = "tool-menu-wrap";
-    var btn = document.createElement("button");
-    btn.className = "tool-btn";
-    btn.innerHTML = "\u2B07 \u5BFC\u51FA\u4E3A \u25BE";
-    var menu = document.createElement("div");
-    menu.className = "tool-menu visual-export-menu";
-    menu.style.display = "none";
-    list.forEach(function(item) {
-      var mi = document.createElement("button");
-      mi.className = "menu-item";
-      mi.textContent = item[0];
-      mi.setAttribute("data-fmt", item[1]);
-      mi.setAttribute("data-ext", item[2]);
-      menu.appendChild(mi);
-    });
-    wrap.appendChild(btn);
-    wrap.appendChild(menu);
-    bar.appendChild(wrap);
-    btn.addEventListener("click", function(e) {
-      e.stopPropagation();
-      menu.style.display = menu.style.display === "none" ? "block" : "none";
-    });
-    document.addEventListener("click", function() {
-      menu.style.display = "none";
-    });
-    menu.addEventListener("click", function(e) {
-      var mi = e.target.closest(".menu-item");
-      if (!mi) return;
-      menu.style.display = "none";
-      exportVisual(mi.getAttribute("data-fmt"), mi.getAttribute("data-ext"));
-    });
-  }
-  function exportVisual(fmt, ext) {
-    var cv = state.currentVisual;
-    if (!cv) return;
-    var X = window.InkpadExporter;
-    var title = (cv.doc.title || KIND_META[cv.kind].label).replace(/[\\/:*?"<>|]/g, "_");
-    var svg = els.visualCanvas.querySelector("svg");
-    function done(path) {
-      if (path) toast("\u5DF2\u5BFC\u51FA\uFF1A" + path, "success");
-    }
-    function fail(err) {
-      toast("\u5BFC\u51FA\u5931\u8D25\uFF1A" + (err && err.message ? err.message : err), "error");
-    }
-    function saveText(text) {
-      saveUniversal(title + ext, text, false).then(done, fail);
-    }
-    function saveBinary(u8) {
-      saveUniversal(title + ext, u8, true).then(done, fail);
-    }
-    try {
-      switch (fmt) {
-        case "json":
-          saveText(JSON.stringify(cv.model, null, 2));
-          break;
-        case "svg":
-          saveText(X.exportSvgText(svg));
-          break;
-        case "png":
-        case "png-hd":
-          X.rasterize(svg, fmt === "png-hd" ? 3 : 1, "png").then(function(r) {
-            saveBinary(r.data);
-          }, fail);
-          break;
-        case "jpg":
-        case "jpg-hd":
-          X.rasterize(svg, fmt === "jpg-hd" ? 3 : 1, "jpeg").then(function(r) {
-            saveBinary(r.data);
-          }, fail);
-          break;
-        case "pdf":
-          X.rasterize(svg, 3, "jpeg").then(function(r) {
-            saveBinary(X.makePdf(r.data, r.width, r.height));
-          }, fail);
-          break;
-        case "docx":
-          X.rasterize(svg, 2, "png").then(function(r) {
-            saveBinary(X.makeDocx(r.data, r.width, r.height));
-          }, fail);
-          break;
-        case "pptx":
-          X.rasterize(svg, 2, "png").then(function(r) {
-            saveBinary(X.makePptx(r.data, r.width, r.height));
-          }, fail);
-          break;
-        case "md":
-          saveText(cv.kind === "mind" ? X.mindToMarkdown(cv.model.root, cv.doc.title) : X.flowToMarkdown(cv.model, cv.doc.title));
-          break;
-        case "csv":
-          saveText(cv.kind === "mind" ? X.mindToCSV(cv.model.root) : X.flowToCSV(cv.model));
-          break;
-        case "mm":
-          saveText(X.makeFreeMind(cv.model.root));
-          break;
-        case "xmind":
-          saveBinary(X.makeXMind(cv.model.root, cv.doc.title));
-          break;
-      }
-    } catch (e) {
-      fail(e);
-    }
-  }
-  function saveUniversal(filename, content, isBinary) {
-    if (window.pywebview && window.pywebview.api) {
-      if (isBinary && window.pywebview.api.save_file_binary) {
-        return window.pywebview.api.save_file_binary(filename, window.InkpadExporter.u8ToBase64(content));
-      }
-      if (!isBinary && window.pywebview.api.save_file) {
-        return window.pywebview.api.save_file(filename, content);
-      }
-    }
-    var blob = isBinary ? new Blob([content]) : new Blob([content], { type: "text/plain;charset=utf-8" });
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(a.href);
-    return Promise.resolve(filename);
-  }
-
-  // src-app/07-doc-open.js
-  function updateInfoPanel(d, kind) {
-    var fmtName = {
-      text: "\u7EAF\u6587\u672C",
-      markdown: "Markdown",
-      rich: "\u5BCC\u6587\u6863",
-      flow: "\u6D41\u7A0B\u56FE",
-      mind: "\u601D\u7EF4\u5BFC\u56FE",
-      note: "\u601D\u7EF4\u7B14\u8BB0"
-    }[kind] || "\u7EAF\u6587\u672C";
-    var langName = {
-      plaintext: "\u7EAF\u6587\u672C",
-      markdown: "Markdown",
-      json: "JSON",
-      xml: "XML",
-      html: "HTML",
-      javascript: "JavaScript",
-      python: "Python",
-      css: "CSS",
-      sql: "SQL",
-      yaml: "YAML",
-      shell: "Shell",
-      clike: "C/Java",
-      mermaid: "Mermaid"
-    }[d.lang] || "\u7EAF\u6587\u672C";
-    var shownFmt = kind === "text" ? langName : fmtName;
-    var _content = d.content;
-    var _linesNum = d.lines;
-    if (typeof _linesNum !== "number") {
-      _linesNum = Array.isArray(_content) ? _content.length : typeof _content === "string" ? _content.split("\n").length : 0;
-    }
-    var lines = _linesNum;
-    var chars = d.chars;
-    if (typeof chars !== "number") {
-      if (Array.isArray(_content)) {
-        chars = _content.reduce(function(s, l) {
-          return s + (l && l.text ? l.text : String(l || "")).length;
-        }, 0);
-      } else if (typeof _content === "string") {
-        chars = _content.length;
-      } else {
-        chars = 0;
-      }
-    }
-    var pFormat = document.getElementById("pFormat");
-    var pEnc = document.getElementById("pEnc");
-    var pLines = document.getElementById("pLines");
-    var pChars = document.getElementById("pChars");
-    var metaFormat = document.getElementById("metaFormat");
-    var metaStat = document.getElementById("metaStat");
-    if (pFormat) pFormat.textContent = shownFmt;
-    if (pEnc) pEnc.textContent = d.diskPath ? d.encoding || "UTF-8" : "UTF-8";
-    if (pLines) pLines.textContent = kind === "rich" ? d.blocks ? d.blocks.length + " \u5757" : "\u2014" : lines;
-    if (pChars) pChars.textContent = chars;
-    if (metaFormat) metaFormat.textContent = shownFmt;
-    if (metaStat) metaStat.textContent = kind === "rich" ? (d.blocks ? d.blocks.length : 0) + " \u5757 \xB7 " + chars + " \u5B57\u7B26" : lines + " \u884C \xB7 " + chars + " \u5B57\u7B26";
-    if (els.breadcrumb) els.breadcrumb.textContent = kind === "diagram" ? "\u{1F4CA}" : kind === "rich" ? "\u{1F4DD}" : "\u{1F4DD}";
-    var outlineCard = document.getElementById("outlineCard");
-    if (outlineCard) {
-      if (kind === "rich") {
-        outlineCard.innerHTML = "";
-      } else {
-        var _rows = Array.isArray(_content) ? _content : typeof _content === "string" ? _content.split("\n") : [];
-        var items = _rows.slice(0, 12).map(function(l, i) {
-          var txt = (l.text || l) + "";
-          if (txt.indexOf("#") === 0 || /^[A-Za-z0-9_ ]{0,3}[：:]\s/.test(txt)) {
-            var indent = txt.indexOf("##") === 0 ? " indent" : "";
-            var safe = txt.replace(/</g, "&lt;");
-            return '<div class="outline-item' + indent + '" onclick="goLine(' + (i + 1) + ')"><svg class="ol-icon" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg><span class="ol-text">' + (safe.slice(0, 24) || "\uFF08\u7A7A\u884C\uFF09") + "</span></div>";
-          }
-          return "";
-        }).join("");
-        outlineCard.innerHTML = items ? '<div class="card-title"><svg viewBox="0 0 24 24"><path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2z"/></svg>\u5927\u7EB2</div>' + items : '<div class="card-title"><svg viewBox="0 0 24 24"><path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2z"/></svg>\u5927\u7EB2</div><div style="font-size:12px;color:var(--text-faint);padding:4px 8px">\u6682\u65E0\u6807\u9898\u884C<br><small>\u4EE5\u300C#\u300D\u5F00\u5934\u7684\u884C\u4F1A\u51FA\u73B0\u5728\u8FD9\u91CC</small></div>';
-      }
-    }
-  }
-  function goLine(n) {
-    try {
-      if (cm && cm.setCursor) {
-        cm.setCursor({ line: n - 1, ch: 0 });
-        cm.focus();
-      } else {
-        var codeScroll = document.getElementById("codeScroll");
-        var lines = document.querySelectorAll("#codeLines .code-line");
-        if (lines[n - 1] && codeScroll) {
-          codeScroll.scrollTop = lines[n - 1].offsetTop - 40;
-        }
-      }
-      var items = document.querySelectorAll("#outlineCard .outline-item");
-      Array.prototype.forEach.call(items, function(o) {
-        o.classList.remove("active");
-      });
-      var ev = window.event;
-      if (ev && ev.currentTarget) ev.currentTarget.classList.add("active");
-    } catch (e) {
-    }
-  }
-  function openDoc(id) {
-    state.activeId = id;
-    var d = activeDoc();
-    if (!d) return;
-    persist();
-    var kind = d.kind || "text";
-    if (state.currentVisual && state.currentVisual.module) state.currentVisual.module.destroy();
-    state.currentVisual = null;
-    if (window.InkpadBlocks && els.richPane && els.richPane.style.display !== "none") {
-      window.InkpadBlocks.close();
-    }
-    els.editorPane.style.display = kind === "text" ? "flex" : "none";
-    els.visualPane.style.display = kind === "flow" || kind === "mind" || kind === "note" ? "flex" : "none";
-    els.richPane.style.display = kind === "rich" ? "flex" : "none";
-    [els.langSelect, els.toolsWrap, els.toolsWrap2, els.btnFormatXml, els.btnFind, els.btnEncoding, els.btnCompare, els.btnTogglePreview].forEach(function(el) {
-      el.style.display = kind === "text" ? "" : "none";
-    });
-    if (els.btnRichOutline) {
-      els.btnRichOutline.style.display = kind === "rich" ? "" : "none";
-    }
-    if (kind !== "rich") {
-      if (richOutline.visible) richOutlineVisible(false);
-      if (richOutline.observer) {
-        try {
-          richOutline.observer.disconnect();
-        } catch (e) {
-        }
-        richOutline.observer = null;
-      }
-      richOutline.activeId = null;
-    }
-    els.title.value = d.title || "";
-    updateInfoPanel(d, kind);
-    updatePreviewBtn();
-    els.statEdit.textContent = "\u6700\u540E\u7F16\u8F91 " + fullTime(d.updated || Date.now());
-    if (d.diskPath) {
-      els.statEnc.textContent = "\u78C1\u76D8\u6587\u4EF6 \xB7 " + (d.encoding || "UTF-8");
-      els.statEditSep.style.display = "";
-    } else {
-      els.statEnc.textContent = "\u672C\u5730\u6587\u6863";
-      els.statEditSep.style.display = "none";
-    }
-    if (kind === "rich") {
-      els.previewPane.style.display = "none";
-      els.breadcrumb.textContent = "\u{1F4DD}";
-      els.statLang.textContent = "\u5757\u7F16\u8F91\u5668";
-      els.statCursor.textContent = "";
-      els.btnInsertImage.style.display = "none";
-      if (window.InkpadBlocks) {
-        var finishOpen = function() {
-          window.InkpadBlocks.open(els.richCanvas, d);
-          renderList();
-        };
-        var loadFromDisk = function(cb) {
-          if (d.diskPath && hasApi()) {
-            getApi().read_text_file(d.diskPath).then(function(res) {
-              if (res && res.content != null && res.content !== "") {
-                try {
-                  JSON.parse(res.content);
-                  d.content = res.content;
-                } catch (e) {
-                }
-              }
-              cb();
-            }).catch(function() {
-              cb();
-            });
-          } else {
-            cb();
-          }
-        };
-        ensureRichDiskPath(d).then(function(assigned) {
-          loadFromDisk(function() {
-            finishOpen();
-            if (assigned) {
-              persist();
-              saveDiskDoc(d);
-            }
-          });
-        });
-      }
-      return;
-    }
-    if (kind !== "text") {
-      els.previewPane.style.display = "none";
-      openVisual(d, kind);
-      renderList();
-      return;
-    }
-    cm.setValue(d.content || "");
-    cm.setOption("mode", LANGS[d.lang] ? LANGS[d.lang].mime : "text/plain");
-    cm.clearHistory();
-    els.langSelect.value = d.lang || "plaintext";
-    var isDiagram = d.lang === "mermaid";
-    els.breadcrumb.textContent = isDiagram ? "\u{1F4CA}" : "\u{1F4DD}";
-    els.statLang.textContent = LANGS[d.lang] ? LANGS[d.lang].label : "\u7EAF\u6587\u672C";
-    els.btnTogglePreview.classList.toggle("active", isDiagram && state.previewOn);
-    updatePreviewVisibility();
-    updateStatus();
-    renderList();
-  }
-  function updatePreviewBtn() {
-    var d = activeDoc();
-    var ok = d && (d.lang === "markdown" || d.lang === "html");
-    els.btnPreviewTop.style.display = ok ? "" : "none";
-    els.btnInsertImage.style.display = d && (d.lang === "markdown" || d.lang === "html") ? "" : "none";
-  }
-
   // src-app/14-filetree-image.js
   var folderState = { root: null, expanded: {}, openFiles: {} };
   function switchSideTab(tab) {
@@ -1898,9 +558,15 @@
       parentEl.appendChild(container);
     });
   }
+  function sameFile(a, b) {
+    return !!a && !!b && normPath(a).toLowerCase() === normPath(b).toLowerCase();
+  }
+  function fileKey(p) {
+    return normPath(p).toLowerCase();
+  }
   function openDiskFile(path, name) {
-    if (folderState.openFiles[path]) {
-      openDoc(folderState.openFiles[path]);
+    if (folderState.openFiles[fileKey(path)]) {
+      openDoc(folderState.openFiles[fileKey(path)]);
       return;
     }
     if (isImageExt(name)) {
@@ -1916,7 +582,7 @@
       if (ext.toLowerCase() === "json" && isRichDocContent(res.content)) {
         var titleFromName = name.replace(/\.[^.]+$/, "");
         var existing = state.docs.find(function(x) {
-          return x && x.diskPath === path;
+          return sameFile(x && x.diskPath, path);
         });
         if (existing) {
           existing.content = res.content;
@@ -1925,7 +591,7 @@
           existing.updated = Date.now();
           if (!existing.title) existing.title = titleFromName;
           persist();
-          folderState.openFiles[path] = existing.id;
+          folderState.openFiles[fileKey(path)] = existing.id;
           openDoc(existing.id);
           toast("\u5DF2\u6253\u5F00\u5BCC\u6587\u6863\uFF1A" + name, "success");
           return;
@@ -1941,9 +607,24 @@
         };
         state.docs.push(d2);
         persist();
-        folderState.openFiles[path] = d2.id;
+        folderState.openFiles[fileKey(path)] = d2.id;
         openDoc(d2.id);
         toast("\u5DF2\u6253\u5F00\u5BCC\u6587\u6863\uFF1A" + name, "success");
+        return;
+      }
+      var existing = state.docs.find(function(x) {
+        return sameFile(x && x.diskPath, path);
+      });
+      if (existing) {
+        existing.content = res.content;
+        existing.encoding = res.encoding || "UTF-8";
+        existing.lang = EXT_LANGS[ext.toLowerCase()] || "plaintext";
+        existing.updated = Date.now();
+        persist();
+        folderState.openFiles[fileKey(path)] = existing.id;
+        if (existing.lang === "html") state.previewOn = true;
+        openDoc(existing.id);
+        toast("\u5DF2\u6253\u5F00\uFF1A" + name + "\uFF08\u5DF2\u52A0\u8F7D\u78C1\u76D8\u6700\u65B0\u5185\u5BB9\uFF09", "success");
         return;
       }
       var d = {
@@ -1958,7 +639,7 @@
       };
       state.docs.push(d);
       persist();
-      folderState.openFiles[path] = d.id;
+      folderState.openFiles[fileKey(path)] = d.id;
       if (d.lang === "html") state.previewOn = true;
       openDoc(d.id);
       toast("\u5DF2\u6253\u5F00\uFF1A" + name + "\uFF08" + (res.encoding || "UTF-8") + "\uFF09", "success");
@@ -2994,6 +1675,481 @@
       renderList();
       toast("\u4FBF\u5229\u8D34\u5DF2\u4FDD\u5B58", "success");
     }
+  }
+
+  // src-app/08-visual.js
+  function openVisual(d, kind) {
+    var mod = window[VISUAL_MODULES[kind]];
+    var meta = KIND_META[kind];
+    var model = null;
+    try {
+      model = JSON.parse(d.content);
+    } catch (e) {
+      model = null;
+    }
+    if (!model || typeof model !== "object") model = mod.defaultModel();
+    state.currentVisual = { kind, doc: d, model, module: mod };
+    mod.init(els.visualCanvas, model, onVisualChange);
+    mod.renderToolbar(els.visualToolbar);
+    buildVisualExportMenu(els.visualToolbar, kind);
+    els.breadcrumb.textContent = meta.icon;
+    els.statLang.textContent = meta.label;
+    els.statCursor.textContent = "";
+    updateVisualStatus();
+  }
+  function onVisualChange() {
+    if (!state.currentVisual) return;
+    state.currentVisual.doc.content = JSON.stringify(state.currentVisual.model);
+    state.currentVisual.doc.title = els.title.value;
+    state.currentVisual.doc.updated = Date.now();
+    els.statSaved.textContent = "\u4FDD\u5B58\u4E2D\u2026";
+    els.statSaved.style.color = "";
+    els.statEdit.textContent = "\u6700\u540E\u7F16\u8F91 " + fullTime(state.currentVisual.doc.updated);
+    clearTimeout(state.saveTimer);
+    state.saveTimer = setTimeout(function() {
+      persist();
+      els.statSaved.textContent = "\u5DF2\u4FDD\u5B58";
+      els.statSaved.style.color = "#0f7b0f";
+      bus.emit("docs:changed");
+    }, 400);
+    updateVisualStatus();
+  }
+  function updateVisualStatus() {
+    if (!state.currentVisual) return;
+    els.statCount.textContent = state.currentVisual.module.count(state.currentVisual.model);
+  }
+  var VISUAL_EXPORTS = {
+    flow: [
+      ["PNG \u56FE\u7247", "png", ".png"],
+      ["\u9AD8\u6E05 PNG", "png-hd", ".png"],
+      ["JPG \u56FE\u7247", "jpg", ".jpg"],
+      ["\u9AD8\u6E05 JPG", "jpg-hd", ".jpg"],
+      ["SVG \u77E2\u91CF\u56FE", "svg", ".svg"],
+      ["\u9AD8\u6E05 PDF", "pdf", ".pdf"],
+      ["Word\uFF08.docx\uFF09", "docx", ".docx"],
+      ["PPT\uFF08.pptx\uFF09", "pptx", ".pptx"],
+      ["Markdown", "md", ".md"],
+      ["Excel\uFF08.csv\uFF09", "csv", ".csv"],
+      ["JSON \u5DE5\u7A0B\u6587\u4EF6", "json", ".json"]
+    ],
+    mind: [
+      ["PNG \u56FE\u7247", "png", ".png"],
+      ["\u9AD8\u6E05 PNG", "png-hd", ".png"],
+      ["JPG \u56FE\u7247", "jpg", ".jpg"],
+      ["\u9AD8\u6E05 JPG", "jpg-hd", ".jpg"],
+      ["SVG \u77E2\u91CF\u56FE", "svg", ".svg"],
+      ["\u9AD8\u6E05 PDF", "pdf", ".pdf"],
+      ["Word\uFF08.docx\uFF09", "docx", ".docx"],
+      ["PPT\uFF08.pptx\uFF09", "pptx", ".pptx"],
+      ["Markdown", "md", ".md"],
+      ["Excel\uFF08.csv\uFF09", "csv", ".csv"],
+      ["XMind \u6587\u4EF6", "xmind", ".xmind"],
+      ["FreeMind \u6587\u4EF6\uFF08.mm\uFF09", "mm", ".mm"],
+      ["JSON \u5DE5\u7A0B\u6587\u4EF6", "json", ".json"]
+    ]
+  };
+  function buildVisualExportMenu(bar, kind) {
+    var list = VISUAL_EXPORTS[kind];
+    if (!list) return;
+    var wrap = document.createElement("div");
+    wrap.className = "tool-menu-wrap";
+    var btn = document.createElement("button");
+    btn.className = "tool-btn";
+    btn.innerHTML = "\u2B07 \u5BFC\u51FA\u4E3A \u25BE";
+    var menu = document.createElement("div");
+    menu.className = "tool-menu visual-export-menu";
+    menu.style.display = "none";
+    list.forEach(function(item) {
+      var mi = document.createElement("button");
+      mi.className = "menu-item";
+      mi.textContent = item[0];
+      mi.setAttribute("data-fmt", item[1]);
+      mi.setAttribute("data-ext", item[2]);
+      menu.appendChild(mi);
+    });
+    wrap.appendChild(btn);
+    wrap.appendChild(menu);
+    bar.appendChild(wrap);
+    btn.addEventListener("click", function(e) {
+      e.stopPropagation();
+      menu.style.display = menu.style.display === "none" ? "block" : "none";
+    });
+    document.addEventListener("click", function() {
+      menu.style.display = "none";
+    });
+    menu.addEventListener("click", function(e) {
+      var mi = e.target.closest(".menu-item");
+      if (!mi) return;
+      menu.style.display = "none";
+      exportVisual(mi.getAttribute("data-fmt"), mi.getAttribute("data-ext"));
+    });
+  }
+  function exportVisual(fmt, ext) {
+    var cv = state.currentVisual;
+    if (!cv) return;
+    var X = window.InkpadExporter;
+    var title = (cv.doc.title || KIND_META[cv.kind].label).replace(/[\\/:*?"<>|]/g, "_");
+    var svg = els.visualCanvas.querySelector("svg");
+    function done(path) {
+      if (path) toast("\u5DF2\u5BFC\u51FA\uFF1A" + path, "success");
+    }
+    function fail(err) {
+      toast("\u5BFC\u51FA\u5931\u8D25\uFF1A" + (err && err.message ? err.message : err), "error");
+    }
+    function saveText(text) {
+      saveUniversal(title + ext, text, false).then(done, fail);
+    }
+    function saveBinary(u8) {
+      saveUniversal(title + ext, u8, true).then(done, fail);
+    }
+    try {
+      switch (fmt) {
+        case "json":
+          saveText(JSON.stringify(cv.model, null, 2));
+          break;
+        case "svg":
+          saveText(X.exportSvgText(svg));
+          break;
+        case "png":
+        case "png-hd":
+          X.rasterize(svg, fmt === "png-hd" ? 3 : 1, "png").then(function(r) {
+            saveBinary(r.data);
+          }, fail);
+          break;
+        case "jpg":
+        case "jpg-hd":
+          X.rasterize(svg, fmt === "jpg-hd" ? 3 : 1, "jpeg").then(function(r) {
+            saveBinary(r.data);
+          }, fail);
+          break;
+        case "pdf":
+          X.rasterize(svg, 3, "jpeg").then(function(r) {
+            saveBinary(X.makePdf(r.data, r.width, r.height));
+          }, fail);
+          break;
+        case "docx":
+          X.rasterize(svg, 2, "png").then(function(r) {
+            saveBinary(X.makeDocx(r.data, r.width, r.height));
+          }, fail);
+          break;
+        case "pptx":
+          X.rasterize(svg, 2, "png").then(function(r) {
+            saveBinary(X.makePptx(r.data, r.width, r.height));
+          }, fail);
+          break;
+        case "md":
+          saveText(cv.kind === "mind" ? X.mindToMarkdown(cv.model.root, cv.doc.title) : X.flowToMarkdown(cv.model, cv.doc.title));
+          break;
+        case "csv":
+          saveText(cv.kind === "mind" ? X.mindToCSV(cv.model.root) : X.flowToCSV(cv.model));
+          break;
+        case "mm":
+          saveText(X.makeFreeMind(cv.model.root));
+          break;
+        case "xmind":
+          saveBinary(X.makeXMind(cv.model.root, cv.doc.title));
+          break;
+      }
+    } catch (e) {
+      fail(e);
+    }
+  }
+  function saveUniversal(filename, content, isBinary) {
+    if (window.pywebview && window.pywebview.api) {
+      if (isBinary && window.pywebview.api.save_file_binary) {
+        return window.pywebview.api.save_file_binary(filename, window.InkpadExporter.u8ToBase64(content));
+      }
+      if (!isBinary && window.pywebview.api.save_file) {
+        return window.pywebview.api.save_file(filename, content);
+      }
+    }
+    var blob = isBinary ? new Blob([content]) : new Blob([content], { type: "text/plain;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return Promise.resolve(filename);
+  }
+
+  // src-app/09-rich-save.js
+  function newVisualDoc(kind) {
+    var mod = window[VISUAL_MODULES[kind]];
+    var d = {
+      id: uid(),
+      title: "",
+      kind,
+      lang: "json",
+      content: JSON.stringify(mod.defaultModel()),
+      updated: Date.now()
+    };
+    state.docs.push(d);
+    persist();
+    openDoc(d.id);
+    els.title.focus();
+  }
+  function newRichDoc() {
+    var d = {
+      id: uid(),
+      title: "",
+      kind: "rich",
+      encoding: "utf-8",
+      content: JSON.stringify([
+        { id: uid(), type: "h1", text: "\u65E0\u6807\u9898\u6587\u6863" },
+        { id: uid(), type: "text", text: "\u5728\u8FD9\u91CC\u8F93\u5165\u5185\u5BB9\u3002\u628A\u9F20\u6807\u79FB\u5230\u5757\u5DE6\u4FA7\u53EF<b>\u62D6\u62FD\u6392\u5E8F</b>\uFF0C\u70B9 <b>+</b> \u63D2\u5165\u65B0\u5757\u3002\u5DE5\u5177\u680F\u300C\u2728 \u63D2\u5165\u300D\u4E5F\u80FD\u8FFD\u52A0\u7EC4\u4EF6\u3002" }
+      ]),
+      updated: Date.now()
+    };
+    state.docs.push(d);
+    persist();
+    openDoc(d.id);
+    els.title.focus();
+  }
+  function ensureRichDiskPath(d) {
+    if (!d || d.diskPath || !hasApi()) return Promise.resolve(false);
+    return getApi().get_rich_dir().then(function(dir) {
+      if (!dir) return false;
+      var dirNorm = dir.replace(/\\/g, "/");
+      var desired = d.title && d.title.trim() || "\u672A\u547D\u540D\u6587\u6863";
+      d.diskPath = computeRichFilePath(dirNorm, d, desired);
+      d.encoding = d.encoding || "utf-8";
+      return true;
+    }).catch(function() {
+      return false;
+    });
+  }
+  function syncRichDiskPath(d) {
+    if (!d || d.kind !== "rich" || !hasApi()) return Promise.resolve();
+    if (!d.diskPath) return ensureRichDiskPath(d).then(function() {
+      return null;
+    });
+    var dir = dirOf(d.diskPath);
+    if (!dir) return Promise.resolve();
+    var desired = d.title && d.title.trim() || "\u672A\u547D\u540D\u6587\u6863";
+    var newPath = computeRichFilePath(dir, d, desired);
+    if (newPath === d.diskPath) return Promise.resolve();
+    var oldPath = d.diskPath;
+    d.diskPath = newPath;
+    return getApi().write_text_file(newPath, d.content || "", d.encoding || "utf-8").then(function(ok) {
+      if (!ok) {
+        d.diskPath = oldPath;
+        throw new Error("write_text_file \u8FD4\u56DE\u5931\u8D25");
+      }
+      return getApi().delete_rich_file(oldPath).catch(function() {
+        return null;
+      });
+    }).then(function() {
+      persist();
+      els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
+      els.statSaved.style.color = "#0f7b0f";
+    });
+  }
+  var _richSaveChain = Promise.resolve();
+  function runRichSaveChain(d) {
+    var self = _richSaveChain.then(function() {
+      if (!d || d.kind !== "rich") return null;
+      return syncRichDiskPath(d).then(function() {
+        if (!d.diskPath) return null;
+        return saveDiskDoc(d);
+      });
+    }).then(function() {
+      if (!d) return;
+      persist();
+      bus.emit("docs:changed");
+      els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
+      els.statSaved.style.color = "#0f7b0f";
+    }).catch(function(err) {
+      console.warn("[inkpad] \u5BCC\u6587\u6863\u4FDD\u5B58\u5931\u8D25\uFF1A", err);
+      els.statSaved.textContent = "\u4FDD\u5B58\u5931\u8D25";
+      els.statSaved.style.color = "var(--danger)";
+    });
+    _richSaveChain = self.then(function() {
+      return null;
+    }, function() {
+      return null;
+    });
+    return self;
+  }
+  function sanitizeFileName(name) {
+    var t = (name == null ? "" : String(name)).trim();
+    t = t.replace(/[\\/:*?"<>|\r\n\t]/g, "_");
+    t = t.replace(/[\x00-\x1f\x7f]/g, "");
+    t = t.replace(/[.\s]+$/, "");
+    if (t.length > 80) t = t.slice(0, 80);
+    t = t.replace(/[.\s]+$/, "");
+    if (!t) t = "\u672A\u547D\u540D\u6587\u6863";
+    return t;
+  }
+  function computeRichFilePath(dir, d, desiredName) {
+    var base = sanitizeFileName(desiredName);
+    var ext = ".json";
+    var occupied = {};
+    (state.docs || []).forEach(function(other) {
+      if (other && other !== d && other.diskPath) occupied[other.diskPath] = true;
+    });
+    var candidate = dir + "/" + base + ext;
+    if (!occupied[candidate] || candidate === d.diskPath) return candidate;
+    var n = 1;
+    while (n < 1e3) {
+      candidate = dir + "/" + base + "_" + n + ext;
+      if (!occupied[candidate] || candidate === d.diskPath) return candidate;
+      n++;
+    }
+    return dir + "/" + base + "_" + Date.now() + ext;
+  }
+  function richChanged() {
+    var d = activeDoc();
+    if (!d || d.kind !== "rich") return;
+    d.title = els.title.value;
+    d.updated = Date.now();
+    els.statEdit.textContent = "\u6700\u540E\u7F16\u8F91 " + fullTime(d.updated);
+    els.statSaved.textContent = "\u4FDD\u5B58\u4E2D\u2026";
+    els.statSaved.style.color = "";
+    clearTimeout(state.saveTimer);
+    state.saveTimer = setTimeout(function() {
+      runRichSaveChain(d);
+    }, 400);
+  }
+  function syncFromEditor() {
+    var d = activeDoc();
+    if (!d) return;
+    d.content = cm.getValue();
+    d.title = els.title.value;
+    d.updated = Date.now();
+    els.statSaved.textContent = "\u4FDD\u5B58\u4E2D\u2026";
+    els.statSaved.style.color = "";
+    els.statEdit.textContent = "\u6700\u540E\u7F16\u8F91 " + fullTime(d.updated);
+    clearTimeout(state.saveTimer);
+    state.saveTimer = setTimeout(function() {
+      if (d.kind === "rich") {
+        runRichSaveChain(d);
+      } else {
+        persist();
+        if (d.diskPath) saveDiskDoc(d);
+        else {
+          els.statSaved.textContent = "\u5DF2\u4FDD\u5B58";
+          els.statSaved.style.color = "#0f7b0f";
+        }
+        bus.emit("docs:changed");
+      }
+    }, 400);
+  }
+  function docSaveName(d) {
+    var t = (d.title || "").trim();
+    if (!t) t = "\u672A\u547D\u540D";
+    if (d.kind === "rich") {
+      if (!/\.[a-z0-9]+$/i.test(t)) t += ".json";
+      return t;
+    }
+    var meta = LANGS[d.lang];
+    var ext = meta && meta.ext ? meta.ext : ".txt";
+    if (!/\.[a-z0-9]+$/i.test(t)) t += ext;
+    return t;
+  }
+  function richDocSaveFilters() {
+    return ["Inkpad \u5BCC\u6587\u6863 (*.json)", "JSON \u683C\u5F0F (*.json)", "\u6240\u6709\u6587\u4EF6 (*.*)"];
+  }
+  function richDocSaveInitialDir(d) {
+    if (d && d.diskPath) return dirOf(d.diskPath);
+    return null;
+  }
+  function saveDoc(forceAsk) {
+    var d = activeDoc();
+    if (!d) {
+      toast("\u6CA1\u6709\u53EF\u4FDD\u5B58\u7684\u6587\u6863", "error");
+      return;
+    }
+    clearTimeout(state.saveTimer);
+    if (d.kind === "rich") {
+      d.title = els.title.value;
+      persist();
+      var doRichSaveAs = forceAsk || !d.diskPath;
+      if (!doRichSaveAs && d.diskPath) {
+        runRichSaveChain(d).then(function() {
+          els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
+          els.statSaved.style.color = "#0f7b0f";
+          bus.emit("docs:changed");
+          toast("\u5DF2\u4FDD\u5B58\uFF1A" + d.diskPath, "success");
+        }).catch(function() {
+          toast("\u4FDD\u5B58\u5931\u8D25", "error");
+        });
+        return;
+      }
+      if (!forceAsk && !d.diskPath) toast("\u8BE5\u6587\u6863\u5C1A\u672A\u5173\u8054\u78C1\u76D8\u6587\u4EF6\uFF0C\u8BF7\u9009\u62E9\u4FDD\u5B58\u4F4D\u7F6E\uFF08\u4EC5\u9996\u6B21\u4FDD\u5B58\u9700\u8981\u9009\u62E9\uFF09", "info");
+      var oldPath = d.diskPath || null;
+      var initialName = docSaveName(d);
+      var richContent = d.content || "";
+      getApi().save_file_encoded(initialName, richContent, d.encoding || "UTF-8", richDocSaveFilters()).then(function(newPath) {
+        if (!newPath) {
+          toast("\u5DF2\u53D6\u6D88\u4FDD\u5B58", "info");
+          return;
+        }
+        d.diskPath = newPath;
+        d.encoding = d.encoding || "UTF-8";
+        d.updated = Date.now();
+        persist();
+        if (!folderState.openFiles) folderState.openFiles = {};
+        folderState.openFiles[normPath(newPath).toLowerCase()] = d.id;
+        if (oldPath && oldPath !== newPath) {
+          getApi().delete_rich_file(oldPath).catch(function() {
+          });
+        }
+        els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
+        els.statSaved.style.color = "#0f7b0f";
+        bus.emit("docs:changed");
+        toast((forceAsk ? "\u5DF2\u53E6\u5B58\u4E3A\uFF1A" : "\u5DF2\u4FDD\u5B58\uFF1A") + newPath, "success");
+      }).catch(function() {
+        toast("\u4FDD\u5B58\u5931\u8D25", "error");
+      });
+      return;
+    }
+    if (state.currentVisual) onVisualChange();
+    else syncFromEditor();
+    persist();
+    if (!hasApi()) {
+      saveUniversal(docSaveName(d), d.content, false);
+      return;
+    }
+    if (!forceAsk && d.diskPath) {
+      getApi().write_text_file(d.diskPath, d.content, d.encoding || "UTF-8").then(function(ok) {
+        if (ok) {
+          d.updated = Date.now();
+          els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
+          els.statSaved.style.color = "#0f7b0f";
+          bus.emit("docs:changed");
+          toast("\u5DF2\u4FDD\u5B58\uFF1A" + d.diskPath, "success");
+        } else {
+          toast("\u4FDD\u5B58\u5931\u8D25", "error");
+        }
+      }).catch(function() {
+        els.statSaved.textContent = "\u78C1\u76D8\u4FDD\u5B58\u5931\u8D25";
+        els.statSaved.style.color = "var(--danger)";
+        toast("\u78C1\u76D8\u4FDD\u5B58\u5931\u8D25", "error");
+      });
+      return;
+    }
+    if (!forceAsk && !d.diskPath) toast("\u8BE5\u6587\u6863\u5C1A\u672A\u5173\u8054\u78C1\u76D8\u6587\u4EF6\uFF0C\u8BF7\u9009\u62E9\u4FDD\u5B58\u4F4D\u7F6E\uFF08\u4EC5\u9996\u6B21\u4FDD\u5B58\u9700\u8981\u9009\u62E9\uFF09", "info");
+    getApi().save_file_encoded(docSaveName(d), d.content, d.encoding || "UTF-8").then(function(path) {
+      if (!path) {
+        toast("\u5DF2\u53D6\u6D88\u4FDD\u5B58", "info");
+        return;
+      }
+      d.diskPath = path;
+      d.encoding = d.encoding || "UTF-8";
+      d.updated = Date.now();
+      persist();
+      if (!folderState.openFiles) folderState.openFiles = {};
+      folderState.openFiles[normPath(path).toLowerCase()] = d.id;
+      els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
+      els.statSaved.style.color = "#0f7b0f";
+      bus.emit("docs:changed");
+      toast((forceAsk ? "\u5DF2\u53E6\u5B58\u4E3A\uFF1A" : "\u5DF2\u4FDD\u5B58\uFF1A") + path, "success");
+    }).catch(function() {
+      toast("\u4FDD\u5B58\u5931\u8D25", "error");
+    });
+  }
+  function saveNow() {
+    saveDoc(false);
   }
 
   // src-app/03-rich-bubble.js
@@ -5829,12 +4985,12 @@
     var r = document.querySelector('input[name="ts-unit"]:checked');
     return r && r.value === "ms";
   }
-  function pad22(n) {
+  function pad2(n) {
     return (n < 10 ? "0" : "") + n;
   }
   function formatBeijing(ms) {
     var d = new Date(ms + 8 * 36e5);
-    return d.getUTCFullYear() + "-" + pad22(d.getUTCMonth() + 1) + "-" + pad22(d.getUTCDate()) + " " + pad22(d.getUTCHours()) + ":" + pad22(d.getUTCMinutes()) + ":" + pad22(d.getUTCSeconds());
+    return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate()) + " " + pad2(d.getUTCHours()) + ":" + pad2(d.getUTCMinutes()) + ":" + pad2(d.getUTCSeconds());
   }
   function refreshTsNow() {
     var now = Date.now();
@@ -6355,282 +5511,1255 @@
     fontFamily: "inherit"
   });
 
-  // src-app/09-rich-save.js
-  function newVisualDoc(kind) {
-    var mod = window[VISUAL_MODULES[kind]];
-    var d = {
-      id: uid(),
-      title: "",
-      kind,
-      lang: "json",
-      content: JSON.stringify(mod.defaultModel()),
-      updated: Date.now()
-    };
-    state.docs.push(d);
-    persist();
-    openDoc(d.id);
-    els.title.focus();
-  }
-  function newRichDoc() {
-    var d = {
-      id: uid(),
-      title: "",
-      kind: "rich",
-      encoding: "utf-8",
-      content: JSON.stringify([
-        { id: uid(), type: "h1", text: "\u65E0\u6807\u9898\u6587\u6863" },
-        { id: uid(), type: "text", text: "\u5728\u8FD9\u91CC\u8F93\u5165\u5185\u5BB9\u3002\u628A\u9F20\u6807\u79FB\u5230\u5757\u5DE6\u4FA7\u53EF<b>\u62D6\u62FD\u6392\u5E8F</b>\uFF0C\u70B9 <b>+</b> \u63D2\u5165\u65B0\u5757\u3002\u5DE5\u5177\u680F\u300C\u2728 \u63D2\u5165\u300D\u4E5F\u80FD\u8FFD\u52A0\u7EC4\u4EF6\u3002" }
-      ]),
-      updated: Date.now()
-    };
-    state.docs.push(d);
-    persist();
-    openDoc(d.id);
-    els.title.focus();
-  }
-  function ensureRichDiskPath(d) {
-    if (!d || d.diskPath || !hasApi()) return Promise.resolve(false);
-    return getApi().get_rich_dir().then(function(dir) {
-      if (!dir) return false;
-      var dirNorm = dir.replace(/\\/g, "/");
-      var desired = d.title && d.title.trim() || "\u672A\u547D\u540D\u6587\u6863";
-      d.diskPath = computeRichFilePath(dirNorm, d, desired);
-      d.encoding = d.encoding || "utf-8";
-      return true;
-    }).catch(function() {
-      return false;
-    });
-  }
-  function syncRichDiskPath(d) {
-    if (!d || d.kind !== "rich" || !hasApi()) return Promise.resolve();
-    if (!d.diskPath) return ensureRichDiskPath(d).then(function() {
-      return null;
-    });
-    var dir = dirOf(d.diskPath);
-    if (!dir) return Promise.resolve();
-    var desired = d.title && d.title.trim() || "\u672A\u547D\u540D\u6587\u6863";
-    var newPath = computeRichFilePath(dir, d, desired);
-    if (newPath === d.diskPath) return Promise.resolve();
-    var oldPath = d.diskPath;
-    d.diskPath = newPath;
-    return getApi().write_text_file(newPath, d.content || "", d.encoding || "utf-8").then(function(ok) {
-      if (!ok) {
-        d.diskPath = oldPath;
-        throw new Error("write_text_file \u8FD4\u56DE\u5931\u8D25");
-      }
-      return getApi().delete_rich_file(oldPath).catch(function() {
-        return null;
-      });
-    }).then(function() {
-      persist();
-      els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
-      els.statSaved.style.color = "#0f7b0f";
-    });
-  }
-  var _richSaveChain = Promise.resolve();
-  function runRichSaveChain(d) {
-    var self = _richSaveChain.then(function() {
-      if (!d || d.kind !== "rich") return null;
-      return syncRichDiskPath(d).then(function() {
-        if (!d.diskPath) return null;
-        return saveDiskDoc(d);
-      });
-    }).then(function() {
-      if (!d) return;
-      persist();
-      bus.emit("docs:changed");
-      els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
-      els.statSaved.style.color = "#0f7b0f";
-    }).catch(function(err) {
-      console.warn("[inkpad] \u5BCC\u6587\u6863\u4FDD\u5B58\u5931\u8D25\uFF1A", err);
-      els.statSaved.textContent = "\u4FDD\u5B58\u5931\u8D25";
-      els.statSaved.style.color = "var(--danger)";
-    });
-    _richSaveChain = self.then(function() {
-      return null;
-    }, function() {
-      return null;
-    });
-    return self;
-  }
-  function sanitizeFileName(name) {
-    var t = (name == null ? "" : String(name)).trim();
-    t = t.replace(/[\\/:*?"<>|\r\n\t]/g, "_");
-    t = t.replace(/[\x00-\x1f\x7f]/g, "");
-    t = t.replace(/[.\s]+$/, "");
-    if (t.length > 80) t = t.slice(0, 80);
-    t = t.replace(/[.\s]+$/, "");
-    if (!t) t = "\u672A\u547D\u540D\u6587\u6863";
-    return t;
-  }
-  function computeRichFilePath(dir, d, desiredName) {
-    var base = sanitizeFileName(desiredName);
-    var ext = ".json";
-    var occupied = {};
-    (state.docs || []).forEach(function(other) {
-      if (other && other !== d && other.diskPath) occupied[other.diskPath] = true;
-    });
-    var candidate = dir + "/" + base + ext;
-    if (!occupied[candidate] || candidate === d.diskPath) return candidate;
-    var n = 1;
-    while (n < 1e3) {
-      candidate = dir + "/" + base + "_" + n + ext;
-      if (!occupied[candidate] || candidate === d.diskPath) return candidate;
-      n++;
-    }
-    return dir + "/" + base + "_" + Date.now() + ext;
-  }
-  function richChanged() {
-    var d = activeDoc();
-    if (!d || d.kind !== "rich") return;
-    d.title = els.title.value;
-    d.updated = Date.now();
-    els.statEdit.textContent = "\u6700\u540E\u7F16\u8F91 " + fullTime(d.updated);
-    els.statSaved.textContent = "\u4FDD\u5B58\u4E2D\u2026";
-    els.statSaved.style.color = "";
-    clearTimeout(state.saveTimer);
-    state.saveTimer = setTimeout(function() {
-      runRichSaveChain(d);
-    }, 400);
-  }
-  function syncFromEditor() {
-    var d = activeDoc();
-    if (!d) return;
-    d.content = cm.getValue();
-    d.title = els.title.value;
-    d.updated = Date.now();
-    els.statSaved.textContent = "\u4FDD\u5B58\u4E2D\u2026";
-    els.statSaved.style.color = "";
-    els.statEdit.textContent = "\u6700\u540E\u7F16\u8F91 " + fullTime(d.updated);
-    clearTimeout(state.saveTimer);
-    state.saveTimer = setTimeout(function() {
-      if (d.kind === "rich") {
-        runRichSaveChain(d);
-      } else {
-        persist();
-        if (d.diskPath) saveDiskDoc(d);
-        else {
-          els.statSaved.textContent = "\u5DF2\u4FDD\u5B58";
-          els.statSaved.style.color = "#0f7b0f";
+  // src-app/10-status-preview.js
+  var statDebounceTimer = null;
+  var STAT_DEBOUNCE_MS = 180;
+  var STAT_BIG_DOC = 200 * 1024;
+  function countCharsAndWords(text) {
+    var chars = text.length;
+    var cjk = 0, words = 0;
+    var inWord = false;
+    for (var i = 0; i < text.length; i++) {
+      var c = text.charCodeAt(i);
+      var isCjk = c >= 19968 && c <= 40959;
+      var isWordChar = isCjk || c >= 48 && c <= 57 || c >= 65 && c <= 90 || c >= 97 && c <= 122 || c === 95 || c === 36;
+      if (isCjk) cjk++;
+      if (isWordChar) {
+        if (!inWord) {
+          words++;
+          inWord = true;
         }
-        bus.emit("docs:changed");
+      } else {
+        inWord = false;
       }
-    }, 400);
-  }
-  function docSaveName(d) {
-    var t = (d.title || "").trim();
-    if (!t) t = "\u672A\u547D\u540D";
-    if (d.kind === "rich") {
-      if (!/\.[a-z0-9]+$/i.test(t)) t += ".json";
-      return t;
     }
-    var meta = LANGS[d.lang];
-    var ext = meta && meta.ext ? meta.ext : ".txt";
-    if (!/\.[a-z0-9]+$/i.test(t)) t += ext;
-    return t;
+    return { chars, cjk, words };
   }
-  function richDocSaveFilters() {
-    return ["Inkpad \u5BCC\u6587\u6863 (*.json)", "JSON \u683C\u5F0F (*.json)", "\u6240\u6709\u6587\u4EF6 (*.*)"];
+  function updateStatus() {
+    var cur = cm.getCursor();
+    els.statCursor.textContent = "\u884C " + (cur.line + 1) + ", \u5217 " + (cur.ch + 1);
+    if (statDebounceTimer) return;
+    statDebounceTimer = setTimeout(function() {
+      statDebounceTimer = null;
+      var text = cm.getValue();
+      var sel = cm.getSelection();
+      var out;
+      if (text.length > STAT_BIG_DOC) {
+        out = {
+          chars: text.length,
+          cjk: "~",
+          words: "~"
+        };
+      } else {
+        out = countCharsAndWords(text);
+      }
+      var base = out.chars + " \u5B57\u7B26 \xB7 " + out.words + " \u8BCD";
+      els.statCount.textContent = sel ? base + " \xB7 \u9009\u4E2D " + sel.length + " \u5B57\u7B26" : base;
+    }, STAT_DEBOUNCE_MS);
   }
-  function richDocSaveInitialDir(d) {
-    if (d && d.diskPath) return dirOf(d.diskPath);
-    return null;
-  }
-  function saveDoc(forceAsk) {
+  function updatePreviewVisibility() {
     var d = activeDoc();
-    if (!d) {
-      toast("\u6CA1\u6709\u53EF\u4FDD\u5B58\u7684\u6587\u6863", "error");
+    var isMermaid = d && d.lang === "mermaid";
+    var isMd = d && d.lang === "markdown";
+    var isHtml = d && d.lang === "html";
+    var show = state.previewOn && (isMermaid || isMd || isHtml);
+    els.previewPane.style.display = show ? "flex" : "none";
+    els.splitter.style.display = show ? "block" : "none";
+    els.btnTogglePreview.classList.toggle("active", !!show);
+    els.btnPreviewTop.classList.toggle("active", !!show);
+    els.btnPreviewTop.title = show ? "\u5173\u95ED\u9884\u89C8" : "\u9884\u89C8";
+    if (isMd) els.btnTogglePreview.textContent = "\u{1F441} MD\u9884\u89C8";
+    else if (isHtml) els.btnTogglePreview.textContent = "\u{1F441} HTML\u9884\u89C8";
+    else els.btnTogglePreview.textContent = "\u{1F441} \u56FE\u8868\u9884\u89C8";
+    if (!show) return;
+    if (isMermaid) {
+      els.previewTitle.textContent = "\u56FE\u8868\u9884\u89C8";
+      els.previewHint.textContent = "\u62D6\u62FD\u5E73\u79FB \xB7 Ctrl+\u6EDA\u8F6E\u7F29\u653E \xB7 \u53CC\u51FB\u590D\u4F4D";
+      els.mdOut.style.display = "none";
+      els.htmlOut.style.display = "none";
+      els.mermaidOut.style.display = "";
+    } else if (isHtml) {
+      els.previewTitle.textContent = "HTML \u9884\u89C8";
+      els.previewHint.textContent = "\u672C\u5730\u5B9E\u65F6\u6E32\u67D3 \xB7 \u4FEE\u6539\u81EA\u52A8\u5237\u65B0";
+      els.mdOut.style.display = "none";
+      els.htmlOut.style.display = "";
+      els.mermaidOut.style.display = "none";
+    } else {
+      els.previewTitle.textContent = "Markdown \u9884\u89C8";
+      els.previewHint.textContent = "\u652F\u6301 GFM \u8868\u683C \xB7 \u4EE3\u7801\u5757 \xB7 ```mermaid \u56FE\u8868";
+      els.mermaidOut.style.display = "none";
+      els.htmlOut.style.display = "none";
+      els.mdOut.style.display = "";
+    }
+    scheduleRender();
+  }
+  function scheduleRender() {
+    clearTimeout(state.renderTimer);
+    state.renderTimer = setTimeout(function() {
+      var d = activeDoc();
+      if (!d || !state.previewOn) return;
+      if (d.lang === "mermaid") renderMermaid();
+      else if (d.lang === "markdown") renderMarkdownPreview();
+      else if (d.lang === "html") renderHtmlPreview();
+    }, 300);
+  }
+  function renderMermaid() {
+    var d = activeDoc();
+    if (!d || d.lang !== "mermaid" || !state.previewOn) return;
+    var code = cm.getValue().trim();
+    els.mermaidOut.innerHTML = "";
+    var oldErr = document.querySelector(".mermaid-error");
+    if (oldErr) oldErr.remove();
+    if (!code) {
+      els.previewEmpty.style.display = "";
       return;
     }
-    clearTimeout(state.saveTimer);
-    if (d.kind === "rich") {
-      d.title = els.title.value;
-      persist();
-      var doRichSaveAs = forceAsk || !d.diskPath;
-      if (!doRichSaveAs && d.diskPath) {
-        runRichSaveChain(d).then(function() {
-          els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
-          els.statSaved.style.color = "#0f7b0f";
-          bus.emit("docs:changed");
-          toast("\u5DF2\u4FDD\u5B58\uFF1A" + d.diskPath, "success");
-        }).catch(function() {
-          toast("\u4FDD\u5B58\u5931\u8D25", "error");
-        });
-        return;
+    els.previewEmpty.style.display = "none";
+    var seq = ++state.mermaidSeq;
+    mermaid.render("mmd-" + seq, code).then(function(res) {
+      if (seq !== state.mermaidSeq) return;
+      els.mermaidOut.innerHTML = res.svg;
+      prepareSvg();
+    }).catch(function(err) {
+      if (seq !== state.mermaidSeq) return;
+      var div = document.createElement("div");
+      div.className = "mermaid-error";
+      div.textContent = "\u56FE\u8868\u8BED\u6CD5\u9519\u8BEF\uFF1A\n" + (err && err.message ? err.message : String(err));
+      els.previewPane.querySelector("#preview-body").appendChild(div);
+    });
+  }
+  function renderHtmlPreview() {
+    var d = activeDoc();
+    if (!d || d.lang !== "html" || !state.previewOn) return;
+    var src = cm.getValue();
+    els.previewEmpty.style.display = "none";
+    if (!src.trim()) {
+      els.htmlFrame.srcdoc = '<body style="font-family:sans-serif;color:#999;padding:40px;text-align:center">\u5728\u5DE6\u4FA7\u8F93\u5165 HTML\uFF0C\u8FD9\u91CC\u5B9E\u65F6\u6E32\u67D3</body>';
+      return;
+    }
+    var baseDir = d.diskPath ? dirOf(d.diskPath) : null;
+    inlineHtmlImages(src, baseDir).then(function(html) {
+      if (html) els.htmlFrame.srcdoc = html;
+    });
+  }
+  function inlineHtmlImages(html, baseDir) {
+    var re = /(<img\b[^>]*\ssrc\s*=\s*)(["'])(.*?)\2/gi;
+    var found = [];
+    var mm;
+    while (mm = re.exec(html)) {
+      var src = mm[3];
+      if (/^(https?:|data:|blob:)/i.test(src)) continue;
+      var abs = isAbsPath(src) ? normPath(src) : baseDir ? joinPath(baseDir, src) : null;
+      if (!abs) continue;
+      found.push({ full: mm[0], pre: mm[1], q: mm[2], abs });
+    }
+    if (!found.length) return Promise.resolve(html);
+    var out = html;
+    return Promise.all(found.map(function(it) {
+      if (!hasApi()) {
+        it.url = toFileUrl(it.abs);
+        return Promise.resolve();
       }
-      var oldPath = d.diskPath || null;
-      var initialName = docSaveName(d);
-      var richContent = d.content || "";
-      getApi().save_file_encoded(initialName, richContent, d.encoding || "UTF-8", richDocSaveFilters()).then(function(newPath) {
-        if (!newPath) {
-          toast("\u5DF2\u53D6\u6D88\u4FDD\u5B58", "info");
-          return;
-        }
-        d.diskPath = newPath;
-        d.encoding = d.encoding || "UTF-8";
-        d.updated = Date.now();
-        persist();
-        if (!folderState.openFiles) folderState.openFiles = {};
-        folderState.openFiles[newPath] = d.id;
-        if (oldPath && oldPath !== newPath) {
-          getApi().delete_rich_file(oldPath).catch(function() {
-          });
-        }
+      return getApi().read_file_b64(it.abs).then(function(res) {
+        if (res && res.b64) it.url = "data:" + (res.mime || "image/png") + ";base64," + res.b64;
+        else it.url = toFileUrl(it.abs);
+      }).catch(function() {
+        it.url = toFileUrl(it.abs);
+      });
+    })).then(function() {
+      found.forEach(function(it) {
+        if (it.url) out = out.split(it.full).join(it.pre + it.q + it.url + it.q);
+      });
+      return out;
+    });
+  }
+  function renderMarkdownPreview() {
+    var d = activeDoc();
+    if (!d || d.lang !== "markdown" || !state.previewOn) return;
+    var text = cm.getValue();
+    var oldErr = document.querySelector(".mermaid-error");
+    if (oldErr) oldErr.remove();
+    els.previewEmpty.style.display = "none";
+    if (!text.trim()) {
+      els.mdOut.innerHTML = '<div class="preview-empty"><div class="preview-empty-icon">\u{1F4DD}</div><p>\u5728\u5DE6\u4FA7\u8F93\u5165 Markdown<br>\u8FD9\u91CC\u4F1A\u5B9E\u65F6\u6E32\u67D3\u9884\u89C8</p></div>';
+      return;
+    }
+    window.InkpadMd.renderInto(els.mdOut, text);
+    resolveMarkdownImages(d);
+  }
+  function resolveMarkdownImages(d) {
+    var baseDir = d.diskPath ? dirOf(d.diskPath) : null;
+    var imgs = els.mdOut.querySelectorAll("img");
+    Array.prototype.forEach.call(imgs, function(img) {
+      var src = img.getAttribute("src") || "";
+      var url = resolveImgSrc(src, baseDir);
+      if (url) img.src = url;
+    });
+  }
+  var panState = { down: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 };
+  state.zoomLevel = 1;
+  var svgNatural = null;
+  function prepareSvg() {
+    var svg = els.mermaidOut.querySelector("svg");
+    if (!svg) {
+      svgNatural = null;
+      return;
+    }
+    svg.style.maxWidth = "none";
+    var vb = svg.viewBox && svg.viewBox.baseVal;
+    var w = vb && vb.width ? vb.width : svg.getBoundingClientRect().width;
+    var h = vb && vb.height ? vb.height : svg.getBoundingClientRect().height;
+    if (!w || !h) {
+      svgNatural = null;
+      return;
+    }
+    svgNatural = { w, h };
+    applyZoom();
+  }
+  function applyZoom() {
+    if (!svgNatural) return;
+    var svg = els.mermaidOut.querySelector("svg");
+    if (!svg) return;
+    svg.style.width = svgNatural.w * state.zoomLevel + "px";
+    svg.style.height = svgNatural.h * state.zoomLevel + "px";
+  }
+
+  // src-app/16-doc-ops.js
+  function saveDiskDoc(d) {
+    if (!d || !d.diskPath || !hasApi()) return;
+    getApi().write_text_file(d.diskPath, d.content, d.encoding).then(function(ok) {
+      if (ok) {
         els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
         els.statSaved.style.color = "#0f7b0f";
-        bus.emit("docs:changed");
-        toast("\u5DF2\u53E6\u5B58\u4E3A\uFF1A" + newPath, "success");
-      }).catch(function() {
-        toast("\u4FDD\u5B58\u5931\u8D25", "error");
-      });
-      return;
-    }
-    if (state.currentVisual) onVisualChange();
-    else syncFromEditor();
-    persist();
-    if (!hasApi()) {
-      saveUniversal(docSaveName(d), d.content, false);
-      return;
-    }
-    if (!forceAsk && d.diskPath) {
-      getApi().write_text_file(d.diskPath, d.content, d.encoding || "UTF-8").then(function(ok) {
-        if (ok) {
-          d.updated = Date.now();
-          els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
-          els.statSaved.style.color = "#0f7b0f";
-          bus.emit("docs:changed");
-          toast("\u5DF2\u4FDD\u5B58\uFF1A" + d.diskPath, "success");
-        } else {
-          toast("\u4FDD\u5B58\u5931\u8D25", "error");
-        }
-      }).catch(function() {
-        els.statSaved.textContent = "\u78C1\u76D8\u4FDD\u5B58\u5931\u8D25";
-        els.statSaved.style.color = "var(--danger)";
-        toast("\u78C1\u76D8\u4FDD\u5B58\u5931\u8D25", "error");
-      });
-      return;
-    }
-    getApi().save_file_encoded(docSaveName(d), d.content, d.encoding || "UTF-8").then(function(path) {
-      if (!path) {
-        toast("\u5DF2\u53D6\u6D88\u4FDD\u5B58", "info");
-        return;
       }
-      d.diskPath = path;
-      d.encoding = d.encoding || "UTF-8";
-      d.updated = Date.now();
-      persist();
-      if (!folderState.openFiles) folderState.openFiles = {};
-      folderState.openFiles[path] = d.id;
-      els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
-      els.statSaved.style.color = "#0f7b0f";
-      bus.emit("docs:changed");
-      toast("\u5DF2\u53E6\u5B58\u4E3A\uFF1A" + path, "success");
     }).catch(function() {
-      toast("\u4FDD\u5B58\u5931\u8D25", "error");
+      els.statSaved.textContent = "\u78C1\u76D8\u4FDD\u5B58\u5931\u8D25";
+      els.statSaved.style.color = "var(--danger)";
     });
   }
-  function saveNow() {
-    saveDoc(false);
+  function openEncModal() {
+    var d = activeDoc();
+    if (!d || d.kind && d.kind !== "text") {
+      toast("\u8BF7\u5148\u6253\u5F00\u6587\u672C\u6587\u6863", "error");
+      return;
+    }
+    $("enc-current").textContent = d.diskPath ? "\u78C1\u76D8\u6587\u4EF6 \xB7 " + (d.encoding || "UTF-8") : "\u672C\u5730\u6587\u6863\uFF08\u672A\u5173\u8054\u78C1\u76D8\u6587\u4EF6\uFF09";
+    var sel = $("enc-select");
+    var cur = d.encoding || "UTF-8";
+    var matched = false;
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === cur) {
+        sel.selectedIndex = i;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) sel.selectedIndex = 0;
+    $("enc-reload").disabled = !d.diskPath;
+    openSingleModal("enc-modal");
+  }
+  function openCompareWindow() {
+    if (!hasApi()) {
+      toast("\u6587\u4EF6\u6BD4\u8F83\u9700\u5728\u684C\u9762\u7248\u4E2D\u4F7F\u7528", "error");
+      return;
+    }
+    var d = activeDoc();
+    var aText = "", aName = "\u6587\u4EF6 A";
+    if (d && (!d.kind || d.kind === "text")) {
+      aText = cm.getValue();
+      aName = (d.title || "\u5F53\u524D\u6587\u6863") + "\uFF08\u5F53\u524D\u6587\u6863\uFF09";
+    }
+    getApi().open_compare_window(aText, aName, "", "\u6587\u4EF6 B").then(function(ok) {
+      if (ok) toast("\u6BD4\u8F83\u7A97\u53E3\u5DF2\u6253\u5F00\uFF0C\u53EF\u76F4\u63A5\u7C98\u8D34\u5185\u5BB9\u5BF9\u6BD4", "success");
+      else toast("\u65B0\u7A97\u53E3\u6253\u5F00\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5", "error");
+    }).catch(function() {
+      toast("\u65B0\u7A97\u53E3\u6253\u5F00\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5", "error");
+    });
+  }
+  function setLang(lang, skipAutoFormat) {
+    var d = activeDoc();
+    if (!d) return;
+    d.lang = lang;
+    if (lang === "json" && !skipAutoFormat && (!d.kind || d.kind === "text")) {
+      var raw = cm.getValue();
+      if (raw.trim()) {
+        try {
+          cm.setValue(JSON.stringify(JSON.parse(raw.trim()), null, 2));
+          toast("\u5DF2\u81EA\u52A8\u683C\u5F0F\u5316 JSON \u2713", "success");
+        } catch (e) {
+          toast("\u5185\u5BB9\u4E0D\u662F\u5408\u6CD5 JSON\uFF0C\u5DF2\u5207\u6362\u8BED\u8A00\uFF08\u672A\u683C\u5F0F\u5316\uFF09", "error");
+        }
+      }
+    }
+    cm.setOption("mode", LANGS[lang] ? LANGS[lang].mime : "text/plain");
+    els.langSelect.value = lang;
+    els.statLang.textContent = LANGS[lang] ? LANGS[lang].label : "\u7EAF\u6587\u672C";
+    els.breadcrumb.textContent = lang === "mermaid" ? "\u{1F4CA}" : "\u{1F4DD}";
+    syncFromEditor();
+    updatePreviewBtn();
+    updatePreviewVisibility();
+  }
+  function nextAutoTitle() {
+    var base = "\u672A\u547D\u540D\u6587\u6863";
+    var max = 0;
+    (state.docs || []).forEach(function(doc) {
+      var t = doc.title || "";
+      if (t === base) {
+        max = Math.max(max, 1);
+        return;
+      }
+      var m = t.match(/^未命名文档\s+(\d+)$/);
+      if (m) max = Math.max(max, parseInt(m[1], 10));
+    });
+    return max ? base + " " + (max + 1) : base;
+  }
+  function newDoc(lang, title, content) {
+    var d = {
+      id: uid(),
+      title: title || nextAutoTitle(),
+      lang: lang || "plaintext",
+      content: content || "",
+      updated: Date.now()
+    };
+    state.docs.push(d);
+    persist();
+    openDoc(d.id);
+    if (!title) els.title.focus();
+    return d;
+  }
+  function exportDoc() {
+    var d = activeDoc();
+    if (!d) return;
+    if (d.kind === "rich") {
+      var md = window.InkpadBlocks ? window.InkpadBlocks.toMarkdown() : d.content;
+      var rname = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ".md";
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+        window.pywebview.api.save_file(rname, md).then(function(saved) {
+          if (saved) toast("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
+        }).catch(function() {
+          toast("\u5BFC\u51FA\u5931\u8D25", "error");
+        });
+      } else {
+        var rblob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+        var ra = document.createElement("a");
+        ra.href = URL.createObjectURL(rblob);
+        ra.download = rname;
+        ra.click();
+        URL.revokeObjectURL(ra.href);
+        toast("\u5DF2\u5BFC\u51FA " + rname, "success");
+      }
+      return;
+    }
+    var isVisualDoc = d.kind && d.kind !== "text";
+    if (isVisualDoc && state.currentVisual) {
+      d.content = JSON.stringify(state.currentVisual.model);
+    }
+    var ext = isVisualDoc ? ".json" : LANGS[d.lang] ? LANGS[d.lang].ext : ".txt";
+    var name = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ext;
+    var content = isVisualDoc ? d.content : cm.getValue();
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+      window.pywebview.api.save_file(name, content).then(function(saved) {
+        if (saved) toast("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
+      }).catch(function() {
+        toast("\u5BFC\u51FA\u5931\u8D25", "error");
+      });
+      return;
+    }
+    var blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast("\u5DF2\u5BFC\u51FA " + name, "success");
+  }
+  function importFile(file) {
+    var reader = new FileReader();
+    reader.onload = function() {
+      var content = String(reader.result || "");
+      var name = file.name.replace(/\.[^.]+$/, "");
+      var ext = (file.name.match(/\.([^.]+)$/) || [])[1] || "";
+      if (ext.toLowerCase() === "json" && isRichDocContent(content)) {
+        var d2 = {
+          id: uid(),
+          title: name,
+          kind: "rich",
+          encoding: "utf-8",
+          content,
+          updated: Date.now()
+        };
+        state.docs.push(d2);
+        persist();
+        openDoc(d2.id);
+        toast("\u5DF2\u5BFC\u5165\u5BCC\u6587\u6863\uFF1A" + file.name, "success");
+        return;
+      }
+      var langMap = {
+        md: "markdown",
+        markdown: "markdown",
+        json: "json",
+        xml: "xml",
+        html: "html",
+        htm: "html",
+        js: "javascript",
+        mjs: "javascript",
+        py: "python",
+        css: "css",
+        sql: "sql",
+        yaml: "yaml",
+        yml: "yaml",
+        sh: "shell",
+        bat: "shell",
+        mmd: "mermaid",
+        mermaid: "mermaid",
+        c: "clike",
+        h: "clike",
+        java: "clike",
+        cpp: "clike",
+        cc: "clike",
+        hpp: "clike",
+        cs: "clike",
+        txt: "plaintext",
+        log: "plaintext",
+        xhtml: "html"
+      };
+      var d = newDoc(langMap[ext.toLowerCase()] || "plaintext", name, content);
+      toast("\u5DF2\u5BFC\u5165\u300C" + file.name + "\u300D", "success");
+      if (d.lang === "html") state.previewOn = true;
+      openDoc(d.id);
+    };
+    reader.readAsText(file);
+  }
+  var toastTimer = null;
+  function toast(msg, type) {
+    els.toast.textContent = msg;
+    els.toast.className = "show" + (type ? " " + type : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() {
+      els.toast.className = "";
+    }, 2600);
+  }
+  function findDoc(id) {
+    for (var i = 0; i < state.docs.length; i++) {
+      if (state.docs[i].id === id) return state.docs[i];
+    }
+    return null;
+  }
+  function renameDoc(id, newTitle) {
+    var d = findDoc(id);
+    if (!d) return false;
+    d.title = newTitle || "\u65E0\u6807\u9898";
+    d.updated = Date.now();
+    persist();
+    return true;
+  }
+  function duplicateDoc(id) {
+    var d = findDoc(id);
+    if (!d) return null;
+    var copy = {
+      id: uid(),
+      title: (d.title || "\u65E0\u6807\u9898") + "\uFF08\u526F\u672C\uFF09",
+      lang: d.lang,
+      content: d.content || "",
+      updated: Date.now()
+    };
+    if (d.kind) copy.kind = d.kind;
+    if (d.encoding) copy.encoding = d.encoding;
+    state.docs.push(copy);
+    persist();
+    return copy;
+  }
+  function exportDocById(id) {
+    var d = findDoc(id);
+    if (!d) {
+      toast("\u6587\u6863\u4E0D\u5B58\u5728", "error");
+      return;
+    }
+    if (d.kind === "rich") {
+      var md = d.content || "";
+      var rname = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ".md";
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+        window.pywebview.api.save_file(rname, md).then(function(saved) {
+          if (saved) toast("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
+        }).catch(function() {
+          toast("\u5BFC\u51FA\u5931\u8D25", "error");
+        });
+      } else {
+        var rblob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+        var ra = document.createElement("a");
+        ra.href = URL.createObjectURL(rblob);
+        ra.download = rname;
+        ra.click();
+        URL.revokeObjectURL(ra.href);
+        toast("\u5DF2\u5BFC\u51FA " + rname, "success");
+      }
+      return;
+    }
+    var isVisualDoc = d.kind && d.kind !== "text";
+    var ext = isVisualDoc ? ".json" : LANGS[d.lang] ? LANGS[d.lang].ext : ".txt";
+    var name = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ext;
+    var content = d.content || "";
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+      window.pywebview.api.save_file(name, content).then(function(saved) {
+        if (saved) toast("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
+      }).catch(function() {
+        toast("\u5BFC\u51FA\u5931\u8D25", "error");
+      });
+    } else {
+      var blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast("\u5DF2\u5BFC\u51FA " + name, "success");
+    }
+  }
+  function toggleFavorite(id) {
+    var d = findDoc(id);
+    if (!d) return false;
+    d.favorite = !d.favorite;
+    d.updated = Date.now();
+    persist();
+    return d.favorite;
+  }
+  function togglePin(id) {
+    var d = findDoc(id);
+    if (!d) return false;
+    d.pinned = !d.pinned;
+    d.updated = Date.now();
+    persist();
+    return d.pinned;
+  }
+  function newSticky() {
+    var d = {
+      id: uid(),
+      title: "",
+      kind: "sticky",
+      content: "",
+      color: "#FFD43B",
+      updated: Date.now()
+    };
+    state.docs.push(d);
+    persist();
+    state.stickyEditId = d.id;
+    state.stickyColor = d.color || "#FFD43B";
+    state.docFilter = "sticky";
+    state.tagFilter = null;
+    openStickyEditor(d);
+    return d;
+  }
+  function saveSticky(id, opts) {
+    var d = findDoc(id);
+    if (!d || d.kind !== "sticky") return false;
+    if (opts.title !== void 0) d.title = opts.title;
+    if (opts.content !== void 0) d.content = opts.content;
+    if (opts.color !== void 0) d.color = opts.color;
+    if (opts.pinned !== void 0) d.pinned = !!opts.pinned;
+    if (opts.reminder !== void 0) {
+      if (opts.reminder && opts.reminder.enabled) d.reminder = opts.reminder;
+      else delete d.reminder;
+    }
+    if (opts.dueAt !== void 0) {
+      if (opts.dueAt) d.dueAt = opts.dueAt;
+      else delete d.dueAt;
+    }
+    d.updated = Date.now();
+    persist();
+    return true;
+  }
+  function openStickyEditor(d) {
+    if (!els.stickyEditModal) return;
+    els.stickyEditTitle.value = d.title || "";
+    els.stickyEditContent.value = d.content || "";
+    els.stickyEditPin.checked = !!d.pinned;
+    state.stickyColor = d.color || "#FFD43B";
+    Array.prototype.forEach.call(els.stickyColorRow.children, function(el) {
+      el.classList.toggle("active", el.getAttribute("data-color") === state.stickyColor);
+    });
+    var rem = d.reminder;
+    if (els.stickyEditRemEnabled) {
+      els.stickyEditRemEnabled.checked = !!(rem && rem.enabled);
+      els.stickyRemRow.style.display = rem && rem.enabled ? "" : "none";
+      els.stickyEditRemType.value = rem && rem.type || "once";
+      els.stickyEditRemTime.value = rem && rem.time || "09:00";
+      els.stickyEditRemDate.value = rem && rem.date || "";
+      els.stickyEditRemDay.value = rem && rem.day || "";
+      Array.prototype.forEach.call(els.stickyRemWeekly.querySelectorAll("input[type=checkbox]"), function(cb) {
+        cb.checked = !!(rem && rem.type === "weekly" && rem.days && rem.days.indexOf(Number(cb.value)) >= 0);
+      });
+      syncRemSubUI();
+    }
+    if (els.stickyEditDue) els.stickyEditDue.value = d.dueAt ? toLocalInput(d.dueAt) : "";
+    els.stickyEditModal.style.display = "flex";
+  }
+  function syncRemSubUI() {
+    if (!els.stickyEditRemType) return;
+    var t = els.stickyEditRemType.value;
+    if (els.stickyRemOnce) els.stickyRemOnce.style.display = t === "once" ? "" : "none";
+    if (els.stickyRemWeekly) els.stickyRemWeekly.style.display = t === "weekly" ? "" : "none";
+    if (els.stickyRemMonthly) els.stickyRemMonthly.style.display = t === "monthly" ? "" : "none";
+  }
+  function pad22(n) {
+    return (n < 10 ? "0" : "") + n;
+  }
+  function toLocalInput(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + "-" + pad22(d.getMonth() + 1) + "-" + pad22(d.getDate()) + "T" + pad22(d.getHours()) + ":" + pad22(d.getMinutes());
+  }
+  function fromLocalInput(v) {
+    if (!v) return null;
+    var t = new Date(v).getTime();
+    return isNaN(t) ? null : t;
+  }
+  function fmtStamp(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + "-" + pad22(d.getMonth() + 1) + "-" + pad22(d.getDate()) + " " + pad22(d.getHours()) + ":" + pad22(d.getMinutes());
+  }
+  function setTagExpiry(tag, days) {
+    if (days == null) {
+      clearTagExpiry(tag);
+      return;
+    }
+    var n = Number(days);
+    if (isNaN(n) || n < 1) {
+      toast("\u8BF7\u8F93\u5165\u6709\u6548\u7684\u5929\u6570\uFF08\u22651\uFF09", "error");
+      return;
+    }
+    state.tagMeta[tag] = { expiresAt: Date.now() + n * 864e5 };
+    persist();
+    toast("\u6807\u7B7E #" + tag + " \u5C06\u4E8E " + n + " \u5929\u540E\u8FC7\u671F", "success");
+  }
+  function clearTagExpiry(tag) {
+    if (state.tagMeta[tag]) {
+      delete state.tagMeta[tag];
+      persist();
+      toast("\u5DF2\u6E05\u9664\u6807\u7B7E #" + tag + " \u7684\u8FC7\u671F\u65F6\u95F4", "success");
+    }
+  }
+  function cleanupExpiredTags() {
+    var now = Date.now();
+    var expired = [];
+    for (var t in state.tagMeta) {
+      if (state.tagMeta[t] && state.tagMeta[t].expiresAt && state.tagMeta[t].expiresAt < now) {
+        expired.push(t);
+      }
+    }
+    if (!expired.length) return [];
+    var changed = false;
+    state.docs.forEach(function(d) {
+      if (!d.tags || !d.tags.length) return;
+      var before = d.tags.length;
+      d.tags = d.tags.filter(function(x) {
+        return expired.indexOf(x) < 0;
+      });
+      if (d.tags.length !== before) changed = true;
+    });
+    expired.forEach(function(t2) {
+      delete state.tagMeta[t2];
+    });
+    if (changed) {
+      persist();
+      toast("\u5DF2\u81EA\u52A8\u6E05\u7406\u8FC7\u671F\u6807\u7B7E\uFF1A#" + expired.join(" #"), "success");
+    } else {
+      persist();
+    }
+    return expired;
+  }
+  function matchReminder(rem, now) {
+    if (!rem || !rem.enabled) return false;
+    now = now || /* @__PURE__ */ new Date();
+    var hhmm = pad22(now.getHours()) + ":" + pad22(now.getMinutes());
+    if (rem.time !== hhmm) return false;
+    if (rem.type === "once") {
+      return rem.date === now.getFullYear() + "-" + pad22(now.getMonth() + 1) + "-" + pad22(now.getDate());
+    }
+    if (rem.type === "daily") return true;
+    if (rem.type === "weekly") {
+      return !!(rem.days && rem.days.indexOf(now.getDay()) >= 0);
+    }
+    if (rem.type === "monthly") {
+      return Number(rem.day) === now.getDate();
+    }
+    return false;
+  }
+  function saveDocTags(id, tags) {
+    var d = findDoc(id);
+    if (!d) return false;
+    d.tags = tags.slice();
+    d.updated = Date.now();
+    persist();
+    return true;
+  }
+  function collectAllTags() {
+    var map = {};
+    state.docs.forEach(function(d) {
+      if (d.deleted || d.kind === "sticky") return;
+      (d.tags || []).forEach(function(t) {
+        map[t] = (map[t] || 0) + 1;
+      });
+    });
+    return map;
+  }
+
+  // src-app/02-rich-outline.js
+  var richOutline = {
+    visible: false,
+    // 大纲面板是否显示
+    items: [],
+    // [{ id, type, text }]
+    activeId: null,
+    // 当前滚动所在标题
+    observer: null,
+    // IntersectionObserver 实例
+    filterKw: "",
+    // 搜索关键字
+    dragState: null
+    // splitter 拖拽
+  };
+  function richOutlineVisible(v) {
+    v = !!v;
+    richOutline.visible = v;
+    if (els.richOutline) {
+      els.richOutline.style.display = v ? "flex" : "none";
+    }
+    if (els.richOutlineSplitter) {
+      els.richOutlineSplitter.style.display = v ? "" : "none";
+    }
+    if (els.btnRichOutline) {
+      els.btnRichOutline.classList.toggle("primary", v);
+      els.btnRichOutline.title = v ? "\u6536\u8D77\u5927\u7EB2\uFF08\u98DE\u4E66\u5F0F\u4FA7\u680F\uFF09" : "\u5BCC\u6587\u6863\u5927\u7EB2 / \u76EE\u5F55\uFF08\u98DE\u4E66\u5F0F\u4FA7\u680F\uFF09";
+    }
+    if (v && window.InkpadBlocks) {
+      try {
+        window.InkpadBlocks.notifyOutline();
+      } catch (e) {
+      }
+      setupRichOutlineObserver();
+    } else if (!v && richOutline.observer) {
+      try {
+        richOutline.observer.disconnect();
+      } catch (e) {
+      }
+      richOutline.observer = null;
+    }
+  }
+  function renderRichOutline(items) {
+    if (!els.outlineList) return;
+    richOutline.items = Array.isArray(items) ? items.slice() : [];
+    var kw = (richOutline.filterKw || "").trim().toLowerCase();
+    var i;
+    els.outlineList.innerHTML = "";
+    if (!richOutline.items.length) {
+      els.outlineList.appendChild(els.outlineEmpty);
+      els.outlineEmpty.style.display = "";
+    } else {
+      els.outlineEmpty.style.display = "none";
+      for (i = 0; i < richOutline.items.length; i++) {
+        var it = richOutline.items[i];
+        var row = document.createElement("div");
+        row.className = "outline-item outline-" + it.type;
+        row.setAttribute("data-id", it.id);
+        row.setAttribute("data-type", it.type);
+        row.title = it.text;
+        var mark = document.createElement("span");
+        mark.className = "outline-mark";
+        mark.textContent = it.type.toUpperCase();
+        var txt = document.createElement("span");
+        txt.className = "outline-text";
+        txt.textContent = it.text;
+        row.appendChild(mark);
+        row.appendChild(txt);
+        if (kw && it.text.toLowerCase().indexOf(kw) < 0) row.classList.add("hide");
+        row.addEventListener("click", function(ev) {
+          var id = ev.currentTarget.getAttribute("data-id");
+          scrollToOutlineItem(id);
+        });
+        els.outlineList.appendChild(row);
+      }
+    }
+    var shown = els.outlineList.querySelectorAll(".outline-item:not(.hide)").length;
+    els.outlineCount.textContent = shown + (kw ? "/" + richOutline.items.length : "");
+    if (richOutline.activeId) {
+      var activeEl = els.outlineList.querySelector('[data-id="' + richOutline.activeId + '"]');
+      if (activeEl) activeEl.classList.add("active");
+    }
+    if (els.outlineFoot) {
+      els.outlineFoot.style.display = richOutline.items.length ? "" : "none";
+    }
+    if (richOutline.observer) {
+      try {
+        richOutline.observer.disconnect();
+      } catch (e) {
+      }
+      setupRichOutlineObserver();
+    }
+  }
+  function scrollToOutlineItem(id) {
+    if (!window.InkpadBlocks) return;
+    if (!richOutline.activeId || richOutline.activeId !== id) {
+      var prev = els.outlineList.querySelectorAll(".outline-item.active");
+      for (var i = 0; i < prev.length; i++) prev[i].classList.remove("active");
+      var node = els.outlineList.querySelector('[data-id="' + id + '"]');
+      if (node) {
+        node.classList.add("active");
+        if (node.scrollIntoView) {
+          try {
+            node.scrollIntoView({ block: "nearest" });
+          } catch (e) {
+          }
+        }
+      }
+      richOutline.activeId = id;
+    }
+    window.InkpadBlocks.scrollToOutlineItem(id);
+  }
+  function setupRichOutlineObserver() {
+    if (!els.richPane || !window.IntersectionObserver) return;
+    if (richOutline.observer) {
+      try {
+        richOutline.observer.disconnect();
+      } catch (e) {
+      }
+      richOutline.observer = null;
+    }
+    var anchors = els.richPane.querySelectorAll(".ink-anchor");
+    if (!anchors.length) return;
+    var visibleSet = {};
+    richOutline.observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        var id = entry.target.id.replace(/^ink-/, "");
+        if (entry.isIntersecting) visibleSet[id] = entry.intersectionRatio || 1e-4;
+        else delete visibleSet[id];
+      });
+      var bestId = null, bestRatio = 0;
+      Object.keys(visibleSet).forEach(function(id) {
+        if (visibleSet[id] > bestRatio) {
+          bestRatio = visibleSet[id];
+          bestId = id;
+        }
+      });
+      if (!bestId && richOutline.items.length) {
+        var ids = richOutline.items.map(function(x) {
+          return x.id;
+        });
+        if (richOutline.activeId) {
+          var curIdx = ids.indexOf(richOutline.activeId);
+          var paneTop = els.richPane.getBoundingClientRect().top;
+          var bestDiff = Infinity;
+          anchors.forEach(function(a) {
+            var d = a.getBoundingClientRect().top - paneTop;
+            if (d >= -8 && d < bestDiff) {
+              bestDiff = d;
+              bestId = a.id.replace(/^ink-/, "");
+            }
+          });
+        }
+      }
+      if (bestId && bestId !== richOutline.activeId) {
+        richOutline.activeId = bestId;
+        var prev = els.outlineList.querySelectorAll(".outline-item.active");
+        for (var i = 0; i < prev.length; i++) prev[i].classList.remove("active");
+        var node = els.outlineList.querySelector('[data-id="' + bestId + '"]');
+        if (node) {
+          node.classList.add("active");
+          if (node.scrollIntoView) {
+            try {
+              node.scrollIntoView({ block: "nearest" });
+            } catch (e) {
+            }
+          }
+        }
+      }
+    }, {
+      root: els.richPane,
+      rootMargin: "0px 0px -75% 0px",
+      threshold: [0, 0.1, 0.5, 1]
+    });
+    anchors.forEach(function(a) {
+      richOutline.observer.observe(a);
+    });
+  }
+  function bindRichOutline() {
+    if (!els.btnRichOutline) return;
+    els.btnRichOutline.addEventListener("click", function() {
+      if (!activeDoc() || activeDoc().kind !== "rich") {
+        toast("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u5BCC\u6587\u6863", "warn");
+        return;
+      }
+      richOutlineVisible(!richOutline.visible);
+    });
+    els.btnCloseOutline && els.btnCloseOutline.addEventListener("click", function() {
+      richOutlineVisible(false);
+    });
+    els.outlineSearch && els.outlineSearch.addEventListener("input", function() {
+      richOutline.filterKw = els.outlineSearch.value;
+      renderRichOutline(richOutline.items);
+    });
+    els.btnOutlineUp && els.btnOutlineUp.addEventListener("click", function() {
+      var ids = richOutline.items.map(function(x) {
+        return x.id;
+      });
+      if (!ids.length) return;
+      var curIdx = ids.indexOf(richOutline.activeId);
+      if (curIdx < 0) curIdx = ids.length;
+      var prev = ids[Math.max(0, curIdx - 1)];
+      if (prev) scrollToOutlineItem(prev);
+    });
+    els.btnOutlineDown && els.btnOutlineDown.addEventListener("click", function() {
+      var ids = richOutline.items.map(function(x) {
+        return x.id;
+      });
+      if (!ids.length) return;
+      var curIdx = ids.indexOf(richOutline.activeId);
+      var next = ids[(curIdx + 1) % ids.length];
+      if (next) scrollToOutlineItem(next);
+    });
+    els.btnOutlineReload && els.btnOutlineReload.addEventListener("click", function() {
+      if (window.InkpadBlocks) {
+        try {
+          window.InkpadBlocks.notifyOutline();
+        } catch (e) {
+        }
+      }
+    });
+    if (els.richOutlineSplitter) {
+      els.richOutlineSplitter.addEventListener("mousedown", function(ev) {
+        ev.preventDefault();
+        var rect = els.richOutline.getBoundingClientRect();
+        richOutline.dragState = { startX: ev.clientX, startW: rect.width };
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+      });
+    }
+    window.addEventListener("mousemove", function(e) {
+      if (!richOutline.dragState) return;
+      var newW = richOutline.dragState.startW + (e.clientX - richOutline.dragState.startX);
+      if (newW < 160) newW = 160;
+      if (newW > 460) newW = 460;
+      els.richOutline.style.flex = "0 0 " + newW + "px";
+    });
+    window.addEventListener("mouseup", function() {
+      if (richOutline.dragState) {
+        richOutline.dragState = null;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      }
+    });
+    if (window.InkpadBlocks) {
+      window.InkpadBlocks.setOutlineListener(renderRichOutline);
+    }
+  }
+
+  // src-app/07-doc-open.js
+  function updateInfoPanel(d, kind) {
+    var fmtName = {
+      text: "\u7EAF\u6587\u672C",
+      markdown: "Markdown",
+      rich: "\u5BCC\u6587\u6863",
+      flow: "\u6D41\u7A0B\u56FE",
+      mind: "\u601D\u7EF4\u5BFC\u56FE",
+      note: "\u601D\u7EF4\u7B14\u8BB0"
+    }[kind] || "\u7EAF\u6587\u672C";
+    var langName = {
+      plaintext: "\u7EAF\u6587\u672C",
+      markdown: "Markdown",
+      json: "JSON",
+      xml: "XML",
+      html: "HTML",
+      javascript: "JavaScript",
+      python: "Python",
+      css: "CSS",
+      sql: "SQL",
+      yaml: "YAML",
+      shell: "Shell",
+      clike: "C/Java",
+      mermaid: "Mermaid"
+    }[d.lang] || "\u7EAF\u6587\u672C";
+    var shownFmt = kind === "text" ? langName : fmtName;
+    var _content = d.content;
+    var _linesNum = d.lines;
+    if (typeof _linesNum !== "number") {
+      _linesNum = Array.isArray(_content) ? _content.length : typeof _content === "string" ? _content.split("\n").length : 0;
+    }
+    var lines = _linesNum;
+    var chars = d.chars;
+    if (typeof chars !== "number") {
+      if (Array.isArray(_content)) {
+        chars = _content.reduce(function(s, l) {
+          return s + (l && l.text ? l.text : String(l || "")).length;
+        }, 0);
+      } else if (typeof _content === "string") {
+        chars = _content.length;
+      } else {
+        chars = 0;
+      }
+    }
+    var pFormat = document.getElementById("pFormat");
+    var pEnc = document.getElementById("pEnc");
+    var pPath = document.getElementById("pPath");
+    var pLines = document.getElementById("pLines");
+    var pChars = document.getElementById("pChars");
+    var metaFormat = document.getElementById("metaFormat");
+    var metaStat = document.getElementById("metaStat");
+    if (pFormat) pFormat.textContent = shownFmt;
+    if (pEnc) pEnc.textContent = d.diskPath ? d.encoding || "UTF-8" : "UTF-8";
+    if (pPath) {
+      pPath.textContent = d.diskPath ? dirOf(d.diskPath) || "/" : "\u672C\u5730\u6587\u6863";
+      pPath.title = d.diskPath || "";
+    }
+    if (pLines) pLines.textContent = kind === "rich" ? d.blocks ? d.blocks.length + " \u5757" : "\u2014" : lines;
+    if (pChars) pChars.textContent = chars;
+    if (metaFormat) metaFormat.textContent = shownFmt;
+    if (metaStat) metaStat.textContent = kind === "rich" ? (d.blocks ? d.blocks.length : 0) + " \u5757 \xB7 " + chars + " \u5B57\u7B26" : lines + " \u884C \xB7 " + chars + " \u5B57\u7B26";
+    if (els.breadcrumb) els.breadcrumb.textContent = kind === "diagram" ? "\u{1F4CA}" : kind === "rich" ? "\u{1F4DD}" : "\u{1F4DD}";
+    var outlineCard = document.getElementById("outlineCard");
+    if (outlineCard) {
+      if (kind === "rich") {
+        outlineCard.innerHTML = "";
+      } else {
+        var _rows = Array.isArray(_content) ? _content : typeof _content === "string" ? _content.split("\n") : [];
+        var items = _rows.slice(0, 12).map(function(l, i) {
+          var txt = (l.text || l) + "";
+          if (txt.indexOf("#") === 0 || /^[A-Za-z0-9_ ]{0,3}[：:]\s/.test(txt)) {
+            var indent = txt.indexOf("##") === 0 ? " indent" : "";
+            var safe = txt.replace(/</g, "&lt;");
+            return '<div class="outline-item' + indent + '" onclick="goLine(' + (i + 1) + ')"><svg class="ol-icon" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg><span class="ol-text">' + (safe.slice(0, 24) || "\uFF08\u7A7A\u884C\uFF09") + "</span></div>";
+          }
+          return "";
+        }).join("");
+        outlineCard.innerHTML = items ? '<div class="card-title"><svg viewBox="0 0 24 24"><path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2z"/></svg>\u5927\u7EB2</div>' + items : '<div class="card-title"><svg viewBox="0 0 24 24"><path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2z"/></svg>\u5927\u7EB2</div><div style="font-size:12px;color:var(--text-faint);padding:4px 8px">\u6682\u65E0\u6807\u9898\u884C<br><small>\u4EE5\u300C#\u300D\u5F00\u5934\u7684\u884C\u4F1A\u51FA\u73B0\u5728\u8FD9\u91CC</small></div>';
+      }
+    }
+  }
+  function goLine(n) {
+    try {
+      if (cm && cm.setCursor) {
+        cm.setCursor({ line: n - 1, ch: 0 });
+        cm.focus();
+      } else {
+        var codeScroll = document.getElementById("codeScroll");
+        var lines = document.querySelectorAll("#codeLines .code-line");
+        if (lines[n - 1] && codeScroll) {
+          codeScroll.scrollTop = lines[n - 1].offsetTop - 40;
+        }
+      }
+      var items = document.querySelectorAll("#outlineCard .outline-item");
+      Array.prototype.forEach.call(items, function(o) {
+        o.classList.remove("active");
+      });
+      var ev = window.event;
+      if (ev && ev.currentTarget) ev.currentTarget.classList.add("active");
+    } catch (e) {
+    }
+  }
+  function openDoc(id) {
+    state.activeId = id;
+    var d = activeDoc();
+    if (!d) return;
+    persist();
+    var kind = d.kind || "text";
+    if (state.currentVisual && state.currentVisual.module) state.currentVisual.module.destroy();
+    state.currentVisual = null;
+    if (window.InkpadBlocks && els.richPane && els.richPane.style.display !== "none") {
+      window.InkpadBlocks.close();
+    }
+    els.editorPane.style.display = kind === "text" ? "flex" : "none";
+    els.visualPane.style.display = kind === "flow" || kind === "mind" || kind === "note" ? "flex" : "none";
+    els.richPane.style.display = kind === "rich" ? "flex" : "none";
+    [els.langSelect, els.toolsWrap, els.toolsWrap2, els.btnFormatXml, els.btnFind, els.btnEncoding, els.btnCompare, els.btnTogglePreview].forEach(function(el) {
+      el.style.display = kind === "text" ? "" : "none";
+    });
+    if (els.btnRichOutline) {
+      els.btnRichOutline.style.display = kind === "rich" ? "" : "none";
+    }
+    if (kind !== "rich") {
+      if (richOutline.visible) richOutlineVisible(false);
+      if (richOutline.observer) {
+        try {
+          richOutline.observer.disconnect();
+        } catch (e) {
+        }
+        richOutline.observer = null;
+      }
+      richOutline.activeId = null;
+    }
+    els.title.value = d.title || "";
+    updateInfoPanel(d, kind);
+    updatePreviewBtn();
+    els.statEdit.textContent = "\u6700\u540E\u7F16\u8F91 " + fullTime(d.updated || Date.now());
+    if (d.diskPath) {
+      els.statEnc.textContent = "\u78C1\u76D8\u6587\u4EF6 \xB7 " + (d.encoding || "UTF-8");
+      els.statEditSep.style.display = "";
+    } else {
+      els.statEnc.textContent = "\u672C\u5730\u6587\u6863";
+      els.statEditSep.style.display = "none";
+    }
+    if (kind === "rich") {
+      els.previewPane.style.display = "none";
+      els.breadcrumb.textContent = "\u{1F4DD}";
+      els.statLang.textContent = "\u5757\u7F16\u8F91\u5668";
+      els.statCursor.textContent = "";
+      els.btnInsertImage.style.display = "none";
+      if (window.InkpadBlocks) {
+        var finishOpen = function() {
+          window.InkpadBlocks.open(els.richCanvas, d);
+          renderList();
+        };
+        var loadFromDisk = function(cb) {
+          if (!d.diskPath) {
+            cb();
+            return;
+          }
+          var doRead = function() {
+            getApi().read_text_file(d.diskPath).then(function(res) {
+              if (res && res.content != null && res.content !== "") {
+                try {
+                  JSON.parse(res.content);
+                  d.content = res.content;
+                } catch (e) {
+                }
+              }
+              cb();
+            }).catch(function() {
+              cb();
+            });
+          };
+          if (hasApi()) doRead();
+          else {
+            window.addEventListener("pywebviewready", function h() {
+              window.removeEventListener("pywebviewready", h);
+              doRead();
+            }, { once: true });
+          }
+        };
+        ensureRichDiskPath(d).then(function(assigned) {
+          loadFromDisk(function() {
+            finishOpen();
+            if (assigned) {
+              persist();
+              saveDiskDoc(d);
+            }
+          });
+        });
+      }
+      return;
+    }
+    if (kind !== "text") {
+      els.previewPane.style.display = "none";
+      openVisual(d, kind);
+      renderList();
+      return;
+    }
+    cm.setValue(d.content || "");
+    cm.setOption("mode", LANGS[d.lang] ? LANGS[d.lang].mime : "text/plain");
+    cm.clearHistory();
+    els.langSelect.value = d.lang || "plaintext";
+    var isDiagram = d.lang === "mermaid";
+    els.breadcrumb.textContent = isDiagram ? "\u{1F4CA}" : "\u{1F4DD}";
+    els.statLang.textContent = LANGS[d.lang] ? LANGS[d.lang].label : "\u7EAF\u6587\u672C";
+    els.btnTogglePreview.classList.toggle("active", isDiagram && state.previewOn);
+    updatePreviewVisibility();
+    updateStatus();
+    renderList();
+    refreshTextDocFromDisk(d);
+  }
+  function refreshTextDocFromDisk(d) {
+    if (!d || d.kind === "rich" || !d.diskPath) return;
+    if (!hasApi()) {
+      window.addEventListener("pywebviewready", function h() {
+        window.removeEventListener("pywebviewready", h);
+        refreshTextDocFromDisk(d);
+      }, { once: true });
+      return;
+    }
+    var prev = d.content || "";
+    getApi().read_text_file(d.diskPath).then(function(res) {
+      if (!res || res.error) return;
+      var diskContent = res.content == null ? "" : res.content;
+      if (diskContent === prev) return;
+      var isCurrent = activeDoc() === d;
+      if (isCurrent && cm.getValue() === prev) {
+        d.content = diskContent;
+        d.encoding = res.encoding || d.encoding || "UTF-8";
+        d.updated = Date.now();
+        persist();
+        cm.setValue(diskContent);
+        cm.setOption("mode", LANGS[d.lang] ? LANGS[d.lang].mime : "text/plain");
+        cm.clearHistory();
+        updatePreviewVisibility();
+        updateStatus();
+        renderList();
+        toast("\u68C0\u6D4B\u5230\u78C1\u76D8\u5185\u5BB9\u5DF2\u66F4\u65B0\uFF0C\u5DF2\u52A0\u8F7D\u6700\u65B0\u7248\u672C", "info");
+      } else if (isCurrent) {
+        toast("\u78C1\u76D8\u5185\u5BB9\u5DF2\u53D8\u5316\uFF0C\u4F46\u5F53\u524D\u5B58\u5728\u672A\u4FDD\u5B58\u4FEE\u6539\uFF0C\u5DF2\u4FDD\u7559\u672C\u5730\u5185\u5BB9", "warn");
+      } else {
+        d.content = diskContent;
+        d.encoding = res.encoding || d.encoding || "UTF-8";
+        d.updated = Date.now();
+        persist();
+      }
+    }).catch(function() {
+    });
+  }
+  function refreshRichDocFromDisk(d) {
+    if (!d || d.kind !== "rich" || !d.diskPath) return;
+    if (!hasApi()) {
+      window.addEventListener("pywebviewready", function h() {
+        window.removeEventListener("pywebviewready", h);
+        refreshRichDocFromDisk(d);
+      }, { once: true });
+      return;
+    }
+    var prev = d.content || "";
+    getApi().read_text_file(d.diskPath).then(function(res) {
+      if (!res || res.error) return;
+      var diskContent = res.content == null ? "" : res.content;
+      if (diskContent === prev) return;
+      var isCurrent = activeDoc() === d;
+      if (!isCurrent) {
+        d.content = diskContent;
+        d.updated = Date.now();
+        persist();
+        return;
+      }
+      var cur = "";
+      try {
+        cur = window.InkpadBlocks ? window.InkpadBlocks.serialize() : prev;
+      } catch (e) {
+      }
+      var norm = function(s) {
+        try {
+          return JSON.stringify(JSON.parse(s));
+        } catch (e) {
+          return s;
+        }
+      };
+      if (norm(diskContent) === norm(cur)) return;
+      if (norm(cur) !== norm(prev)) {
+        toast("\u78C1\u76D8\u5185\u5BB9\u5DF2\u53D8\u5316\uFF0C\u4F46\u5F53\u524D\u5B58\u5728\u672A\u4FDD\u5B58\u4FEE\u6539\uFF0C\u5DF2\u4FDD\u7559\u672C\u5730\u5185\u5BB9", "warn");
+        return;
+      }
+      d.content = diskContent;
+      d.encoding = res.encoding || d.encoding || "utf-8";
+      d.updated = Date.now();
+      persist();
+      window.InkpadBlocks.open(els.richCanvas, d);
+      renderList();
+      toast("\u68C0\u6D4B\u5230\u78C1\u76D8\u5185\u5BB9\u5DF2\u66F4\u65B0\uFF0C\u5DF2\u52A0\u8F7D\u6700\u65B0\u7248\u672C", "info");
+    }).catch(function() {
+    });
+  }
+  function refreshDocFromDisk(d) {
+    if (!d) return;
+    if (d.kind === "rich") refreshRichDocFromDisk(d);
+    else refreshTextDocFromDisk(d);
+  }
+  function updatePreviewBtn() {
+    var d = activeDoc();
+    var ok = d && (d.lang === "markdown" || d.lang === "html");
+    els.btnPreviewTop.style.display = ok ? "" : "none";
+    els.btnInsertImage.style.display = d && (d.lang === "markdown" || d.lang === "html") ? "" : "none";
   }
 
   // src-app/17-events.js
@@ -6670,7 +6799,16 @@
     newVisualDoc("note");
   });
   $("btn-import").addEventListener("click", function() {
-    els.fileInput.click();
+    if (hasApi()) {
+      getApi().pick_file().then(function(path) {
+        if (!path) return;
+        var name = String(path).split(/[\\/]/).pop();
+        openDiskFile(path, name);
+      }).catch(function() {
+      });
+    } else {
+      els.fileInput.click();
+    }
   });
   els.fileInput.addEventListener("change", function() {
     if (els.fileInput.files[0]) importFile(els.fileInput.files[0]);
@@ -7366,6 +7504,16 @@
     richChanged
   };
   function initCraftSidebar() {
+    var refreshOnFocus = function() {
+      var d = activeDoc();
+      if (d) refreshDocFromDisk(d);
+    };
+    window.addEventListener("focus", function() {
+      setTimeout(refreshOnFocus, 150);
+    });
+    document.addEventListener("visibilitychange", function() {
+      if (document.visibilityState === "visible") setTimeout(refreshOnFocus, 150);
+    });
     var sbBtn = document.getElementById("btn-sb-search");
     var sbInput = document.getElementById("sbSearchInput");
     if (sbBtn && sbInput) {
@@ -7755,6 +7903,7 @@
       var ids = getBatchSelectedIds();
       var c = state.docFilter === "trash" ? batchDestroy(ids) : batchDelete(ids);
       if (els.docBatchDelModal) els.docBatchDelModal.style.display = "none";
+      if (c > 0 && state.batchMode) toggleBatchMode(false);
       toast(state.docFilter === "trash" ? "\u6279\u91CF\u5F7B\u5E95\u5220\u9664\u5B8C\u6210\uFF1A\u5171 " + c + " \u9879" : "\u6279\u91CF\u5220\u9664\u5B8C\u6210\uFF1A\u5171 " + c + " \u9879", "success");
     });
     if (els.batchExport) {

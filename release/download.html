@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L.Note - 本地 Notion 风文本编辑器 · 下载</title>
+<meta name="description" content="L.Note（Inkpad）是一款本地运行的 Notion 风文本编辑器：语法高亮、Markdown 实时预览、Mermaid 图表、JSON/XML 格式化。免费、纯本地、免安装。">
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #171a23;
+    --card2: #1e222e;
+    --line: #2a2f3d;
+    --text: #e6e8ee;
+    --muted: #8b93a7;
+    --accent: #3370ff;
+    --accent-2: #5b8cff;
+    --green: #3fb950;
+    --radius: 14px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    background: radial-gradient(1200px 500px at 50% -100px, #1b2234 0%, var(--bg) 60%);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 0 20px 80px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  header { padding: 72px 0 40px; text-align: center; }
+  .logo {
+    width: 84px; height: 84px; margin: 0 auto 22px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, #3370ff, #7b4dff);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 34px; font-weight: 700; color: #fff;
+    box-shadow: 0 12px 40px rgba(51,112,255,.35);
+  }
+  h1 { font-size: 40px; font-weight: 700; letter-spacing: .5px; }
+  .tagline { color: var(--muted); font-size: 16px; margin-top: 12px; }
+  .badge {
+    display: inline-block; margin-top: 16px; padding: 4px 12px;
+    border: 1px solid var(--line); border-radius: 999px;
+    font-size: 13px; color: var(--muted);
+  }
+  .badge b { color: var(--accent-2); font-weight: 600; }
+
+  .dl-card {
+    margin: 36px auto 0; max-width: 640px;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 32px;
+    text-align: center;
+  }
+  .dl-btn {
+    display: inline-flex; align-items: center; gap: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; text-decoration: none;
+    font-size: 18px; font-weight: 600;
+    padding: 16px 42px; border-radius: 12px;
+    transition: transform .12s, box-shadow .12s;
+    box-shadow: 0 10px 30px rgba(51,112,255,.35);
+  }
+  .dl-btn:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(51,112,255,.45); }
+  .dl-btn svg { width: 22px; height: 22px; }
+  .dl-meta { margin-top: 18px; font-size: 13px; color: var(--muted); }
+  .dl-meta code {
+    background: var(--card2); border: 1px solid var(--line);
+    padding: 2px 8px; border-radius: 6px; font-size: 12px;
+    word-break: break-all; display: inline-block; margin-top: 6px;
+  }
+  .hash {
+    font-family: Consolas, Menlo, monospace; font-size: 12px;
+    color: var(--green); user-select: all;
+  }
+
+  .notice {
+    margin: 20px auto 0; max-width: 640px;
+    background: rgba(255,191,0,.06); border: 1px solid rgba(255,191,0,.25);
+    border-radius: 10px; padding: 14px 18px; font-size: 13.5px; color: #ffd97a;
+    text-align: left;
+  }
+  .notice b { color: #ffdd8e; }
+
+  section { margin-top: 56px; }
+  h2 {
+    font-size: 20px; font-weight: 600; margin-bottom: 20px;
+    padding-left: 12px; border-left: 4px solid var(--accent);
+  }
+  .features {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 14px;
+  }
+  .feat {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px;
+  }
+  .feat h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; color: var(--accent-2); }
+  .feat p { font-size: 13.5px; color: var(--muted); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .grid2 { grid-template-columns: 1fr; } h1 { font-size: 32px; } }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; font-size: 14px; }
+  .panel h3 { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+  .panel li { margin-left: 18px; color: var(--muted); margin-bottom: 4px; }
+  .panel li b { color: var(--text); font-weight: 500; }
+
+  .changelog { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px 26px; font-size: 14px; }
+  .changelog li { margin-left: 18px; color: var(--muted); margin-bottom: 6px; }
+  .changelog .v { color: var(--accent-2); font-weight: 600; margin: 12px 0 6px; }
+
+  .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .shots { grid-template-columns: 1fr; } }
+  .shots figure {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 10px; margin: 0;
+  }
+  .shots img { width: 100%; border-radius: 8px; display: block; border: 1px solid var(--line); }
+  .shots figcaption { font-size: 12.5px; color: var(--muted); text-align: center; margin-top: 8px; }
+
+  footer { margin-top: 64px; text-align: center; font-size: 13px; color: var(--muted); }
+  footer a { color: var(--accent-2); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">L.</div>
+    <h1>L.Note</h1>
+    <p class="tagline">本地 Notion 风文本编辑器 —— 语法高亮 · Markdown 预览 · Mermaid 图表 · JSON/XML 工具</p>
+    <div class="badge">免费 · 免安装 · 纯本地运行 · 无需联网 · <b>v0.20.44</b></div>
+  </header>
+
+  <div class="dl-card">
+    <a class="dl-btn" href="L.Note-v0.20.44-win64.exe" download>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      下载 L.Note v0.20.44（Windows）
+    </a>
+    <div class="dl-meta">
+      便携版 · 约 15 MB · Windows 10/11（x64）<br>
+      SHA256（可复制核对）：<br>
+      <code class="hash">bbad0f67845317c699db6101e24b61cd183eaf1101a9564122d49c0098d52d30</code>
+    </div>
+  </div>
+
+  <div class="notice">
+    <b>首次运行提示：</b>当前版本未做代码签名，Windows SmartScreen 可能提示「未知发布者」。点击「更多信息」→「仍要运行」即可正常使用；核对上方 SHA256 可确认文件完整安全。
+  </div>
+
+  <section>
+    <h2>功能特性</h2>
+    <div class="features">
+      <div class="feat"><h3>📝 12 种语法高亮</h3><p>Markdown / JSON / XML / HTML / JavaScript / Python / CSS / SQL / Shell / YAML / C·Java / Mermaid，括号配对、代码折叠、多光标编辑。</p></div>
+      <div class="feat"><h3>👁 Markdown 实时预览</h3><p>marked 渲染 + highlight.js 代码高亮 + KaTeX 数学公式，所见即所得；支持 Mermaid 流程图与思维导图实时渲染。</p></div>
+      <div class="feat"><h3>🧱 富文档（思维笔记）</h3><p>Notion 风块编辑器 + 飞书式大纲导航，bubble menu 快捷排版，支持保存为磁盘文件。</p></div>
+      <div class="feat"><h3>🛠 JSON / XML 工具</h3><p>格式化与压缩；混合文本中可只序列化 JSON 片段（含半截 JSON），并高亮标记问题位置。</p></div>
+      <div class="feat"><h3>🔍 查找/替换</h3><p>正则支持、全文档高亮、批量替换、收藏规则、多行匹配；文件比较（双栏行级 diff）。</p></div>
+      <div class="feat"><h3>💾 磁盘文件集成</h3><p>打开/导入本地文件，Ctrl+S 直接覆盖保存；外部修改后重新聚焦窗口自动同步最新内容。</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>界面预览</h2>
+    <div class="shots">
+      <figure>
+        <img src="screenshots/main.png" alt="L.Note 主界面">
+        <figcaption>主界面 · 文档列表 + 编辑器</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshots/sidebar.png" alt="L.Note 飞书式侧栏">
+        <figcaption>飞书式侧栏 · 最近 / 我的空间 / 知识库</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>快速开始</h2>
+    <div class="grid2">
+      <div class="panel">
+        <h3>安装与运行</h3>
+        <ul>
+          <li>双击 <b>L.Note-v0.20.44-win64.exe</b>，免安装直接运行</li>
+          <li>依赖 Edge WebView2 运行时（Win11 自带，Win10 一般已预装）</li>
+          <li>数据保存在本机浏览器存储，卸载/换机前请先导出备份</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>验证文件完整性</h3>
+        <ul>
+          <li>复制上方 SHA256 值</li>
+          <li>在 exe 所在目录执行：</li>
+          <li><b>certutil -hashfile L.Note-v0.20.44-win64.exe SHA256</b></li>
+          <li>比对输出哈希是否一致</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>更新日志</h2>
+    <div class="changelog">
+      <div class="v">v0.20.44</div>
+      <ul>
+        <li>批量删除完成后自动退出批量模式，关闭顶部批量工具栏</li>
+        <li>文档去重改为按完整路径+文件名判断，重复导入不再产生重复条目</li>
+        <li>文档信息面板新增「位置」，显示文件所在目录</li>
+        <li>已有磁盘文件 Ctrl+S 直接覆盖保存；首次保存才弹另存为</li>
+        <li>重新打开文档、窗口重新聚焦时自动读取磁盘最新内容</li>
+        <li>修复启动瞬间左侧闪现空白框</li>
+        <li>JSON 混合序列化（含半截 JSON）+ 问题位置高亮标记</li>
+        <li>查找/替换弹窗修复：可拖动、导航按钮重设计、结果定位准确</li>
+        <li>文档排序增加开关，默认关闭（列表顺序稳定）</li>
+        <li>桌面版导入改用原生文件选择器，自动关联磁盘路径</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    L.Note（Inkpad）· MIT License · 有问题或建议请到仓库提交 Issue ·
+    <a href="https://gitee.com/x_xiansheng/l.-note" target="_blank" rel="noopener">Gitee 仓库</a>
+  </footer>
+</div>
+</body>
+</html>

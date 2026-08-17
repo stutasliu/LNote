@@ -262,6 +262,9 @@
   min-width: 0;
   display: flex;
 }
+/* 防止 CodeMirror 初始化前裸 textarea 以默认样式闪现为「空白框」；
+   CodeMirror.fromTextArea 不依赖其可见性，初始化后 textarea 本就被隐藏 */
+#editor { display: none; }
 #preview-pane {
   width: 46%;
   min-width: 320px;

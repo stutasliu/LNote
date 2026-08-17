@@ -6,6 +6,18 @@
 
 ---
 
+## ⬇️ 下载与安装
+
+- 最新版下载页：`release/download.html`（或访问仓库 `release/` 目录）
+- 便携版（免安装）：`release/L.Note-v0.20.44-win64.exe`，双击即用
+- 校验和：`release/SHA256SUMS.txt`
+- 发布说明：`release/RELEASE-NOTES.md`
+
+> 系统要求：Windows 10/11（x64），依赖 Edge WebView2 运行时（Win11 自带，Win10 一般已预装）。
+> 未签名程序首次运行可能出现 SmartScreen「未知发布者」提示，点击「更多信息」→「仍要运行」即可。
+
+---
+
 ## ✨ 功能特性
 
 **编辑器**

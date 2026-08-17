@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { updateInfoPanel, goLine, openDoc, updatePreviewBtn };
+export { updateInfoPanel, goLine, openDoc, updatePreviewBtn, refreshTextDocFromDisk, refreshRichDocFromDisk, refreshDocFromDisk };
 /* [esm] 导入依赖模块绑定 */
 import { LANGS, els, state } from './01-core.js';
 import { richOutline, richOutlineVisible } from './02-rich-outline.js';
@@ -9,8 +9,8 @@ import { fullTime, renderList } from './06-doc-list.js';
 import { openVisual } from './08-visual.js';
 import { ensureRichDiskPath } from './09-rich-save.js';
 import { updatePreviewVisibility, updateStatus } from './10-status-preview.js';
-import { getApi, hasApi } from './13-api-path.js';
-import { saveDiskDoc } from './16-doc-ops.js';
+import { dirOf, getApi, hasApi } from './13-api-path.js';
+import { saveDiskDoc, toast } from './16-doc-ops.js';
   /* ---------------- 渲染：编辑区 ---------------- */
   // v0.20.35：原型信息面板（属性 + 动态大纲）更新
   function updateInfoPanel(d, kind) {
@@ -41,12 +41,18 @@ import { saveDiskDoc } from './16-doc-ops.js';
 
     var pFormat = document.getElementById('pFormat');
     var pEnc = document.getElementById('pEnc');
+    var pPath = document.getElementById('pPath');
     var pLines = document.getElementById('pLines');
     var pChars = document.getElementById('pChars');
     var metaFormat = document.getElementById('metaFormat');
     var metaStat = document.getElementById('metaStat');
     if (pFormat) pFormat.textContent = shownFmt;
     if (pEnc) pEnc.textContent = d.diskPath ? (d.encoding || 'UTF-8') : 'UTF-8';
+    // 位置：磁盘文件显示所在目录，title 显示完整路径；本地文档显示占位
+    if (pPath) {
+      pPath.textContent = d.diskPath ? dirOf(d.diskPath) || '/' : '本地文档';
+      pPath.title = d.diskPath || '';
+    }
     if (pLines) pLines.textContent = kind === 'rich' ? (d.blocks ? d.blocks.length + ' 块' : '—') : lines;
     if (pChars) pChars.textContent = chars;
     if (metaFormat) metaFormat.textContent = shownFmt;
@@ -166,16 +172,26 @@ import { saveDiskDoc } from './16-doc-ops.js';
           window.InkpadBlocks.open(els.richCanvas, d);
           renderList();
         };
-        // 优先从磁盘文件读取最新内容（富文档正文可能超出本地存储上限）
+        // 优先从磁盘文件读取最新内容（富文档正文可能超出本地存储上限）。
+        // 若 pywebview 桥尚未就绪（启动自动打开时），挂起等待 pywebviewready 后再读，
+        // 否则外部修改过的磁盘内容不会被加载
         var loadFromDisk = function (cb) {
-          if (d.diskPath && hasApi()) {
+          if (!d.diskPath) { cb(); return; }
+          var doRead = function () {
             getApi().read_text_file(d.diskPath).then(function (res) {
               if (res && res.content != null && res.content !== '') {
                 try { JSON.parse(res.content); d.content = res.content; } catch (e) {}
               }
               cb();
             }).catch(function () { cb(); });
-          } else { cb(); }
+          };
+          if (hasApi()) doRead();
+          else {
+            window.addEventListener('pywebviewready', function h() {
+              window.removeEventListener('pywebviewready', h);
+              doRead();
+            }, { once: true });
+          }
         };
         ensureRichDiskPath(d).then(function (assigned) {
           loadFromDisk(function () {
@@ -207,6 +223,109 @@ import { saveDiskDoc } from './16-doc-ops.js';
     updatePreviewVisibility();
     updateStatus();
     renderList();
+    // 有磁盘路径的文本文档：打开时异步重读磁盘最新内容（外部软件可能已修改过文件）
+    refreshTextDocFromDisk(d);
+  }
+
+  // 【磁盘刷新】文本文档打开时从磁盘重读最新内容：
+  // - 磁盘与内存一致 → 忽略（避免每次打开都闪动/清撤销历史）
+  // - 磁盘更新且用户未在读取期间编辑 → 应用磁盘版本并提示
+  // - 磁盘更新但用户已开始输入 → 保留本地未保存内容并提示
+  // - 已切走其它文档 → 仅静默更新内存 + 持久化
+  function refreshTextDocFromDisk(d) {
+    if (!d || d.kind === 'rich' || !d.diskPath) return;
+    // pywebviewready 尚未触发（启动自动打开文档时常见）：挂起等待就绪后重试，
+    // 否则磁盘刷新会因 hasApi()=false 被静默跳过，导致启动时仍显示旧内容
+    if (!hasApi()) {
+      window.addEventListener('pywebviewready', function h() {
+        window.removeEventListener('pywebviewready', h);
+        refreshTextDocFromDisk(d);
+      }, { once: true });
+      return;
+    }
+    var prev = d.content || '';
+    getApi().read_text_file(d.diskPath).then(function (res) {
+      if (!res || res.error) return;
+      var diskContent = res.content == null ? '' : res.content;
+      if (diskContent === prev) return; // 磁盘与内存一致，无需处理
+      var isCurrent = activeDoc() === d;
+      if (isCurrent && cm.getValue() === prev) {
+        // 磁盘有更新、用户没在读取期间修改 → 应用磁盘最新版本
+        d.content = diskContent;
+        d.encoding = res.encoding || d.encoding || 'UTF-8';
+        d.updated = Date.now();
+        persist();
+        cm.setValue(diskContent);
+        cm.setOption('mode', LANGS[d.lang] ? LANGS[d.lang].mime : 'text/plain');
+        cm.clearHistory();
+        updatePreviewVisibility();
+        updateStatus();
+        renderList();
+        toast('检测到磁盘内容已更新，已加载最新版本', 'info');
+      } else if (isCurrent) {
+        toast('磁盘内容已变化，但当前存在未保存修改，已保留本地内容', 'warn');
+      } else {
+        // 已切到其它文档：静默更新内存 + 持久化
+        d.content = diskContent;
+        d.encoding = res.encoding || d.encoding || 'UTF-8';
+        d.updated = Date.now();
+        persist();
+      }
+    }).catch(function () {});
+  }
+
+  // 【富文档磁盘刷新】富文档（块编辑器）打开时 / 窗口聚焦时重读磁盘最新内容：
+  // - 磁盘与编辑器当前块模型一致 → 忽略（用户刚自动保存过）
+  // - 磁盘更新且用户未在编辑 → 重新加载块编辑器渲染最新版本并提示
+  // - 磁盘更新但用户正在编辑 → 保留本地未保存内容并提示
+  function refreshRichDocFromDisk(d) {
+    if (!d || d.kind !== 'rich' || !d.diskPath) return;
+    if (!hasApi()) {
+      window.addEventListener('pywebviewready', function h() {
+        window.removeEventListener('pywebviewready', h);
+        refreshRichDocFromDisk(d);
+      }, { once: true });
+      return;
+    }
+    var prev = d.content || '';
+    getApi().read_text_file(d.diskPath).then(function (res) {
+      if (!res || res.error) return;
+      var diskContent = res.content == null ? '' : res.content;
+      if (diskContent === prev) return; // 磁盘与内存一致
+      var isCurrent = activeDoc() === d;
+      if (!isCurrent) {
+        // 已切走：仅更新内存 + 持久化（下次打开时由 openDoc 渲染）
+        d.content = diskContent;
+        d.updated = Date.now();
+        persist();
+        return;
+      }
+      var cur = '';
+      try { cur = window.InkpadBlocks ? window.InkpadBlocks.serialize() : prev; } catch (e) {}
+      // 规范化比较（忽略空格/缩进差异）：JSON 解析后逐字比较，避免把格式差异误判为用户编辑
+      var norm = function (s) { try { return JSON.stringify(JSON.parse(s)); } catch (e) { return s; } };
+      if (norm(diskContent) === norm(cur)) return;  // 磁盘与编辑器当前内容一致（用户刚保存）
+      if (norm(cur) !== norm(prev)) {
+        // 用户正在编辑（块模型已偏离上次内存）→ 保留本地
+        toast('磁盘内容已变化，但当前存在未保存修改，已保留本地内容', 'warn');
+        return;
+      }
+      // 应用磁盘最新版本并重新渲染块编辑器
+      d.content = diskContent;
+      d.encoding = res.encoding || d.encoding || 'utf-8';
+      d.updated = Date.now();
+      persist();
+      window.InkpadBlocks.open(els.richCanvas, d);
+      renderList();
+      toast('检测到磁盘内容已更新，已加载最新版本', 'info');
+    }).catch(function () {});
+  }
+
+  // 统一磁盘刷新入口：文本文档 / 富文档都从磁盘读取最新内容
+  function refreshDocFromDisk(d) {
+    if (!d) return;
+    if (d.kind === 'rich') refreshRichDocFromDisk(d);
+    else refreshTextDocFromDisk(d);
   }
 
   // 预览按钮仅对 Markdown / HTML 文档显示（顶栏右上角）

@@ -2,6 +2,8 @@
 export { initCraftSidebar };
 /* [esm] 导入依赖模块绑定 */
 import { els, state } from './01-core.js';
+import { activeDoc } from './05-store.js';
+import { refreshDocFromDisk } from './07-doc-open.js';
 import { richChanged } from './09-rich-save.js';
 import { dirOf, resolveImgSrc } from './13-api-path.js';
 import { openSingleModal } from './15-insert.js';
@@ -23,6 +25,17 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
   /* ---------------- v0.20.32 Craft 风格：搜索框 ---------------- */
   // 搜索框：点击容器聚焦 input；输入时实时过滤文档列表
   function initCraftSidebar() {
+    // 窗口重新聚焦 / 页面重新可见时，刷新当前文档为磁盘最新内容
+    // （用户在其它软件修改了磁盘文件后切回本应用，能立即看到最新版本）
+    var refreshOnFocus = function () {
+      var d = activeDoc();
+      if (d) refreshDocFromDisk(d);
+    };
+    window.addEventListener('focus', function () { setTimeout(refreshOnFocus, 150); });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') setTimeout(refreshOnFocus, 150);
+    });
+
     var sbBtn = document.getElementById('btn-sb-search');
     var sbInput = document.getElementById('sbSearchInput');
     if (sbBtn && sbInput) {
@@ -412,6 +425,8 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
       var ids = getBatchSelectedIds();
       var c = state.docFilter === 'trash' ? batchDestroy(ids) : batchDelete(ids);
       if (els.docBatchDelModal) els.docBatchDelModal.style.display = 'none';
+      // 批量操作完成 → 自动退出批量模式，关闭顶部批量工具栏
+      if (c > 0 && state.batchMode) toggleBatchMode(false);
       toast(state.docFilter === 'trash' ? '批量彻底删除完成：共 ' + c + ' 项' : '批量删除完成：共 ' + c + ' 项', 'success');
     });
 

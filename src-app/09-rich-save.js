@@ -7,7 +7,7 @@ import { activeDoc, persist, uid } from './05-store.js';
 import { fullTime } from './06-doc-list.js';
 import { openDoc } from './07-doc-open.js';
 import { onVisualChange, saveUniversal } from './08-visual.js';
-import { dirOf, getApi, hasApi } from './13-api-path.js';
+import { dirOf, getApi, hasApi, normPath } from './13-api-path.js';
 import { folderState } from './14-filetree-image.js';
 import { saveDiskDoc, toast } from './16-doc-ops.js';
   function newVisualDoc(kind) {
@@ -244,6 +244,8 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
         return;
       }
       // 「另存为」路径：弹原生对话框，写入新位置后清理旧文件
+      // 首次保存（Ctrl+S/保存但无磁盘路径）先提示原因，避免用户误以为「已存在文件还让另存为」
+      if (!forceAsk && !d.diskPath) toast('该文档尚未关联磁盘文件，请选择保存位置（仅首次保存需要选择）', 'info');
       var oldPath = d.diskPath || null;
       var initialName = docSaveName(d);
       var richContent = d.content || '';
@@ -255,7 +257,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
         d.updated = Date.now();
         persist();
         if (!folderState.openFiles) folderState.openFiles = {};
-        folderState.openFiles[newPath] = d.id;
+        folderState.openFiles[normPath(newPath).toLowerCase()] = d.id;
         if (oldPath && oldPath !== newPath) {
           // 旧路径（如果存在）建议清掉，避免遗留 orphan
           getApi().delete_rich_file(oldPath).catch(function () {});
@@ -263,7 +265,8 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
         els.statSaved.textContent = '已保存到磁盘';
         els.statSaved.style.color = '#0f7b0f';
         bus.emit('docs:changed');
-        toast('已另存为：' + newPath, 'success');
+        // 区分「保存」（首次保存，无 diskPath）与「另存为」的提示
+        toast((forceAsk ? '已另存为：' : '已保存：') + newPath, 'success');
       }).catch(function () {
         toast('保存失败', 'error');
       });
@@ -298,6 +301,8 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
       return;
     }
     // 首次保存（无 diskPath）或「另存为」→ 弹原生保存对话框
+    // 首次保存先提示原因，避免用户误以为「已存在文件还让另存为」
+    if (!forceAsk && !d.diskPath) toast('该文档尚未关联磁盘文件，请选择保存位置（仅首次保存需要选择）', 'info');
     getApi().save_file_encoded(docSaveName(d), d.content, d.encoding || 'UTF-8').then(function (path) {
       if (!path) { toast('已取消保存', 'info'); return; }
       d.diskPath = path;
@@ -306,11 +311,12 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
       persist();
       // 登记到文件树 openFiles，避免之后双击同一磁盘文件时被当成新文档
       if (!folderState.openFiles) folderState.openFiles = {};
-      folderState.openFiles[path] = d.id;
+      folderState.openFiles[normPath(path).toLowerCase()] = d.id;
       els.statSaved.textContent = '已保存到磁盘';
       els.statSaved.style.color = '#0f7b0f';
       bus.emit('docs:changed');
-      toast('已另存为：' + path, 'success');
+      // 区分「保存」（首次保存，无 diskPath）与「另存为」的提示
+      toast((forceAsk ? '已另存为：' : '已保存：') + path, 'success');
     }).catch(function () {
       toast('保存失败', 'error');
     });

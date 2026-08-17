@@ -12,7 +12,7 @@ import { applyZoom, panState, scheduleRender, svgNatural, updatePreviewVisibilit
 import { clearJSONErrorHighlight, copyToClipboard, execEditorCmd, formatXML, runTextTool, runTool } from './11-format-tools.js';
 import { CLIP_KEY, openSnippetModal, recordClip, renderClipList } from './12-snippet-clip.js';
 import { getApi, hasApi } from './13-api-path.js';
-import { applyImgZoom, closeImageModal, fitImage, openFolder, switchSideTab } from './14-filetree-image.js';
+import { applyImgZoom, closeImageModal, fitImage, openFolder, openDiskFile, switchSideTab } from './14-filetree-image.js';
 import { closeAllToolMenus, closeCalloutModal, closeCodeModal, closeIconModal, closeInsertMenu, closeTableModal, filterIcons, handlePastedImage, insertCallout, insertCode, insertImageFile, insertTable, openInsertMenu, openSingleModal, routeInsert, scheduleFoldDataUris, showMenuAtMoreBtn } from './15-insert.js';
 import { exportDoc, importFile, newDoc, openCompareWindow, openEncModal, setLang, toast } from './16-doc-ops.js';
 import { openFindModal } from './19-find-replace.js';
@@ -45,7 +45,20 @@ import { openFindModal } from './19-find-replace.js';
   $('btn-new-flow').addEventListener('click', function () { newVisualDoc('flow'); });
   $('btn-new-mind').addEventListener('click', function () { newVisualDoc('mind'); });
   $('btn-new-note').addEventListener('click', function () { newVisualDoc('note'); });
-  $('btn-import').addEventListener('click', function () { els.fileInput.click(); });
+  // 📥 导入：桌面版（pywebview）走原生文件选择器，拿到完整路径并关联为磁盘文件
+  // （HTML file input 出于安全限制不暴露完整路径，导入的文件会变成无磁盘路径的「本地文档」，
+  //   既无法在外部修改后重新读取，保存时也会弹「另存为」）
+  $('btn-import').addEventListener('click', function () {
+    if (hasApi()) {
+      getApi().pick_file().then(function (path) {
+        if (!path) return;
+        var name = String(path).split(/[\\/]/).pop();
+        openDiskFile(path, name);
+      }).catch(function () {});
+    } else {
+      els.fileInput.click();
+    }
+  });
   els.fileInput.addEventListener('change', function () {
     if (els.fileInput.files[0]) importFile(els.fileInput.files[0]);
     els.fileInput.value = '';

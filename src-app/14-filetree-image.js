@@ -4,7 +4,7 @@ export { folderState, switchSideTab, openFolder, renderFileTree, renderDirInto, 
 import { els, state } from './01-core.js';
 import { persist, uid } from './05-store.js';
 import { openDoc } from './07-doc-open.js';
-import { EXT_LANGS, getApi, hasApi, isImageExt, isRichDocContent, toFileUrl } from './13-api-path.js';
+import { EXT_LANGS, getApi, hasApi, isImageExt, isRichDocContent, normPath, toFileUrl } from './13-api-path.js';
 import { openSingleModal } from './15-insert.js';
 import { toast } from './16-doc-ops.js';
   var folderState = { root: null, expanded: {}, openFiles: {} }; // openFiles: path -> docId
@@ -106,8 +106,15 @@ import { toast } from './16-doc-ops.js';
     });
   }
 
+  // 判断两个磁盘路径是否指向同一文件：规范化（\\→/）+ 大小写不敏感（Windows 盘符/路径）
+  function sameFile(a, b) {
+    return !!a && !!b && normPath(a).toLowerCase() === normPath(b).toLowerCase();
+  }
+  // openFiles 缓存 key 统一用规范化小写路径，避免正/反斜杠不一致导致重复条目
+  function fileKey(p) { return normPath(p).toLowerCase(); }
+
   function openDiskFile(path, name) {
-    if (folderState.openFiles[path]) { openDoc(folderState.openFiles[path]); return; }
+    if (folderState.openFiles[fileKey(path)]) { openDoc(folderState.openFiles[fileKey(path)]); return; }
     if (isImageExt(name)) { openImageFile(path, name); return; }
     getApi().read_text_file(path).then(function (res) {
       if (!res || res.error) { toast('读取失败：' + (res && res.error || '未知错误'), 'error'); return; }
@@ -117,7 +124,7 @@ import { toast } from './16-doc-ops.js';
       if (ext.toLowerCase() === 'json' && isRichDocContent(res.content)) {
         var titleFromName = name.replace(/\.[^.]+$/, '');
         // 1) 优先复用已有同 diskPath 的文档（避免重复条目；同时「修好」误开的 text 副本）
-        var existing = state.docs.find(function (x) { return x && x.diskPath === path; });
+        var existing = state.docs.find(function (x) { return sameFile(x && x.diskPath, path); });
         if (existing) {
           existing.content = res.content;
           existing.kind = 'rich';
@@ -125,7 +132,7 @@ import { toast } from './16-doc-ops.js';
           existing.updated = Date.now();
           if (!existing.title) existing.title = titleFromName;
           persist();
-          folderState.openFiles[path] = existing.id;
+          folderState.openFiles[fileKey(path)] = existing.id;
           openDoc(existing.id);
           toast('已打开富文档：' + name, 'success');
           return;
@@ -142,13 +149,28 @@ import { toast } from './16-doc-ops.js';
         };
         state.docs.push(d2);
         persist();
-        folderState.openFiles[path] = d2.id;
+        folderState.openFiles[fileKey(path)] = d2.id;
         openDoc(d2.id);
         toast('已打开富文档：' + name, 'success');
         return;
       }
 
-      // 普通文本文件
+      // 普通文本文件：先复用已有同 diskPath 的文档（避免重复导入产生重复条目），
+      // 有则刷新内容，无则新建
+      var existing = state.docs.find(function (x) { return sameFile(x && x.diskPath, path); });
+      if (existing) {
+        existing.content = res.content;
+        existing.encoding = res.encoding || 'UTF-8';
+        existing.lang = EXT_LANGS[ext.toLowerCase()] || 'plaintext';
+        existing.updated = Date.now();
+        persist();
+        folderState.openFiles[fileKey(path)] = existing.id;
+        // 打开 HTML 磁盘文件也默认自动打开预览
+        if (existing.lang === 'html') state.previewOn = true;
+        openDoc(existing.id);
+        toast('已打开：' + name + '（已加载磁盘最新内容）', 'success');
+        return;
+      }
       var d = {
         id: uid(),
         title: name,
@@ -161,7 +183,7 @@ import { toast } from './16-doc-ops.js';
       };
       state.docs.push(d);
       persist();
-      folderState.openFiles[path] = d.id;
+      folderState.openFiles[fileKey(path)] = d.id;
       // 打开 HTML 磁盘文件也默认自动打开预览
       if (d.lang === 'html') state.previewOn = true;
       openDoc(d.id);
