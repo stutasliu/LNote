@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L.Note 反向链接 · 操作指南</title>
+<meta name="description" content="L.Note 反向链接功能操作指南：用 [[标题]] 建立内部链接，查看「链接当前文件 / 提到当前文件名」，筛选、折叠、一键转为链接。">
+<style>
+  :root {
+    --bg: #0f1117; --card: #171a23; --card2: #1e222e; --line: #2a2f3d;
+    --text: #e6e8ee; --muted: #8b93a7; --accent: #3370ff; --accent-2: #5b8cff;
+    --yellow: #ffc107; --radius: 14px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    background: radial-gradient(1200px 500px at 50% -100px, #1b2234 0%, var(--bg) 60%);
+    color: var(--text); line-height: 1.7; padding: 0 20px 80px;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  header { padding: 60px 0 30px; text-align: center; }
+  .logo {
+    width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 18px;
+    background: linear-gradient(135deg, #3370ff, #7b4dff);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 700; color: #fff;
+    box-shadow: 0 10px 30px rgba(51,112,255,.35);
+  }
+  h1 { font-size: 34px; font-weight: 700; }
+  .tagline { color: var(--muted); font-size: 15px; margin-top: 10px; }
+  .badge { display: inline-block; margin-top: 14px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; color: var(--muted); }
+  .badge b { color: var(--accent-2); }
+
+  .intro {
+    margin: 28px auto 0; max-width: 720px; background: var(--card);
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 24px;
+    font-size: 14px; color: var(--muted);
+  }
+  .intro b { color: var(--text); }
+  .intro code {
+    background: var(--card2); border: 1px solid var(--line);
+    border-radius: 6px; padding: 1px 7px; font-size: 13px; color: var(--yellow);
+  }
+
+  section { margin-top: 44px; }
+  h2 {
+    font-size: 19px; font-weight: 600; margin-bottom: 20px;
+    padding-left: 12px; border-left: 4px solid var(--accent);
+  }
+
+  .step {
+    display: grid; grid-template-columns: 240px 1fr; gap: 18px;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 20px; margin-bottom: 18px;
+    align-items: start;
+  }
+  @media (max-width: 760px) { .step { grid-template-columns: 1fr; } }
+  .step-num {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; font-weight: 700; font-size: 16px;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 10px;
+  }
+  .step-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .step-desc { font-size: 13.5px; color: var(--muted); }
+  .step-desc code {
+    background: var(--card2); border: 1px solid var(--line);
+    border-radius: 5px; padding: 0 6px; font-size: 12.5px; color: var(--yellow);
+  }
+  .step-shot {
+    background: var(--card2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px;
+  }
+  .step-shot img {
+    width: 100%; border-radius: 7px; display: block; cursor: zoom-in; border: 1px solid var(--line);
+  }
+  .step-shot .shot-cap { font-size: 12px; color: var(--muted); text-align: center; margin-top: 6px; }
+
+  .tip {
+    background: rgba(255,193,7,.06); border: 1px solid rgba(255,193,7,.28);
+    border-radius: 10px; padding: 14px 18px; font-size: 13.5px; color: #ffd97a;
+    margin-top: 6px;
+  }
+  .tip b { color: #ffdd8e; }
+
+  footer { margin-top: 56px; text-align: center; font-size: 13px; color: var(--muted); }
+  footer a { color: var(--accent-2); text-decoration: none; }
+
+  /* lightbox */
+  .lightbox {
+    position: fixed; inset: 0; background: rgba(8,10,15,.93);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .18s; z-index: 9999;
+  }
+  .lightbox.open { opacity: 1; pointer-events: auto; }
+  .lb-img { max-width: 92vw; max-height: 86vh; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+  .lb-close { position: absolute; top: 14px; right: 26px; font-size: 42px; color: #fff; cursor: pointer; line-height: 1; user-select: none; opacity: .85; }
+  .lb-close:hover { opacity: 1; }
+  .lb-cap { position: absolute; bottom: 18px; left: 0; right: 0; text-align: center; color: #c7ccd8; font-size: 14px; padding: 0 20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">L.</div>
+    <h1>反向链接 · 操作指南</h1>
+    <p class="tagline">L.Note（Inkpad）内置 Obsidian 风格反向链接面板，帮你发现文档之间的关联</p>
+    <div class="badge">版本 v0.20.44 · 纯本地运行 · <b>4 步上手</b></div>
+  </header>
+
+  <div class="intro">
+    <b>反向链接能做什么？</b>当你写完一篇笔记，它很难回答"谁引用过我"。反向链接面板会扫描全部本地文档，找出
+    <b>明确链接</b>（正文中的 <code>[[文档标题]]</code>）和 <b>潜在引用</b>（正文出现了文档标题但还没建立链接），
+    让你一眼看到知识之间的关联，并支持一键把潜在引用转成正式链接。
+  </div>
+
+  <section>
+    <h2>操作流程</h2>
+
+    <div class="step">
+      <div>
+        <div class="step-num">1</div>
+        <div class="step-title">在其他文档中引用标题</div>
+        <div class="step-desc">
+          在任意文档正文写入 <code>[[目标文档标题]]</code> 即为<b>内部链接</b>（也支持 <code>[[标题|别名]]</code>）；
+          或者直接输入目标文档的<b>标题文字</b>，它会被识别为"潜在引用"。
+        </div>
+      </div>
+      <div class="step-shot">
+        <img src="screenshots/blink-1.png" alt="步骤1：在其他文档中引用标题">
+        <div class="shot-cap">在「笔记一」中写了 [[Obsidian 教程]]，并再次提到"Obsidian 教程"</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div>
+        <div class="step-num">2</div>
+        <div class="step-title">打开目标文档，查看反向链接面板</div>
+        <div class="step-desc">
+          打开被引用的文档（Obsidian 教程），点击右上角<b>「文档信息」</b>展开右侧面板，向下即可看到「反向链接」卡片。
+          卡片分两组：<b>链接当前文件</b>（明确链接，黄色高亮上下文）与 <b>提到当前文件名</b>（潜在引用）。
+        </div>
+      </div>
+      <div class="step-shot">
+        <img src="screenshots/blink-2.png" alt="步骤2：反向链接面板">
+        <div class="shot-cap">链接当前文件 1 篇 · 提到当前文件名 2 篇</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div>
+        <div class="step-num">3</div>
+        <div class="step-title">用工具栏快速定位</div>
+        <div class="step-desc">
+          卡片右上角工具栏：<b>折叠</b>（只显示文件名）、<b>上下文</b>（显示/隐藏所在段落）、
+          <b>排序</b>（按更新时间升降）、<b>筛选</b>（输入关键词过滤）。输入"读书"即可只看读书笔记。
+        </div>
+      </div>
+      <div class="step-shot">
+        <img src="screenshots/blink-3.png" alt="步骤3：筛选结果">
+        <div class="shot-cap">筛选"读书" → 仅保留读书笔记</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div>
+        <div class="step-num">4</div>
+        <div class="step-title">一键「转为链接」</div>
+        <div class="step-desc">
+          在「提到当前文件名」分组里，点击某条记录右侧的<b>「转为链接」</b>按钮，
+          该文档正文中的标题文字会自动变成 <code>[[标题]]</code>，随即归入「链接当前文件」，形成正式关联。
+        </div>
+      </div>
+      <div class="step-shot">
+        <img src="screenshots/blink-4.png" alt="步骤4：转为链接后">
+        <div class="shot-cap">点击「转为链接」后，读书笔记移入「链接当前文件」</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="tip">
+    <b>小提示：</b>点击任意截图可放大查看细节。反向链接面板随当前文档切换自动刷新；富文档（思维笔记）同样支持——
+    各块的文字都会被扫描，转为链接也会精确改写对应块的文本。
+  </div>
+
+  <footer>
+    L.Note（Inkpad）· MIT License ·
+    <a href="download.html">返回下载页</a> ·
+    <a href="https://github.com/stutasliu/LNote" target="_blank" rel="noopener">GitHub 仓库</a> ·
+    <a href="https://gitee.com/x_xiansheng/l.-note" target="_blank" rel="noopener">Gitee 仓库</a>
+  </footer>
+</div>
+
+<!-- 图片放大 lightbox -->
+<div class="lightbox" id="lightbox" aria-hidden="true">
+  <span class="lb-close" title="关闭（Esc）">&times;</span>
+  <img class="lb-img" id="lb-img" alt="放大预览">
+  <div class="lb-cap" id="lb-cap"></div>
+</div>
+
+<script>
+  (function () {
+    var lb = document.getElementById('lightbox');
+    var lbImg = document.getElementById('lb-img');
+    var lbCap = document.getElementById('lb-cap');
+    Array.prototype.forEach.call(document.querySelectorAll('.step-shot img'), function (im) {
+      im.addEventListener('click', function () {
+        lbImg.src = im.src;
+        var cap = im.closest('.step-shot').querySelector('.shot-cap');
+        lbCap.textContent = cap ? cap.textContent : '';
+        lb.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      });
+    });
+    function closeLb() { lb.classList.remove('open'); document.body.style.overflow = ''; lbImg.src = ''; }
+    lb.addEventListener('click', function (e) {
+      if (e.target === lb || e.target.classList.contains('lb-close')) closeLb();
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeLb(); });
+  })();
+</script>
+</body>
+</html>
