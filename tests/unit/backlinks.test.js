@@ -9,11 +9,13 @@ let T = null;
 
 beforeAll(() => {
   const code = extractFns('21-backlinks', [
-    'docText', 'contextOf', 'linkRangesOf', 'scanBacklinks', 'replaceTitleToLink'
+    'docText', 'contextOf', 'linkRangesOf', 'scanBacklinks', 'replaceTitleToLink',
+    'linkTargetAt', 'findDocByTitle'
   ]);
-  const ctx = vm.createContext({ JSON, Math, Date, String, Number, Object, Array, RegExp, console });
-  vm.runInContext(code + '\nthis.__T = { docText, contextOf, linkRangesOf, scanBacklinks, replaceTitleToLink };', ctx);
+  const ctx = vm.createContext({ JSON, Math, Date, String, Number, Object, Array, RegExp, console, state: [] });
+  vm.runInContext(code + '\nthis.__T = { docText, contextOf, linkRangesOf, scanBacklinks, replaceTitleToLink, linkTargetAt, findDocByTitle };\nthis.__setState = function (docs) { state = { docs: docs }; };', ctx);
   T = ctx.__T;
+  T._setState = ctx.__setState;
 });
 
 const mk = (id, title, content, extra) => Object.assign({ id, title, content }, extra || {});
@@ -97,5 +99,55 @@ describe('replaceTitleToLink', () => {
   it('别名形式 [[标题|别名]] 不被破坏', () => {
     expect(T.replaceTitleToLink('参考 [[Obsidian 教程|新手必读]]', 'Obsidian 教程'))
       .toBe('参考 [[Obsidian 教程|新手必读]]');
+  });
+});
+
+describe('linkTargetAt', () => {
+  it('光标落在 [[...]] 内 → 返回 inner', () => {
+    const text = '见 [[Obsidian 教程|新手必读]] 一文';
+    expect(T.linkTargetAt(text, 3)).toBe('Obsidian 教程|新手必读'); // 落在 [ 上
+    expect(T.linkTargetAt(text, 8)).toBe('Obsidian 教程|新手必读'); // 落在标题中间
+    expect(T.linkTargetAt(text, 20)).toBe('Obsidian 教程|新手必读'); // 落在 ] 上
+  });
+  it('光标不在 [[...]] 内 → null', () => {
+    const text = '见 [[Obsidian 教程]] 一文';
+    expect(T.linkTargetAt(text, 0)).toBeNull();
+    expect(T.linkTargetAt(text, 19)).toBeNull();
+    expect(T.linkTargetAt(null, 3)).toBeNull();
+  });
+  it('多段链接各自独立命中', () => {
+    const text = '[[A]] 中间文本 [[B]]';
+    expect(T.linkTargetAt(text, 2)).toBe('A');
+    expect(T.linkTargetAt(text, 12)).toBe('B');
+    expect(T.linkTargetAt(text, 7)).toBeNull();
+  });
+});
+
+describe('findDocByTitle', () => {
+  const docs = [
+    mk('cur', 'Obsidian 教程', '我是当前文档'),
+    mk('d1', '读书笔记', '正文'),
+    mk('d2', 'Obsidian 教程', '重名文档'),
+    mk('del', '已删除文档', '正文', { deleted: true })
+  ];
+
+  it('按标题精确匹配（忽略两端空白）', () => {
+    T._setState(docs);
+    expect(T.findDocByTitle('读书笔记')).toMatchObject({ id: 'd1' });
+    expect(T.findDocByTitle(' 读书笔记 ')).toMatchObject({ id: 'd1' });
+  });
+  it('[[标题|别名]] 只按主标题匹配', () => {
+    T._setState(docs);
+    expect(T.findDocByTitle('Obsidian 教程|新手必读')).toMatchObject({ id: 'cur' });
+  });
+  it('已删除文档不参与匹配', () => {
+    T._setState(docs);
+    expect(T.findDocByTitle('已删除文档')).toBeNull();
+  });
+  it('空 inner / 无匹配 → null', () => {
+    T._setState(docs);
+    expect(T.findDocByTitle('')).toBeNull();
+    expect(T.findDocByTitle('|别名')).toBeNull();
+    expect(T.findDocByTitle('不存在的文档')).toBeNull();
   });
 });

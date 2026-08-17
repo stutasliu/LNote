@@ -1,7 +1,8 @@
 /* [esm] 导出本模块顶层绑定 */
-export { renderBacklinks, forceRecompute, docText, scanBacklinks, replaceTitleToLink };
+export { renderBacklinks, forceRecompute, docText, scanBacklinks, replaceTitleToLink, linkTargetAt, findDocByTitle };
 /* [esm] 导入依赖模块绑定 */
 import { bus, els, state } from './01-core.js';
+import { cm } from './04-editor-init.js';
 import { persist } from './05-store.js';
 import { openDoc } from './07-doc-open.js';
   /* =========================================================
@@ -10,12 +11,17 @@ import { openDoc } from './07-doc-open.js';
    * 「链接当前文件」：其他文档正文出现 [[当前标题]]（或 [[当前标题|别名]]）
    * 「提到当前文件名」：其他文档正文出现当前标题文字但未建链接（潜在链接）
    * 工具栏：折叠 / 上下文 / 排序 / 筛选；支持一键「转为链接」
+   * 编辑器联动：正文中的 [[链接]] 实时高亮，点击直接跳转目标文档
    * ========================================================= */
 
   // 面板工具栏状态
   var blState = { fold: false, ctx: true, sortDesc: true, filter: '' };
   var _currentId = null;
   var _bound = false;
+  // 编辑器联动状态：overlay 是否已挂载 / 点击是否已绑定 / 面板是否已由用户手动接管
+  var _overlayOn = false;
+  var _clickBound = false;
+  var _autoOpened = false;
 
   /* ---------------- 文本提取 ---------------- */
   function docText(doc) {
@@ -88,6 +94,64 @@ import { openDoc } from './07-doc-open.js';
     return { linked: linked, mentioned: mentioned };
   }
 
+  /* ---------------- 编辑器联动：[[链接]] 高亮 + 点击跳转 ---------------- */
+  // overlay token：把 [[...]] 染成链接色（叠加在任意语言模式之上）
+  function wikiToken(stream) {
+    if (stream.match(/^\[\[/)) {
+      stream.match(/[^\[\]\n]*/);
+      stream.match(/\]\]/);
+      return 'wikilink';
+    }
+    stream.next();
+    return null;
+  }
+
+  function ensureWikiOverlay() {
+    if (_overlayOn || !cm || !cm.addOverlay) return;
+    _overlayOn = true;
+    try { cm.addOverlay({ token: wikiToken }); } catch (e) { console.warn('[inkpad] wikilink overlay failed', e); }
+  }
+
+  // 光标 ch 落在哪段 [[...]] 区间内 → 返回 inner（「标题」或「标题|别名」）；不在任何区间则 null
+  function linkTargetAt(text, ch) {
+    if (!text) return null;
+    var re = /\[\[([^\[\]]*)\]\]/g, m;
+    while ((m = re.exec(text))) {
+      if (ch >= m.index && ch < m.index + m[0].length) return m[1];
+    }
+    return null;
+  }
+
+  // 按链接文本（含「标题|别名」形式）反查目标文档
+  function findDocByTitle(inner) {
+    var primary = String(inner || '').split('|')[0].trim();
+    if (!primary) return null;
+    for (var i = 0; i < state.docs.length; i++) {
+      var d = state.docs[i];
+      if (!d || d.deleted) continue;
+      if (d.title && d.title.trim() === primary) return d;
+    }
+    return null;
+  }
+
+  // 点击编辑器内的 [[链接]] → 打开目标文档（Ctrl/Cmd/Alt/Shift 点击不拦截，保留编辑能力）
+  function bindWikiClick() {
+    if (_clickBound || !cm) return;
+    _clickBound = true;
+    cm.on('mousedown', function (cm2, e) {
+      if (!e || e.button !== 0 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      var pos = cm2.coordsChar({ left: e.clientX, top: e.clientY });
+      var line = pos.line, ch = pos.ch;
+      if (line < 0 || line >= cm2.lineCount()) return;
+      var inner = linkTargetAt(cm2.getLine(line), ch);
+      if (!inner) return;
+      var target = findDocByTitle(inner);
+      if (!target) return;
+      e.preventDefault();
+      openDoc(target.id);
+    });
+  }
+
   /* ---------------- 排序 / 筛选 ---------------- */
   function sortGroup(list) {
     var dir = blState.sortDesc ? -1 : 1;
@@ -128,21 +192,42 @@ import { openDoc } from './07-doc-open.js';
     return html;
   }
 
+  // 顶栏「文档信息」按钮上的反向链接计数徽标
+  function syncBadge(total) {
+    var badge = document.getElementById('info-badge');
+    if (!badge) return;
+    badge.textContent = total > 99 ? '99+' : (total || '');
+    badge.style.display = total ? '' : 'none';
+  }
+
+  // 当前文档有反向链接且信息面板仍折叠 → 自动展开一次，让用户第一眼就能看到结果
+  function autoOpenPanel(total) {
+    if (total <= 0 || _autoOpened) return;
+    var panel = document.getElementById('info-panel');
+    if (!panel || !panel.classList.contains('collapsed')) return;
+    _autoOpened = true;
+    panel.classList.remove('collapsed');
+    var infoBtn = document.getElementById('btn-info-panel');
+    if (infoBtn) infoBtn.classList.add('active');
+  }
+
   function render(d) {
     var card = document.getElementById('backlinksCard');
     var content = document.getElementById('bl-content');
     var countEl = document.getElementById('bl-count');
     if (!card || !content) return;
-    if (!d || !d.title) { card.style.display = 'none'; content.innerHTML = ''; return; }
+    if (!d || !d.title) { card.style.display = 'none'; content.innerHTML = ''; syncBadge(0); return; }
 
     var res = scanBacklinks(d, state.docs);
     var total = res.linked.length + res.mentioned.length;
     card.style.display = '';
     if (countEl) countEl.textContent = total ? '（' + total + '）' : '';
+    syncBadge(total);
+    autoOpenPanel(total);
 
     var html = '';
     if (!total) {
-      html = '<div class="bl-empty">暂无反向链接<br><small>其他文档「提到」或「[[链接]]」本标题后会显示在这里</small></div>';
+      html = '<div class="bl-empty">暂无反向链接<br><small>在其他文档中输入 <code>[[' + esc(d.title) + ']]</code> 建立链接<br>编辑器会高亮链接，点击可直接跳转</small></div>';
     } else {
       html += renderGroup(res.linked, '链接当前文件', 'linked', d.title);
       html += renderGroup(res.mentioned, '提到当前文件名', 'mentioned', d.title);
@@ -212,6 +297,11 @@ import { openDoc } from './07-doc-open.js';
         }
       });
     }
+    // 用户手动点击过「文档信息」按钮 → 面板状态由用户接管，不再自动展开
+    var infoBtn = document.getElementById('btn-info-panel');
+    if (infoBtn) infoBtn.addEventListener('click', function () { _autoOpened = true; });
+    // 任何文档保存/变更（docs:changed）后实时刷新当前文档的反向链接
+    bus.on('docs:changed', function () { redraw(); });
   }
 
   function currentTitle() {
@@ -229,6 +319,8 @@ import { openDoc } from './07-doc-open.js';
 
   /* ---------------- 对外入口 ---------------- */
   function renderBacklinks(d) {
+    ensureWikiOverlay();
+    bindWikiClick();
     bindEvents();
     _currentId = d ? d.id : null;
     render(d);

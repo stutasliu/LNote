@@ -2229,3 +2229,33 @@
 }
 .bl-link-btn:hover { background: rgba(51, 112, 255, .16); }
 
+/* ===== 反向链接：编辑器内 [[链接]] 高亮（Obsidian 风格） ===== */
+.CodeMirror .cm-wikilink {
+  color: var(--primary);
+  text-decoration: underline;
+  text-decoration-color: rgba(51, 112, 255, .4);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.CodeMirror .cm-wikilink:hover { background: rgba(51, 112, 255, .12); }
+
+/* ===== 反向链接：顶栏「文档信息」按钮计数徽标 ===== */
+#btn-info-panel { position: relative; }
+.info-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #ff4d4f;
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 0 0 1.5px var(--surface);
+}
+
+

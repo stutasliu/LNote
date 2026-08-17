@@ -6455,6 +6455,9 @@
   var blState = { fold: false, ctx: true, sortDesc: true, filter: "" };
   var _currentId = null;
   var _bound = false;
+  var _overlayOn = false;
+  var _clickBound = false;
+  var _autoOpened = false;
   function docText(doc) {
     if (!doc) return "";
     if (doc.kind === "rich") {
@@ -6521,6 +6524,58 @@
     });
     return { linked, mentioned };
   }
+  function wikiToken(stream) {
+    if (stream.match(/^\[\[/)) {
+      stream.match(/[^\[\]\n]*/);
+      stream.match(/\]\]/);
+      return "wikilink";
+    }
+    stream.next();
+    return null;
+  }
+  function ensureWikiOverlay() {
+    if (_overlayOn || !cm || !cm.addOverlay) return;
+    _overlayOn = true;
+    try {
+      cm.addOverlay({ token: wikiToken });
+    } catch (e) {
+      console.warn("[inkpad] wikilink overlay failed", e);
+    }
+  }
+  function linkTargetAt(text, ch) {
+    if (!text) return null;
+    var re = /\[\[([^\[\]]*)\]\]/g, m;
+    while (m = re.exec(text)) {
+      if (ch >= m.index && ch < m.index + m[0].length) return m[1];
+    }
+    return null;
+  }
+  function findDocByTitle(inner) {
+    var primary = String(inner || "").split("|")[0].trim();
+    if (!primary) return null;
+    for (var i = 0; i < state.docs.length; i++) {
+      var d = state.docs[i];
+      if (!d || d.deleted) continue;
+      if (d.title && d.title.trim() === primary) return d;
+    }
+    return null;
+  }
+  function bindWikiClick() {
+    if (_clickBound || !cm) return;
+    _clickBound = true;
+    cm.on("mousedown", function(cm2, e) {
+      if (!e || e.button !== 0 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      var pos = cm2.coordsChar({ left: e.clientX, top: e.clientY });
+      var line = pos.line, ch = pos.ch;
+      if (line < 0 || line >= cm2.lineCount()) return;
+      var inner = linkTargetAt(cm2.getLine(line), ch);
+      if (!inner) return;
+      var target = findDocByTitle(inner);
+      if (!target) return;
+      e.preventDefault();
+      openDoc(target.id);
+    });
+  }
   function sortGroup(list) {
     var dir = blState.sortDesc ? -1 : 1;
     return list.slice().sort(function(a, b) {
@@ -6560,6 +6615,21 @@
     html += "</div>";
     return html;
   }
+  function syncBadge(total) {
+    var badge = document.getElementById("info-badge");
+    if (!badge) return;
+    badge.textContent = total > 99 ? "99+" : total || "";
+    badge.style.display = total ? "" : "none";
+  }
+  function autoOpenPanel(total) {
+    if (total <= 0 || _autoOpened) return;
+    var panel = document.getElementById("info-panel");
+    if (!panel || !panel.classList.contains("collapsed")) return;
+    _autoOpened = true;
+    panel.classList.remove("collapsed");
+    var infoBtn = document.getElementById("btn-info-panel");
+    if (infoBtn) infoBtn.classList.add("active");
+  }
   function render(d) {
     var card = document.getElementById("backlinksCard");
     var content = document.getElementById("bl-content");
@@ -6568,15 +6638,18 @@
     if (!d || !d.title) {
       card.style.display = "none";
       content.innerHTML = "";
+      syncBadge(0);
       return;
     }
     var res = scanBacklinks(d, state.docs);
     var total = res.linked.length + res.mentioned.length;
     card.style.display = "";
     if (countEl) countEl.textContent = total ? "\uFF08" + total + "\uFF09" : "";
+    syncBadge(total);
+    autoOpenPanel(total);
     var html = "";
     if (!total) {
-      html = '<div class="bl-empty">\u6682\u65E0\u53CD\u5411\u94FE\u63A5<br><small>\u5176\u4ED6\u6587\u6863\u300C\u63D0\u5230\u300D\u6216\u300C[[\u94FE\u63A5]]\u300D\u672C\u6807\u9898\u540E\u4F1A\u663E\u793A\u5728\u8FD9\u91CC</small></div>';
+      html = '<div class="bl-empty">\u6682\u65E0\u53CD\u5411\u94FE\u63A5<br><small>\u5728\u5176\u4ED6\u6587\u6863\u4E2D\u8F93\u5165 <code>[[' + esc(d.title) + "]]</code> \u5EFA\u7ACB\u94FE\u63A5<br>\u7F16\u8F91\u5668\u4F1A\u9AD8\u4EAE\u94FE\u63A5\uFF0C\u70B9\u51FB\u53EF\u76F4\u63A5\u8DF3\u8F6C</small></div>";
     } else {
       html += renderGroup(res.linked, "\u94FE\u63A5\u5F53\u524D\u6587\u4EF6", "linked", d.title);
       html += renderGroup(res.mentioned, "\u63D0\u5230\u5F53\u524D\u6587\u4EF6\u540D", "mentioned", d.title);
@@ -6661,6 +6734,13 @@
         }
       });
     }
+    var infoBtn = document.getElementById("btn-info-panel");
+    if (infoBtn) infoBtn.addEventListener("click", function() {
+      _autoOpened = true;
+    });
+    bus.on("docs:changed", function() {
+      redraw();
+    });
   }
   function currentTitle() {
     for (var i = 0; i < state.docs.length; i++) {
@@ -6679,6 +6759,8 @@
     render(d);
   }
   function renderBacklinks(d) {
+    ensureWikiOverlay();
+    bindWikiClick();
     bindEvents();
     _currentId = d ? d.id : null;
     render(d);
