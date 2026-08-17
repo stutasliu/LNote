@@ -4566,12 +4566,12 @@
     var closeCh = openCh === "{" ? "}" : "]";
     var depth = 0;
     var inStr = false;
-    var esc = false;
+    var esc2 = false;
     for (var i = start; i < text.length; i++) {
       var c = text[i];
       if (inStr) {
-        if (esc) esc = false;
-        else if (c === "\\") esc = true;
+        if (esc2) esc2 = false;
+        else if (c === "\\") esc2 = true;
         else if (c === '"') inStr = false;
         continue;
       }
@@ -4589,12 +4589,12 @@
   }
   function tryClose(text, start, end) {
     var stack = [];
-    var inStr = false, esc = false;
+    var inStr = false, esc2 = false;
     for (var i = start; i < end; i++) {
       var c = text[i];
       if (inStr) {
-        if (esc) esc = false;
-        else if (c === "\\") esc = true;
+        if (esc2) esc2 = false;
+        else if (c === "\\") esc2 = true;
         else if (c === '"') inStr = false;
         continue;
       }
@@ -6451,6 +6451,242 @@
     }
   }
 
+  // src-app/21-backlinks.js
+  var blState = { fold: false, ctx: true, sortDesc: true, filter: "" };
+  var _currentId = null;
+  var _bound = false;
+  function docText(doc) {
+    if (!doc) return "";
+    if (doc.kind === "rich") {
+      var arr = doc.content;
+      if (Array.isArray(arr)) {
+        return arr.map(function(b) {
+          return b && b.text || "";
+        }).join("\n");
+      }
+      return "";
+    }
+    return typeof doc.content === "string" ? doc.content : "";
+  }
+  function contextOf(text, start, len) {
+    var before = 40, after = 60;
+    var s = Math.max(0, start - before);
+    var e = Math.min(text.length, start + len + after);
+    return (s > 0 ? "\u2026" : "") + text.slice(s, e).replace(/\s+/g, " ") + (e < text.length ? "\u2026" : "");
+  }
+  function linkRangesOf(text) {
+    var out = [];
+    var re = /\[\[([^\[\]]*)\]\]/g, m;
+    while (m = re.exec(text)) {
+      out.push({ s: m.index, e: m.index + m[0].length, inner: m[1] });
+    }
+    return out;
+  }
+  function scanBacklinks(d, docs) {
+    var linked = [], mentioned = [];
+    if (!d || !d.title) return { linked, mentioned };
+    var title = d.title.trim();
+    if (!title) return { linked, mentioned };
+    (docs || []).forEach(function(doc) {
+      if (!doc || doc.id === d.id || doc.deleted) return;
+      var text = docText(doc);
+      if (!text) return;
+      var ranges = linkRangesOf(text);
+      var explicit = ranges.filter(function(r) {
+        var inner = r.inner.trim();
+        return inner === title || inner.indexOf(title + "|") === 0;
+      });
+      if (explicit.length) {
+        linked.push({
+          docId: doc.id,
+          title: doc.title,
+          updated: doc.updated || 0,
+          matches: explicit.map(function(r) {
+            return { start: r.s, len: r.e - r.s, ctx: contextOf(text, r.s, r.e - r.s) };
+          })
+        });
+      }
+      var mentions = [];
+      var idx = 0;
+      while ((idx = text.indexOf(title, idx)) >= 0) {
+        var inside = ranges.some(function(r) {
+          return idx >= r.s && idx < r.e;
+        });
+        if (!inside) mentions.push({ start: idx, len: title.length, ctx: contextOf(text, idx, title.length) });
+        idx += title.length;
+      }
+      if (mentions.length) {
+        mentioned.push({ docId: doc.id, title: doc.title, updated: doc.updated || 0, matches: mentions });
+      }
+    });
+    return { linked, mentioned };
+  }
+  function sortGroup(list) {
+    var dir = blState.sortDesc ? -1 : 1;
+    return list.slice().sort(function(a, b) {
+      return (a.updated - b.updated) * dir;
+    });
+  }
+  function matchFilter(list) {
+    var f = blState.filter.trim().toLowerCase();
+    if (!f) return list;
+    return list.filter(function(it) {
+      var kw = f.split(/\s+/).every(function(k) {
+        return it.title.toLowerCase().indexOf(k) >= 0;
+      });
+      return kw;
+    });
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function renderGroup(list, label, kind, title) {
+    var rows = sortGroup(matchFilter(list));
+    if (!rows.length) return "";
+    var html = '<div class="bl-group"><div class="bl-group-title">' + label + ' <span class="bl-group-n">' + rows.length + "</span></div>";
+    rows.forEach(function(it) {
+      html += '<div class="bl-item" data-docid="' + it.docId + '" data-kind="' + kind + '" title="\u6253\u5F00 ' + esc(it.title) + '">';
+      html += '<div class="bl-item-title">' + (it.title || "(\u672A\u547D\u540D)") + (blState.fold ? "" : ' <span class="bl-item-n">' + it.matches.length + "</span>") + "</div>";
+      if (!blState.fold && (blState.ctx || kind === "linked")) {
+        it.matches.slice(0, 2).forEach(function(mm, i) {
+          html += '<div class="bl-item-ctx">' + esc(mm.ctx) + "</div>";
+        });
+      }
+      if (kind === "mentioned") {
+        html += '<button class="bl-link-btn" data-act="link" data-docid="' + it.docId + '" title="\u628A\u6B63\u6587\u4E2D\u7684\u300C' + esc(title) + "\u300D\u8F6C\u4E3A [[" + esc(title) + ']] \u94FE\u63A5">\u8F6C\u4E3A\u94FE\u63A5</button>';
+      }
+      html += "</div>";
+    });
+    html += "</div>";
+    return html;
+  }
+  function render(d) {
+    var card = document.getElementById("backlinksCard");
+    var content = document.getElementById("bl-content");
+    var countEl = document.getElementById("bl-count");
+    if (!card || !content) return;
+    if (!d || !d.title) {
+      card.style.display = "none";
+      content.innerHTML = "";
+      return;
+    }
+    var res = scanBacklinks(d, state.docs);
+    var total = res.linked.length + res.mentioned.length;
+    card.style.display = "";
+    if (countEl) countEl.textContent = total ? "\uFF08" + total + "\uFF09" : "";
+    var html = "";
+    if (!total) {
+      html = '<div class="bl-empty">\u6682\u65E0\u53CD\u5411\u94FE\u63A5<br><small>\u5176\u4ED6\u6587\u6863\u300C\u63D0\u5230\u300D\u6216\u300C[[\u94FE\u63A5]]\u300D\u672C\u6807\u9898\u540E\u4F1A\u663E\u793A\u5728\u8FD9\u91CC</small></div>';
+    } else {
+      html += renderGroup(res.linked, "\u94FE\u63A5\u5F53\u524D\u6587\u4EF6", "linked", d.title);
+      html += renderGroup(res.mentioned, "\u63D0\u5230\u5F53\u524D\u6587\u4EF6\u540D", "mentioned", d.title);
+      if (!matchFilter(res.linked).length && !matchFilter(res.mentioned).length) {
+        html = '<div class="bl-empty">\u6CA1\u6709\u7B26\u5408\u7B5B\u9009\u6761\u4EF6\u7684\u7ED3\u679C</div>';
+      }
+    }
+    content.innerHTML = html;
+  }
+  function replaceTitleToLink(text, title) {
+    var saved = [];
+    var i = 0;
+    var re = /\[\[([^\[\]]*)\]\]/g;
+    var masked = text.replace(re, function(m) {
+      saved.push(m);
+      return "\0" + i++ + "\0";
+    });
+    masked = masked.split(title).join("[[" + title + "]]");
+    return masked.replace(/\u0000(\d+)\u0000/g, function(_, n) {
+      return saved[+n];
+    });
+  }
+  function turnToLink(docId, title) {
+    var doc = null;
+    for (var i = 0; i < state.docs.length; i++) {
+      if (state.docs[i].id === docId) {
+        doc = state.docs[i];
+        break;
+      }
+    }
+    if (!doc) return;
+    if (doc.kind === "rich" && Array.isArray(doc.content)) {
+      doc.content.forEach(function(b) {
+        if (b && typeof b.text === "string") b.text = replaceTitleToLink(b.text, title);
+      });
+    } else if (typeof doc.content === "string") {
+      doc.content = replaceTitleToLink(doc.content, title);
+    } else {
+      return;
+    }
+    doc.updated = Date.now();
+    persist();
+    bus.emit("docs:changed");
+  }
+  function bindEvents() {
+    if (_bound) return;
+    _bound = true;
+    var fold = document.getElementById("bl-fold");
+    var ctx = document.getElementById("bl-ctx");
+    var sort = document.getElementById("bl-sort");
+    var filter = document.getElementById("bl-filter");
+    var content = document.getElementById("bl-content");
+    if (fold) fold.addEventListener("click", function() {
+      blState.fold = !blState.fold;
+      redraw();
+    });
+    if (ctx) ctx.addEventListener("click", function() {
+      blState.ctx = !blState.ctx;
+      redraw();
+    });
+    if (sort) sort.addEventListener("click", function() {
+      blState.sortDesc = !blState.sortDesc;
+      redraw();
+    });
+    if (filter) filter.addEventListener("input", function() {
+      blState.filter = filter.value;
+      redraw();
+    });
+    if (content) {
+      content.addEventListener("click", function(e) {
+        var linkBtn = e.target.closest('[data-act="link"]');
+        if (linkBtn) {
+          e.stopPropagation();
+          turnToLink(linkBtn.getAttribute("data-docid"), currentTitle());
+          redraw();
+          return;
+        }
+        var item = e.target.closest(".bl-item");
+        if (item) {
+          var docId = item.getAttribute("data-docid");
+          if (docId) openDoc(docId);
+        }
+      });
+    }
+  }
+  function currentTitle() {
+    for (var i = 0; i < state.docs.length; i++) {
+      if (state.docs[i].id === _currentId) return state.docs[i].title || "";
+    }
+    return "";
+  }
+  function redraw() {
+    var d = null;
+    for (var i = 0; i < state.docs.length; i++) {
+      if (state.docs[i].id === _currentId) {
+        d = state.docs[i];
+        break;
+      }
+    }
+    render(d);
+  }
+  function renderBacklinks(d) {
+    bindEvents();
+    _currentId = d ? d.id : null;
+    render(d);
+  }
+  function forceRecompute() {
+    redraw();
+  }
+
   // src-app/07-doc-open.js
   function updateInfoPanel(d, kind) {
     var fmtName = {
@@ -6531,6 +6767,7 @@
         outlineCard.innerHTML = items ? '<div class="card-title"><svg viewBox="0 0 24 24"><path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2z"/></svg>\u5927\u7EB2</div>' + items : '<div class="card-title"><svg viewBox="0 0 24 24"><path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2z"/></svg>\u5927\u7EB2</div><div style="font-size:12px;color:var(--text-faint);padding:4px 8px">\u6682\u65E0\u6807\u9898\u884C<br><small>\u4EE5\u300C#\u300D\u5F00\u5934\u7684\u884C\u4F1A\u51FA\u73B0\u5728\u8FD9\u91CC</small></div>';
       }
     }
+    renderBacklinks(d);
   }
   function goLine(n) {
     try {

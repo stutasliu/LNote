@@ -2106,3 +2106,126 @@
 #editor-wrap { flex: 1; display: flex; min-height: 0; height: 100%; }
 #editor-wrap > * { min-height: 0; }
 
+/* ==================== 反向链接卡片（Obsidian 风格） ==================== */
+#backlinksCard .card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#backlinksCard .card-title > svg {
+  width: 15px; height: 15px;
+  color: var(--text-faint);
+  flex: 0 0 auto;
+}
+#backlinksCard .bl-count {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-weight: 400;
+}
+#backlinksCard .bl-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.bl-tool {
+  width: 22px; height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  border-radius: 5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .12s, color .12s;
+}
+.bl-tool:hover { background: var(--bg-hover); color: var(--primary); }
+.bl-tool svg { width: 14px; height: 14px; }
+.bl-tool.active { background: rgba(51, 112, 255, .14); color: var(--primary); }
+.bl-filter {
+  width: 58px;
+  height: 22px;
+  border: 1px solid var(--border-light);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 11px;
+  padding: 0 6px;
+  outline: none;
+  transition: width .15s;
+}
+.bl-filter:focus { width: 110px; border-color: var(--primary); }
+.bl-filter::placeholder { color: var(--text-faint); }
+
+#bl-content { padding: 4px 0 2px; }
+.bl-empty {
+  font-size: 12px;
+  color: var(--text-faint);
+  padding: 10px 8px;
+  line-height: 1.6;
+}
+.bl-group { margin-bottom: 6px; }
+.bl-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+}
+.bl-group-n {
+  margin-left: 4px;
+  font-size: 10px;
+  color: var(--text-faint);
+  background: var(--bg-hover);
+  border-radius: 8px;
+  padding: 0 6px;
+}
+.bl-item {
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .12s;
+}
+.bl-item:hover { background: var(--bg-hover); }
+.bl-item-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bl-item-n {
+  font-size: 10px;
+  color: var(--text-faint);
+  font-weight: 400;
+}
+.bl-item-ctx {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin-top: 3px;
+  background: rgba(255, 193, 7, .08);
+  border-left: 2px solid rgba(255, 193, 7, .45);
+  padding: 2px 6px;
+  border-radius: 0 4px 4px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bl-link-btn {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--primary);
+  background: rgba(51, 112, 255, .08);
+  border: 1px solid rgba(51, 112, 255, .28);
+  border-radius: 5px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: background .12s;
+}
+.bl-link-btn:hover { background: rgba(51, 112, 255, .16); }
+

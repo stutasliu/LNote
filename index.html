@@ -425,6 +425,27 @@
           </div>
           <!-- 大纲卡片（动态渲染：经典文档显示行大纲，富文档由底部飞书式大纲接管） -->
           <div class="md3-card" id="outlineCard"></div>
+          <!-- 反向链接卡片（Obsidian 风格：链接当前文件 / 提到当前文件名 + 折叠·上下文·排序·筛选 + 转为链接） -->
+          <div class="md3-card" id="backlinksCard">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              反向链接
+              <span class="bl-count" id="bl-count"></span>
+              <div class="bl-tools">
+                <button class="bl-tool" id="bl-fold" title="折叠：只显示文件名">
+                  <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h16" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+                </button>
+                <button class="bl-tool" id="bl-ctx" title="展示上下文">
+                  <svg viewBox="0 0 24 24"><path d="M4 5h6v6H4zM14 5h6v6h-6zM4 15h6v6H4zM14 15h6v6h-6z" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
+                </button>
+                <button class="bl-tool" id="bl-sort" title="排序">
+                  <svg viewBox="0 0 24 24"><path d="M7 4v16m0 0l-3-3m3 3l3-3M17 20V4m0 0l-3 3m3-3l3 3" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <input class="bl-filter" id="bl-filter" type="text" placeholder="筛选" title="输入关键词筛选结果">
+              </div>
+            </div>
+            <div id="bl-content"></div>
+          </div>
           <!-- 快捷操作 -->
           <div class="md3-card">
             <div class="card-title">

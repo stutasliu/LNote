@@ -11,6 +11,7 @@ import { ensureRichDiskPath } from './09-rich-save.js';
 import { updatePreviewVisibility, updateStatus } from './10-status-preview.js';
 import { dirOf, getApi, hasApi } from './13-api-path.js';
 import { saveDiskDoc, toast } from './16-doc-ops.js';
+import { renderBacklinks } from './21-backlinks.js';
   /* ---------------- 渲染：编辑区 ---------------- */
   // v0.20.35：原型信息面板（属性 + 动态大纲）更新
   function updateInfoPanel(d, kind) {
@@ -88,6 +89,9 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
           : '<div class="card-title"><svg viewBox="0 0 24 24"><path d="M3 9h14V7H3v2zm0 4h14v-2H3v2zm0 4h14v-2H3v2z"/></svg>大纲</div><div style="font-size:12px;color:var(--text-faint);padding:4px 8px">暂无标题行<br><small>以「#」开头的行会出现在这里</small></div>';
       }
     }
+
+    // 反向链接卡片（Obsidian 风格）：随当前文档切换刷新
+    renderBacklinks(d);
   }
 
   // v0.20.35：信息面板大纲点击 → 跳转到对应行
