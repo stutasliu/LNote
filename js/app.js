@@ -7909,9 +7909,21 @@
   document.addEventListener("keydown", function(e) {
     if (e.key === "Escape" && els.imageModal.style.display === "flex") closeImageModal();
   });
+  function hasClipboardText(cd) {
+    if (!cd || !cd.getData) return false;
+    try {
+      var pt = cd.getData("text/plain");
+      if (pt && String(pt).trim()) return true;
+      var htm = cd.getData("text/html");
+      return !!(htm && String(htm).trim());
+    } catch (e) {
+      return false;
+    }
+  }
   cm.on("paste", function(cm2, e) {
     var cd = e.clipboardData || window.clipboardData;
     if (!cd || !cd.items) return;
+    if (hasClipboardText(cd)) return;
     for (var i = 0; i < cd.items.length; i++) {
       var it = cd.items[i];
       if (it.kind === "file" && it.type && it.type.indexOf("image/") === 0) {

@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { initEvents, toolMenu, convertMenu, pb, splitDrag, MIN_PANE, sideDrag, SIDE_MIN, SIDE_MAX, syncSideWidth, ttMenu, ctxMenu, docCtxMenu, docCtxId, ctxDebug, __ctxLast, paintCtxDebug, isPlainEditorTarget, openCtxMenu, openDocCtxMenu, closeCtxMenu, handleCtxCmd, handleDocCtxCmd, initCtxMenu, fontSize, applyFontSize };
+export { initEvents, toolMenu, convertMenu, pb, splitDrag, MIN_PANE, sideDrag, SIDE_MIN, SIDE_MAX, syncSideWidth, ttMenu, ctxMenu, docCtxMenu, docCtxId, ctxDebug, __ctxLast, paintCtxDebug, isPlainEditorTarget, openCtxMenu, openDocCtxMenu, closeCtxMenu, handleCtxCmd, handleDocCtxCmd, initCtxMenu, fontSize, applyFontSize, hasClipboardText };
 /* [esm] 导入依赖模块绑定 */
 import { $, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, els, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
@@ -607,10 +607,26 @@ import { translateSelection } from './22-translate.js';
     if (e.key === 'Escape' && els.imageModal.style.display === 'flex') closeImageModal();
   });
 
+  // v0.21.3：剪贴板是否携带可用文本。
+  // Excel/WPS 复制选区时剪贴板同时含文本（Tab 分隔表格）与图片（选区渲染图），
+  // 此时应粘贴文本而非图片 —— 有非空文本（含 HTML 富文本）即视为文本粘贴。
+  function hasClipboardText(cd) {
+    if (!cd || !cd.getData) return false;
+    try {
+      var pt = cd.getData('text/plain');
+      if (pt && String(pt).trim()) return true;
+      var htm = cd.getData('text/html');
+      return !!(htm && String(htm).trim());
+    } catch (e) { return false; }
+  }
+
   // 粘贴图片自动插入（Markdown / HTML 文档）
+  // v0.21.3：文本优先 —— 剪贴板含文本时不拦截，交给默认粘贴；
+  // 纯图片（如从浏览器/文件管理器复制）才走图片插入。
   cm.on('paste', function (cm2, e) {
     var cd = e.clipboardData || window.clipboardData;
     if (!cd || !cd.items) return;
+    if (hasClipboardText(cd)) return;
     for (var i = 0; i < cd.items.length; i++) {
       var it = cd.items[i];
       if (it.kind === 'file' && it.type && it.type.indexOf('image/') === 0) {
