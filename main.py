@@ -467,6 +467,32 @@ class InkpadApi:
             f.write(data)
         return True
 
+    # ---------- 在线翻译 ----------
+
+    def translate(self, text: str, target: str = "auto"):
+        """翻译文本（在线，需联网）。立即返回 {"started": True}，不阻塞 UI；
+        结果由 worker 线程通过 evaluate_js 调用 window.__inkpadTranslateCb 回调推送。
+        target 取 "zh"/"en"/"ja"/"ko" 等，缺省 "auto" 按文本内容自动判断。"""
+        if not text or not str(text).strip():
+            return {"error": "没有可翻译的内容"}
+        text = str(text).strip()
+        if len(text) > 1500:
+            return {"error": "单次最多翻译 1500 字符"}
+        if target == "auto":
+            target = "zh" if _looks_chinese(text) else "en"
+
+        def worker():
+            result = _do_translate(text, target)
+            js = "if (window.__inkpadTranslateCb) window.__inkpadTranslateCb(%s);" % json.dumps(result, ensure_ascii=False)
+            try:
+                if self._window:
+                    self._window.evaluate_js(js)
+            except Exception:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+        return {"started": True}
+
     # ---------- 编码工具 ----------
 
     _UI_ENCS = {
@@ -551,6 +577,57 @@ _MIME_MAP = {
 def _guess_mime(path: str) -> str:
     ext = os.path.splitext(path)[1].lower()
     return _MIME_MAP.get(ext, "application/octet-stream")
+
+
+def _looks_chinese(text: str) -> bool:
+    """粗判文本是否以中文为主：含 CJK 汉字且数量不小于英文字母数。"""
+    cjk = sum(1 for ch in text if "\u4e00" <= ch <= "\u9fff")
+    latin = sum(1 for ch in text if ch.isascii() and ch.isalpha())
+    return cjk > 0 and cjk >= max(latin, 1)
+
+
+def _do_translate(text: str, target: str) -> dict:
+    """执行翻译请求。优先 Google 非官方端点，失败回退 MyMemory。
+    返回 {"ok": True, "text": 译文, "detected": 源语言, "target": 目标语言} 或 {"error": ...}。"""
+    import urllib.parse
+    import urllib.request
+
+    def google():
+        url = ("https://translate.googleapis.com/translate_a/single"
+               "?client=gtx&sl=auto&tl=%s&dt=t&q=%s"
+               % (urllib.parse.quote(target), urllib.parse.quote(text)))
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        segs = data[0] if isinstance(data, list) and data else []
+        out = "".join(s[0] for s in segs if isinstance(s, list) and s and isinstance(s[0], str))
+        if not out:
+            raise ValueError("翻译结果为空")
+        detected = data[2] if len(data) > 2 else ""
+        return {"ok": True, "text": out, "detected": str(detected or ""), "target": target}
+
+    def mymemory():
+        src = "zh-CN" if _looks_chinese(text) else "en"
+        dst = {"zh": "zh-CN", "en": "en"}.get(target, target)
+        url = ("https://api.mymemory.translated.net/get?q=%s&langpair=%s|%s"
+               % (urllib.parse.quote(text), src, dst))
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        out = (data.get("responseData") or {}).get("translatedText") or ""
+        if out:
+            out = out.replace("&#39;", "'").replace("&quot;", '"').replace("&amp;", "&")
+        if not out:
+            raise ValueError("翻译结果为空")
+        return {"ok": True, "text": out, "detected": "", "target": target}
+
+    last = None
+    for fn in (google, mymemory):
+        try:
+            return fn()
+        except Exception as e:
+            last = e
+    return {"error": "翻译失败：" + str(last)}
 
 
 def main():

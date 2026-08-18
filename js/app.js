@@ -7120,6 +7120,133 @@
     els.btnInsertImage.style.display = d && (d.lang === "markdown" || d.lang === "html") ? "" : "none";
   }
 
+  // src-app/22-translate.js
+  function detectLang(text) {
+    var t = String(text == null ? "" : text);
+    var cjk = 0;
+    var latin = 0;
+    for (var i = 0; i < t.length; i++) {
+      var c = t.charCodeAt(i);
+      if (c >= 19968 && c <= 40959) cjk++;
+      else if (c >= 65 && c <= 90 || c >= 97 && c <= 122) latin++;
+    }
+    return cjk > 0 && cjk >= Math.max(latin, 1) ? "zh" : "en";
+  }
+  function targetFor(src) {
+    return src === "zh" ? "en" : "zh";
+  }
+  function buildQuery(text) {
+    var t = String(text == null ? "" : text).trim();
+    if (t.length > 1500) t = t.slice(0, 1500);
+    return t;
+  }
+  function _langLabel(lang) {
+    if (lang === "zh") return "\u4E2D\u6587";
+    if (lang === "en") return "\u82F1\u6587";
+    return String(lang || "").toUpperCase();
+  }
+  var __trCb = null;
+  var __trTimer = null;
+  function callTranslate(text, target) {
+    if (hasApi()) {
+      return new Promise(function(resolve) {
+        __trCb = resolve;
+        if (__trTimer) clearTimeout(__trTimer);
+        __trTimer = setTimeout(function() {
+          __trTimer = null;
+          if (__trCb) {
+            var cb = __trCb;
+            __trCb = null;
+            cb({ error: "\u7FFB\u8BD1\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC" });
+          }
+        }, 2e4);
+        getApi().translate(text, target).catch(function(e) {
+          if (__trCb) {
+            var cb2 = __trCb;
+            __trCb = null;
+            if (__trTimer) clearTimeout(__trTimer);
+            cb2({ error: String(e && e.message || e) });
+          }
+        });
+      });
+    }
+    var url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=" + encodeURIComponent(target) + "&dt=t&q=" + encodeURIComponent(text);
+    return fetch(url).then(function(resp) {
+      return resp.json();
+    }).then(function(data) {
+      var segs = data && data[0] ? data[0] : [];
+      var out = "";
+      for (var i = 0; i < segs.length; i++) {
+        if (segs[i] && segs[i][0]) out += segs[i][0];
+      }
+      if (!out) return { error: "\u7FFB\u8BD1\u7ED3\u679C\u4E3A\u7A7A" };
+      return { ok: true, text: out, target };
+    });
+  }
+  window.__inkpadTranslateCb = function(r) {
+    if (__trCb) {
+      var cb = __trCb;
+      __trCb = null;
+      if (__trTimer) clearTimeout(__trTimer);
+      cb(r || { error: "\u7FFB\u8BD1\u7ED3\u679C\u4E3A\u7A7A" });
+    }
+  };
+  function translateSelection() {
+    var text = buildQuery(cm.getSelection());
+    if (!text) {
+      toast("\u8BF7\u5148\u9009\u4E2D\u8981\u7FFB\u8BD1\u7684\u5185\u5BB9", "error");
+      return;
+    }
+    var src = detectLang(text);
+    var target = targetFor(src);
+    var orig = $("translate-orig");
+    var result = $("translate-result");
+    if (!orig || !result) {
+      toast("\u7FFB\u8BD1\u7A97\u53E3\u4E0D\u5B58\u5728", "error");
+      return;
+    }
+    orig.textContent = text;
+    result.textContent = "\u7FFB\u8BD1\u4E2D\u2026";
+    $("translate-src-label").textContent = "\u539F\u6587\uFF08" + _langLabel(src) + "\uFF09";
+    $("translate-dst-label").textContent = "\u8BD1\u6587\uFF08" + _langLabel(target) + "\uFF09";
+    openSingleModal("translate-modal");
+    callTranslate(text, target).then(function(r) {
+      if (r && r.error) {
+        result.textContent = "\u7FFB\u8BD1\u5931\u8D25\uFF1A" + r.error;
+        toast("\u7FFB\u8BD1\u5931\u8D25", "error");
+        return;
+      }
+      result.textContent = r && r.text ? r.text : "\uFF08\u65E0\u7ED3\u679C\uFF09";
+    }).catch(function(e) {
+      result.textContent = "\u7FFB\u8BD1\u5931\u8D25\uFF1A" + String(e && e.message || e);
+      toast("\u7FFB\u8BD1\u5931\u8D25", "error");
+    });
+  }
+  function closeTranslateModal() {
+    var m = $("translate-modal");
+    if (m) m.style.display = "none";
+  }
+  $("translate-close").addEventListener("click", closeTranslateModal);
+  $("translate-ok").addEventListener("click", closeTranslateModal);
+  $("translate-copy").addEventListener("click", function() {
+    var t = $("translate-result").textContent;
+    if (!t || t === "\u7FFB\u8BD1\u4E2D\u2026") {
+      toast("\u6682\u65E0\u8BD1\u6587\u53EF\u590D\u5236", "error");
+      return;
+    }
+    copyToClipboard(t).then(function() {
+      toast("\u8BD1\u6587\u5DF2\u590D\u5236", "success");
+    }).catch(function() {
+      toast("\u590D\u5236\u5931\u8D25", "error");
+    });
+  });
+  $("translate-modal").addEventListener("click", function(e) {
+    if (e.target === $("translate-modal")) closeTranslateModal();
+  });
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape" && $("translate-modal") && $("translate-modal").style.display === "flex") closeTranslateModal();
+  });
+
   // src-app/17-events.js
   function initEvents() {
     cm.on("change", function() {
@@ -7475,6 +7602,9 @@
         break;
       case "cmt":
         cm.execCommand("toggleComment");
+        break;
+      case "translate":
+        translateSelection();
         break;
       case "json-format":
         runTool("format");

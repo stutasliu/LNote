@@ -1007,6 +1007,27 @@ old = new"></textarea>
   </div>
 </div>
 
+<!-- 翻译弹窗（v0.21：右键菜单「翻译」→ 弹窗展示译文） -->
+<div id="translate-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card translate-card">
+    <div class="modal-head">
+      <span class="modal-title">翻译</span>
+      <button class="icon-btn" id="translate-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body translate-body">
+      <div class="tr-label" id="translate-src-label">原文</div>
+      <div class="tr-box" id="translate-orig"></div>
+      <div class="tr-arrow">↓</div>
+      <div class="tr-label" id="translate-dst-label">译文</div>
+      <div class="tr-box" id="translate-result"></div>
+    </div>
+    <div class="modal-foot translate-foot">
+      <button class="tool-btn" id="translate-copy">复制译文</button>
+      <button class="tool-btn primary" id="translate-ok">完成</button>
+    </div>
+  </div>
+</div>
+
 <!-- 矢量图标定义（供 md.js 渲染 :icon-xxx: 与图标面板使用） -->
 <script src="js/icons.js"></script>
 <script src="js/block-editor.js"></script>
@@ -1041,6 +1062,12 @@ old = new"></textarea>
     </button>
     <button class="ctx-item ctx-item-danger" data-cmd="del">
       <span class="ctx-icon">✕</span><span class="ctx-label">删除选中</span><span class="ctx-shortcut">Delete</span>
+    </button>
+  </div>
+  <div class="ctx-divider"></div>
+  <div class="ctx-group">
+    <button class="ctx-item" data-cmd="translate">
+      <span class="ctx-icon">译</span><span class="ctx-label">翻译</span><span class="ctx-shortcut">选中内容</span>
     </button>
   </div>
   <div class="ctx-divider"></div>

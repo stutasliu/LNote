@@ -16,6 +16,7 @@ import { applyImgZoom, closeImageModal, fitImage, openFolder, openDiskFile, swit
 import { closeAllToolMenus, closeCalloutModal, closeCodeModal, closeIconModal, closeInsertMenu, closeTableModal, filterIcons, handlePastedImage, insertCallout, insertCode, insertImageFile, insertTable, openInsertMenu, openSingleModal, routeInsert, scheduleFoldDataUris, showMenuAtMoreBtn } from './15-insert.js';
 import { exportDoc, importFile, newDoc, openCompareWindow, openEncModal, setLang, toast } from './16-doc-ops.js';
 import { openFindModal } from './19-find-replace.js';
+import { translateSelection } from './22-translate.js';
   /* ---------------- 事件绑定 ----------------
    * Phase ESM：直接操作 cm 的绑定收敛为 initEvents()，由入口模块
    * 装配调用（此时 04 已完成 CodeMirror 初始化），消除 ESM 环内
@@ -353,6 +354,8 @@ import { openFindModal } from './19-find-replace.js';
       case 'selectall': cm.execCommand('selectAll'); break;
       case 'del': document.execCommand('delete'); break;
       case 'cmt': cm.execCommand('toggleComment'); break;
+      // v0.21：右键「翻译」→ 弹窗展示
+      case 'translate': translateSelection(); break;
       // v0.20.45：右键菜单 JSON 工具（复用工具栏 JSON 工具集）
       case 'json-format': runTool('format'); break;
       case 'json-compress': runTool('compress'); break;

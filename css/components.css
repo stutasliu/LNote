@@ -823,6 +823,32 @@
 .modal-title { font-size: 15px; font-weight: 600; }
 .modal-body { padding: 18px; }
 
+/* ---- 翻译弹窗（v0.21：右键菜单「翻译」→ 弹窗展示译文） ---- */
+.translate-card { width: 640px; }
+.translate-body { display: flex; flex-direction: column; }
+.tr-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.tr-box {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow: auto;
+  color: var(--text);
+}
+.tr-arrow { text-align: center; color: var(--accent); font-size: 13px; padding: 8px 0; }
+.translate-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--border);
+}
+
 /* ---- 输入框（表格/代码块弹窗） ---- */
 .tool-input {
   border: 1px solid var(--border);
