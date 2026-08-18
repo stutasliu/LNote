@@ -105,7 +105,7 @@
     <div class="logo">L.</div>
     <h1>反向链接 · 操作指南</h1>
     <p class="tagline">L.Note（Inkpad）内置 Obsidian 风格反向链接面板，帮你发现文档之间的关联</p>
-    <div class="badge">版本 v0.20.44 · 纯本地运行 · <b>4 步上手</b></div>
+    <div class="badge">版本 v0.21.4 · 纯本地运行 · <b>4 步上手</b></div>
   </header>
 
   <div class="intro">
@@ -123,42 +123,45 @@
         <div class="step-title">在其他文档中引用标题</div>
         <div class="step-desc">
           在任意文档正文写入 <code>[[目标文档标题]]</code> 即为<b>内部链接</b>（也支持 <code>[[标题|别名]]</code>）；
-          或者直接输入目标文档的<b>标题文字</b>，它会被识别为"潜在引用"。
+          写入的瞬间编辑器就会<b>高亮显示</b>这段链接，让你立刻知道它生效了。
+          也可以直接输入目标文档的<b>标题文字</b>，它会被识别为"潜在引用"。
         </div>
       </div>
       <div class="step-shot">
-        <img src="screenshots/blink-1.png" alt="步骤1：在其他文档中引用标题">
-        <div class="shot-cap">在「笔记一」中写了 [[Obsidian 教程]]，并再次提到"Obsidian 教程"</div>
+        <img src="screenshots/blink-2.png" alt="步骤1：在其他文档中引用标题">
+        <div class="shot-cap">「笔记一」中的 [[Obsidian 教程]] 被蓝色下划线高亮</div>
       </div>
     </div>
 
     <div class="step">
       <div>
         <div class="step-num">2</div>
-        <div class="step-title">打开目标文档，查看反向链接面板</div>
+        <div class="step-title">打开目标文档，反向链接自动出现</div>
         <div class="step-desc">
-          打开被引用的文档（Obsidian 教程），点击右上角<b>「文档信息」</b>展开右侧面板，向下即可看到「反向链接」卡片。
-          卡片分两组：<b>链接当前文件</b>（明确链接，黄色高亮上下文）与 <b>提到当前文件名</b>（潜在引用）。
+          打开被引用的文档（Obsidian 教程），右上角<b>「文档信息」按钮上会显示红色计数徽标</b>，
+          右侧信息面板会<b>自动展开</b>，直接看到「反向链接」卡片。卡片分两组：
+          <b>链接当前文件</b>（明确链接）与 <b>提到当前文件名</b>（潜在引用，带「转为链接」按钮）。
         </div>
       </div>
       <div class="step-shot">
-        <img src="screenshots/blink-2.png" alt="步骤2：反向链接面板">
-        <div class="shot-cap">链接当前文件 1 篇 · 提到当前文件名 2 篇</div>
+        <img src="screenshots/blink-1.png" alt="步骤2：反向链接面板">
+        <div class="shot-cap">徽标显示 2 · 面板自动展开：链接 1 篇 + 提到 1 篇</div>
       </div>
     </div>
 
     <div class="step">
       <div>
         <div class="step-num">3</div>
-        <div class="step-title">用工具栏快速定位</div>
+        <div class="step-title">点击链接，一键跳转</div>
         <div class="step-desc">
-          卡片右上角工具栏：<b>折叠</b>（只显示文件名）、<b>上下文</b>（显示/隐藏所在段落）、
-          <b>排序</b>（按更新时间升降）、<b>筛选</b>（输入关键词过滤）。输入"读书"即可只看读书笔记。
+          编辑器里高亮的 <code>[[链接]]</code> 是可以点击的——单击它，
+          会直接跳转到目标文档；反向链接面板里的<b>每一条记录同样可以点击打开</b>，
+          在笔记之间穿梭就像浏览网页一样。
         </div>
       </div>
       <div class="step-shot">
-        <img src="screenshots/blink-3.png" alt="步骤3：筛选结果">
-        <div class="shot-cap">筛选"读书" → 仅保留读书笔记</div>
+        <img src="screenshots/blink-3.png" alt="步骤3：点击链接跳转">
+        <div class="shot-cap">点击 [[Obsidian 教程]] 后直接打开目标文档</div>
       </div>
     </div>
 
@@ -168,12 +171,13 @@
         <div class="step-title">一键「转为链接」</div>
         <div class="step-desc">
           在「提到当前文件名」分组里，点击某条记录右侧的<b>「转为链接」</b>按钮，
-          该文档正文中的标题文字会自动变成 <code>[[标题]]</code>，随即归入「链接当前文件」，形成正式关联。
+          该文档正文中的标题文字会自动变成 <code>[[标题]]</code>，随即归入「链接当前文件」，
+          形成正式关联——面板会<b>实时刷新</b>，无需手动重新打开。
         </div>
       </div>
       <div class="step-shot">
         <img src="screenshots/blink-4.png" alt="步骤4：转为链接后">
-        <div class="shot-cap">点击「转为链接」后，读书笔记移入「链接当前文件」</div>
+        <div class="shot-cap">点击「转为链接」后，会议纪要移入「链接当前文件」，原文变为 [[Obsidian 教程]]</div>
       </div>
     </div>
   </section>
