@@ -324,8 +324,8 @@
       var toRemove = [];
       for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i);
-        if (k && k.indexOf("inkpad.content.") === 0) {
-          var cid = k.slice("inkpad.content.".length);
+        if (k && (k.indexOf("inkpad.content.") === 0 || k.indexOf("inkpad.cursor.") === 0)) {
+          var cid = k.indexOf("inkpad.content.") === 0 ? k.slice("inkpad.content.".length) : k.slice("inkpad.cursor.".length);
           if (!seen[cid]) toRemove.push(k);
         }
       }
@@ -350,6 +350,31 @@
       if (state.docs[i].id === state.activeId) return state.docs[i];
     }
     return null;
+  }
+  function saveCursorPos(id, pos) {
+    if (!id || !pos) return;
+    try {
+      localStorage.setItem("inkpad.cursor." + id, JSON.stringify({ line: pos.line | 0, ch: pos.ch | 0 }));
+    } catch (e) {
+    }
+  }
+  function loadCursorPos(id) {
+    if (!id) return null;
+    try {
+      var raw = localStorage.getItem("inkpad.cursor." + id);
+      if (!raw) return null;
+      var p = JSON.parse(raw);
+      if (p && typeof p.line === "number" && typeof p.ch === "number") return { line: p.line, ch: p.ch };
+    } catch (e) {
+    }
+    return null;
+  }
+  function clampCursorPos(pos, text) {
+    if (!pos) return null;
+    var lines = String(text == null ? "" : text).split("\n");
+    var line = Math.max(0, Math.min(pos.line | 0, lines.length - 1));
+    var ch = Math.max(0, Math.min(pos.ch | 0, lines[line].length));
+    return { line, ch };
   }
 
   // src-app/13-api-path.js
@@ -6872,7 +6897,19 @@
     } catch (e) {
     }
   }
+  function restoreCursor(d, text) {
+    if (!d || !cm || !cm.setCursor) return;
+    var saved = loadCursorPos(d.id);
+    if (!saved) return;
+    var pos = clampCursorPos(saved, text);
+    cm.setCursor(pos);
+    cm.scrollIntoView(pos);
+  }
   function openDoc(id) {
+    var prevD = activeDoc();
+    if (prevD && prevD.id !== id && cm && (!prevD.kind || prevD.kind === "text")) {
+      saveCursorPos(prevD.id, cm.getCursor());
+    }
     state.activeId = id;
     var d = activeDoc();
     if (!d) return;
@@ -6973,6 +7010,7 @@
     cm.setValue(d.content || "");
     cm.setOption("mode", LANGS[d.lang] ? LANGS[d.lang].mime : "text/plain");
     cm.clearHistory();
+    restoreCursor(d, d.content || "");
     els.langSelect.value = d.lang || "plaintext";
     var isDiagram = d.lang === "mermaid";
     els.breadcrumb.textContent = isDiagram ? "\u{1F4CA}" : "\u{1F4DD}";
@@ -7006,6 +7044,7 @@
         cm.setValue(diskContent);
         cm.setOption("mode", LANGS[d.lang] ? LANGS[d.lang].mime : "text/plain");
         cm.clearHistory();
+        restoreCursor(d, diskContent);
         updatePreviewVisibility();
         updateStatus();
         renderList();
@@ -7093,7 +7132,18 @@
     cm.on("swapDoc", function() {
       scheduleFoldDataUris();
     });
-    cm.on("cursorActivity", updateStatus);
+    var __curTimer = null;
+    cm.on("cursorActivity", function() {
+      updateStatus();
+      var d = activeDoc();
+      if (!d || d.kind && d.kind !== "text") return;
+      var pos = cm.getCursor();
+      if (__curTimer) clearTimeout(__curTimer);
+      __curTimer = setTimeout(function() {
+        __curTimer = null;
+        saveCursorPos(d.id, pos);
+      }, 300);
+    });
   }
   els.title.addEventListener("input", function() {
     if (state.currentVisual) onVisualChange();

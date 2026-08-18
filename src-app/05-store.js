@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { loadDocs, persist, uid, activeDoc };
+export { loadDocs, persist, uid, activeDoc, saveCursorPos, loadCursorPos, clampCursorPos };
 /* [esm] 导入依赖模块绑定 */
 import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
 
@@ -98,13 +98,15 @@ import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
       try { localStorage.setItem('inkpad.content.' + d.id, d.content || ''); }
       catch (e) { /* 超出本地存储上限，内容改由磁盘文件保存 */ }
     });
-    // 3) 清理已删除文档遗留的正文
+    // 3) 清理已删除文档遗留的正文 / 光标位置
     try {
       var toRemove = [];
       for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i);
-        if (k && k.indexOf('inkpad.content.') === 0) {
-          var cid = k.slice('inkpad.content.'.length);
+        if (k && (k.indexOf('inkpad.content.') === 0 || k.indexOf('inkpad.cursor.') === 0)) {
+          var cid = k.indexOf('inkpad.content.') === 0
+            ? k.slice('inkpad.content.'.length)
+            : k.slice('inkpad.cursor.'.length);
           if (!seen[cid]) toRemove.push(k);
         }
       }
@@ -122,4 +124,34 @@ import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
       if (state.docs[i].id === state.activeId) return state.docs[i];
     }
     return null;
+  }
+
+  /* ---------------- 光标位置记忆 ----------------
+   * 每个文本文档独立保存最后一次光标位置（inkpad.cursor.<docId>），
+   * 重新打开文档 / 应用重启后恢复到该位置，而不是回到文档开头。 */
+  function saveCursorPos(id, pos) {
+    if (!id || !pos) return;
+    try {
+      localStorage.setItem('inkpad.cursor.' + id, JSON.stringify({ line: pos.line | 0, ch: pos.ch | 0 }));
+    } catch (e) {}
+  }
+
+  function loadCursorPos(id) {
+    if (!id) return null;
+    try {
+      var raw = localStorage.getItem('inkpad.cursor.' + id);
+      if (!raw) return null;
+      var p = JSON.parse(raw);
+      if (p && typeof p.line === 'number' && typeof p.ch === 'number') return { line: p.line, ch: p.ch };
+    } catch (e) {}
+    return null;
+  }
+
+  // 把记忆的光标位置钳制在文档实际行/列范围内（文档可能已被外部改短）
+  function clampCursorPos(pos, text) {
+    if (!pos) return null;
+    var lines = String(text == null ? '' : text).split('\n');
+    var line = Math.max(0, Math.min(pos.line | 0, lines.length - 1));
+    var ch = Math.max(0, Math.min(pos.ch | 0, lines[line].length));
+    return { line: line, ch: ch };
   }

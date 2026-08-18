@@ -4,7 +4,7 @@ export { updateInfoPanel, goLine, openDoc, updatePreviewBtn, refreshTextDocFromD
 import { LANGS, els, state } from './01-core.js';
 import { richOutline, richOutlineVisible } from './02-rich-outline.js';
 import { cm } from './04-editor-init.js';
-import { activeDoc, persist } from './05-store.js';
+import { activeDoc, persist, saveCursorPos, loadCursorPos, clampCursorPos } from './05-store.js';
 import { fullTime, renderList } from './06-doc-list.js';
 import { openVisual } from './08-visual.js';
 import { ensureRichDiskPath } from './09-rich-save.js';
@@ -112,7 +112,22 @@ import { renderBacklinks } from './21-backlinks.js';
     } catch (e) {}
   }
 
+  // 打开 / 刷新文本文档后，把光标恢复到上次离开时的位置并滚动到可见处
+  function restoreCursor(d, text) {
+    if (!d || !cm || !cm.setCursor) return;
+    var saved = loadCursorPos(d.id);
+    if (!saved) return;
+    var pos = clampCursorPos(saved, text);
+    cm.setCursor(pos);
+    cm.scrollIntoView(pos);
+  }
+
   function openDoc(id) {
+    // 切换前记住上一个文本文档的光标位置（重新打开该文档时恢复，而不是回到开头）
+    var prevD = activeDoc();
+    if (prevD && prevD.id !== id && cm && (!prevD.kind || prevD.kind === 'text')) {
+      saveCursorPos(prevD.id, cm.getCursor());
+    }
     state.activeId = id;
     var d = activeDoc();
     if (!d) return;
@@ -217,6 +232,7 @@ import { renderBacklinks } from './21-backlinks.js';
     cm.setValue(d.content || '');
     cm.setOption('mode', LANGS[d.lang] ? LANGS[d.lang].mime : 'text/plain');
     cm.clearHistory();
+    restoreCursor(d, d.content || '');
     els.langSelect.value = d.lang || 'plaintext';
 
     var isDiagram = d.lang === 'mermaid';
@@ -262,6 +278,7 @@ import { renderBacklinks } from './21-backlinks.js';
         cm.setValue(diskContent);
         cm.setOption('mode', LANGS[d.lang] ? LANGS[d.lang].mime : 'text/plain');
         cm.clearHistory();
+        restoreCursor(d, diskContent);
         updatePreviewVisibility();
         updateStatus();
         renderList();

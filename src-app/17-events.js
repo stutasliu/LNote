@@ -3,7 +3,7 @@ export { initEvents, toolMenu, convertMenu, pb, splitDrag, MIN_PANE, sideDrag, S
 /* [esm] 导入依赖模块绑定 */
 import { $, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, els, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
-import { activeDoc } from './05-store.js';
+import { activeDoc, saveCursorPos } from './05-store.js';
 import { closeDocDelConfirm, deleteDoc, openDocDelConfirm, pendingDelId, openTagEditModal } from './06-doc-list.js';
 import { openDoc } from './07-doc-open.js';
 import { onVisualChange } from './08-visual.js';
@@ -29,7 +29,19 @@ import { openFindModal } from './19-find-replace.js';
       scheduleFoldDataUris();
     });
     cm.on('swapDoc', function () { scheduleFoldDataUris(); });
-    cm.on('cursorActivity', updateStatus);
+    // 光标位置记忆（防抖 300ms）：切换文档 / 重开应用时恢复到上次位置，而不是回到文档开头
+    var __curTimer = null;
+    cm.on('cursorActivity', function () {
+      updateStatus();
+      var d = activeDoc();
+      if (!d || (d.kind && d.kind !== 'text')) return;
+      var pos = cm.getCursor();
+      if (__curTimer) clearTimeout(__curTimer);
+      __curTimer = setTimeout(function () {
+        __curTimer = null;
+        saveCursorPos(d.id, pos);
+      }, 300);
+    });
   }
 
   els.title.addEventListener('input', function () {
