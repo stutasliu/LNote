@@ -7,7 +7,7 @@ import { persist } from './05-store.js';
 import { openDoc } from './07-doc-open.js';
 import { folderState } from './14-filetree-image.js';
 import { openSingleModal } from './15-insert.js';
-import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, findDoc, saveDocTags, collectAllTags, newSticky, saveSticky, openStickyEditor, setTagExpiry, clearTagExpiry, cleanupExpiredTags, matchReminder, toLocalInput, fromLocalInput, fmtStamp } from './16-doc-ops.js';
+import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, findDoc, saveDocTags, collectAllTags, newSticky, saveSticky, openStickyEditor, setTagExpiry, clearTagExpiry, cleanupExpiredTags, matchReminder, toLocalInput, fromLocalInput, fmtStamp, revealInFolder } from './16-doc-ops.js';
   /* ---------------- 渲染：侧栏（飞书风格：按时间分组 + 置顶优先） ---------------- */
   function renderList() {
     els.docList.innerHTML = '';
@@ -271,6 +271,7 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
       '<div class="doc-menu-divider"></div>' +
       '<div class="doc-menu-item" data-cmd="tag"><svg viewBox="0 0 24 24"><path d="M20 12l-8 8-8-8V4h8l8 8z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><circle cx="7" cy="7" r="1.5" fill="currentColor"/></svg><span>编辑标签</span></div>' +
       '<div class="doc-menu-divider"></div>' +
+      '<div class="doc-menu-item" data-cmd="reveal"><svg viewBox="0 0 24 24"><path d="M4 5h5l2 2h9a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>打开所在文件夹</span></div>' +
       '<div class="doc-menu-item" data-cmd="export"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>导出</span></div>' +
       '<div class="doc-menu-item doc-menu-danger" data-cmd="delete"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>删除</span></div>';
 
@@ -326,6 +327,9 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
         break;
       case 'export':
         exportDocById(d.id);
+        break;
+      case 'reveal':
+        revealInFolder(d);
         break;
       case 'tag':
         openTagEditModal(d.id);

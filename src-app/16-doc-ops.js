@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { saveDiskDoc, openEncModal, openCompareWindow, setLang, newDoc, exportDoc, importFile, toastTimer, toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, newSticky, saveSticky, findDoc, saveDocTags, collectAllTags, openStickyEditor, setTagExpiry, clearTagExpiry, cleanupExpiredTags, matchReminder, toLocalInput, fromLocalInput, fmtStamp };
+export { saveDiskDoc, openEncModal, openCompareWindow, setLang, newDoc, exportDoc, importFile, toastTimer, toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, newSticky, saveSticky, findDoc, saveDocTags, collectAllTags, openStickyEditor, setTagExpiry, clearTagExpiry, cleanupExpiredTags, matchReminder, toLocalInput, fromLocalInput, fmtStamp, revealTarget, revealInFolder };
 /* [esm] 导入依赖模块绑定 */
 import { $, LANGS, els, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
@@ -491,4 +491,24 @@ import { openSingleModal } from './15-insert.js';
       });
     });
     return map;
+  }
+
+  /* ---------------- 打开所在文件夹（v0.21.4） ----------------
+   * 「文档的功能列表」新增「打开所在文件夹」：在系统文件管理器中
+   * 定位当前文档（或其磁盘文件）保存的文件夹。
+   * revealTarget：纯函数，判定文档能否定位及提示文案（便于单测）。 */
+  function revealTarget(d) {
+    if (!d) return { path: null, error: '请先打开一个文档' };
+    if (!d.diskPath) return { path: null, error: '该文档保存在应用本地，未关联磁盘文件' };
+    return { path: d.diskPath, error: null };
+  }
+
+  function revealInFolder(d) {
+    if (!hasApi()) { toast('此功能需在桌面版中使用', 'error'); return; }
+    var t = revealTarget(d || activeDoc());
+    if (!t.path) { toast(t.error, 'error'); return; }
+    getApi().show_in_folder(t.path).then(function (res) {
+      if (res && res.error) toast(res.error, 'error');
+      else toast('已在文件管理器中打开', 'success');
+    }).catch(function () { toast('打开文件夹失败', 'error'); });
   }

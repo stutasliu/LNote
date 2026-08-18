@@ -467,6 +467,28 @@ class InkpadApi:
             f.write(data)
         return True
 
+    def show_in_folder(self, path: str):
+        """在系统文件管理器中打开 path 所在文件夹，并选中该文件/文件夹。
+
+        Windows 用 explorer /select（打开所在文件夹并选中目标）；
+        macOS 用 open -R（Finder 中显示）；其它平台打开所在目录。
+        返回 {"ok": True} 或 {"error": ...}。
+        """
+        import subprocess
+        if not path:
+            return {"error": "路径为空"}
+        try:
+            if sys.platform.startswith("win"):
+                subprocess.Popen(["explorer", "/select,", os.path.normpath(path)])
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", "-R", path])
+            else:
+                target = path if os.path.isdir(path) else os.path.dirname(path)
+                subprocess.Popen(["xdg-open", target])
+            return {"ok": True}
+        except Exception as e:
+            return {"error": str(e)}
+
     # ---------- 在线翻译 ----------
 
     def translate(self, text: str, target: str = "auto"):

@@ -8,7 +8,7 @@ import { richChanged } from './09-rich-save.js';
 import { dirOf, resolveImgSrc } from './13-api-path.js';
 import { openSingleModal } from './15-insert.js';
 import { _guessMimeFromPath } from './15-insert.js';
-import { toast, renameDoc, newSticky, matchReminder, fmtStamp } from './16-doc-ops.js';
+import { toast, renameDoc, newSticky, matchReminder, fmtStamp, revealInFolder } from './16-doc-ops.js';
 import { initEvents } from './17-events.js';
 import { initApp } from './18-bootstrap.js';
 import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchDestroy, batchExport, renameDocId, closeDocMenu, pendingDelId, renderList, renderSideSub, openTagEditModal, closeTagEditModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, stickyEditSave, syncSortButton, toggleSortGroup } from './06-doc-list.js';
@@ -352,10 +352,12 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
             preview: 'btn-toggle-preview',
             export: 'btn-export',
             saveas: 'btn-save-as',
-            delete: 'btn-delete'
+            delete: 'btn-delete',
+            reveal: '' // v0.21.4：打开所在文件夹（无对应工具栏按钮，走自定义逻辑）
           };
           var target = map[ab] && document.getElementById(map[ab]);
           if (target) target.click();
+          else if (ab === 'reveal') revealInFolder();
         });
       });
       document.addEventListener('click', function (e) {
