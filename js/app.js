@@ -3410,32 +3410,59 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssW, cssH);
     if (!cm) return;
-    var info = cm.getScrollInfo();
-    var total = Math.max(info.height, 1);
-    var px = cssH / total;
-    var lineCount = cm.lineCount();
+    var lineCount = docLineCount();
+    if (lineCount <= 0) return;
+    var gap = lineSpacing();
+    var range = visibleLineRange();
+    var visTop = range[0], visBot = range[1];
+    var barW = cssW - 8;
     var step = Math.max(1, Math.ceil(lineCount / Math.max(1, cssH * 2)));
-    var baseH = cm.defaultTextHeight() || 14;
     var maxLen = 1;
-    var i, len, t;
+    var i, t, len;
     for (i = 0; i < lineCount; i += step) {
+      if (i >= visTop && i <= visBot) continue;
       t = cm.getLine(i);
       if (t && t.length > maxLen) maxLen = t.length;
     }
     if (maxLen < 1) maxLen = 1;
-    var barW = cssW - 8;
     ctx.fillStyle = cssVar("--text-faint", "#A8A29E");
     ctx.globalAlpha = 0.55;
+    var barH = Math.max(1, gap * 0.7);
     for (i = 0; i < lineCount; i += step) {
-      var y = cm.heightAtLine(i, "local") * px;
-      var handle = cm.getLineHandle(i);
-      var lh = handle && handle.height ? handle.height : baseH;
+      if (i >= visTop && i <= visBot) continue;
       t = cm.getLine(i);
       len = t ? t.length : 0;
       var w = Math.max(2, barW * Math.min(1, len / maxLen));
-      ctx.fillRect((cssW - w) / 2, y, w, Math.max(1, lh * px * 0.7));
+      ctx.fillRect((cssW - w) / 2, i * gap + (gap - barH) / 2, w, barH);
+    }
+    var fontPx = Math.max(2.5, gap * 0.85);
+    ctx.font = fontPx + 'px Consolas, "Microsoft YaHei", monospace';
+    ctx.textBaseline = "top";
+    ctx.globalAlpha = 0.8;
+    var maxChars = Math.max(4, Math.floor(cssW / (fontPx * 0.82)));
+    var ty = visTop * gap + (gap - fontPx) / 2;
+    for (i = visTop; i <= visBot; i++) {
+      t = cm.getLine(i);
+      if (!t) continue;
+      if (t.length > maxChars) t = t.slice(0, maxChars);
+      ctx.fillText(t, 2, ty + (i - visTop) * gap);
     }
     ctx.globalAlpha = 1;
+  }
+  function docLineCount() {
+    return cm ? cm.lineCount() : 0;
+  }
+  function lineSpacing() {
+    var n = docLineCount();
+    if (n <= 0 || !els.docMap) return 3;
+    return Math.max(3, Math.min(6, els.docMap.clientHeight / n));
+  }
+  function visibleLineRange() {
+    if (!cm) return [0, -1];
+    var info = cm.getScrollInfo();
+    var top = Math.max(0, cm.lineAtHeight(info.top, "local"));
+    var bot = Math.min(docLineCount() - 1, cm.lineAtHeight(info.top + info.clientHeight, "local"));
+    return [top, bot];
   }
   function scheduleRender() {
     if (rafId) return;
@@ -3452,16 +3479,19 @@
       if (vp) vp.style.display = "none";
       return;
     }
-    var cssH = container.clientHeight;
-    if (cssH <= 0) {
+    if (container.clientHeight <= 0) {
       vp.style.display = "none";
       return;
     }
-    var s = cm.getScrollInfo();
-    var total = Math.max(s.height, 1);
-    var scale = cssH / total;
-    var top = s.top * scale;
-    var h = Math.max(16, Math.min(cssH - top, s.clientHeight * scale));
+    var range = visibleLineRange();
+    var visTop = range[0], visBot = range[1];
+    if (visBot < visTop) {
+      vp.style.display = "none";
+      return;
+    }
+    var gap = lineSpacing();
+    var top = visTop * gap;
+    var h = Math.max(8, (visBot - visTop + 1) * gap);
     vp.style.display = "";
     vp.style.top = top + "px";
     vp.style.height = h + "px";

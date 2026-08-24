@@ -4,12 +4,13 @@ export { initDocMap, updateDocMapUI };
 import { els, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
   /* ---------------- 文档地图（右侧小地图） ----------------
-   * 实现：Canvas 2D 按行采样绘制代码缩略图 + 绝对定位视口指示器。
-   * 性能要点：
-   *  - cm.heightAtLine 内部要遍历 chunk 树，逐行调用对大文档会卡死，
-   *    因此按步长采样（采样点数 ≈ 画布高 × 2），采样点用
-   *    heightAtLine('local') 精确定位，色块高度用行句柄的估算行高。
-   *  - 滚动 / 内容变更 / 窗口尺寸变化统一走 rAF 节流重绘。 */
+   * 实现：Canvas 2D「真实文本缩略图」+ 绝对定位视口指示器。
+   *  - 坐标系为固定行距：每行在画布上占 lineSpacing() 高（行数少时
+   *    放大、行数多时保持 3px），坐标 = 行号 × lineSpacing，天然
+   *    兼容折叠区域，无需 heightAtLine 逐行遍历（大文档不卡）。
+   *  - 可视区域（当前视口对应的行区间）：以迷你字号渲染真实文本，
+   *    能看到字符形状与内容密度；可视区域之外：按行长度采样绘制
+   *    色块。滚动 / 变更 / 缩放统一走 rAF 节流重绘。 */
 
   var DOCMAP_KEY = 'inkpad.docmap.v1';
   var currentKind = null;   // 当前打开文档的类型（由 openDoc → updateDocMapUI 维护）
@@ -65,7 +66,9 @@ import { cm } from './04-editor-init.js';
     }
   }
 
-  // 画布绘制：按行采样，行长映射为色块宽度（模拟代码分布）
+  // 画布绘制：
+  //  - 可视区域之外：按行长度采样绘制色块（代码分布）
+  //  - 可视区域内：以迷你字号渲染真实文本（字符模式缩略图）
   function draw() {
     rafId = null;
     var canvas = els.docMapCanvas;
@@ -85,35 +88,70 @@ import { cm } from './04-editor-init.js';
     ctx.clearRect(0, 0, cssW, cssH);
 
     if (!cm) return;
-    var info = cm.getScrollInfo();
-    var total = Math.max(info.height, 1);
-    var px = cssH / total;
-    var lineCount = cm.lineCount();
-    var step = Math.max(1, Math.ceil(lineCount / Math.max(1, cssH * 2)));
-    var baseH = cm.defaultTextHeight() || 14;
+    var lineCount = docLineCount();
+    if (lineCount <= 0) return;
+    var gap = lineSpacing();
+    var range = visibleLineRange();
+    var visTop = range[0], visBot = range[1];
+    var barW = cssW - 8;
 
-    // 采样行的最大行长（决定色块宽度比例）
+    // ---- 第一部分：可视区域之外 —— 按行长采样绘制色块 ----
+    var step = Math.max(1, Math.ceil(lineCount / Math.max(1, cssH * 2)));
     var maxLen = 1;
-    var i, len, t;
+    var i, t, len;
     for (i = 0; i < lineCount; i += step) {
+      if (i >= visTop && i <= visBot) continue;
       t = cm.getLine(i);
       if (t && t.length > maxLen) maxLen = t.length;
     }
     if (maxLen < 1) maxLen = 1;
 
-    var barW = cssW - 8;
     ctx.fillStyle = cssVar('--text-faint', '#A8A29E');
     ctx.globalAlpha = 0.55;
+    var barH = Math.max(1, gap * 0.7);
     for (i = 0; i < lineCount; i += step) {
-      var y = cm.heightAtLine(i, 'local') * px;
-      var handle = cm.getLineHandle(i);
-      var lh = handle && handle.height ? handle.height : baseH;
+      if (i >= visTop && i <= visBot) continue;
       t = cm.getLine(i);
       len = t ? t.length : 0;
       var w = Math.max(2, barW * Math.min(1, len / maxLen));
-      ctx.fillRect((cssW - w) / 2, y, w, Math.max(1, lh * px * 0.7));
+      ctx.fillRect((cssW - w) / 2, i * gap + (gap - barH) / 2, w, barH);
+    }
+
+    // ---- 第二部分：可视区域 —— 渲染真实文本（迷你字符） ----
+    var fontPx = Math.max(2.5, gap * 0.85);
+    ctx.font = fontPx + 'px Consolas, "Microsoft YaHei", monospace';
+    ctx.textBaseline = 'top';
+    ctx.globalAlpha = 0.8;
+    var maxChars = Math.max(4, Math.floor(cssW / (fontPx * 0.82)));
+    var ty = visTop * gap + (gap - fontPx) / 2;
+    for (i = visTop; i <= visBot; i++) {
+      t = cm.getLine(i);
+      if (!t) continue;
+      if (t.length > maxChars) t = t.slice(0, maxChars);
+      ctx.fillText(t, 2, ty + (i - visTop) * gap);
     }
     ctx.globalAlpha = 1;
+  }
+
+  // 当前文档行数
+  function docLineCount() {
+    return cm ? cm.lineCount() : 0;
+  }
+
+  // minimap 每行高度（px）：行数少时适当放大、行数多时保持固定，保证字符可读
+  function lineSpacing() {
+    var n = docLineCount();
+    if (n <= 0 || !els.docMap) return 3;
+    return Math.max(3, Math.min(6, els.docMap.clientHeight / n));
+  }
+
+  // 可视区域在 minimap 中的行区间（含折叠感知）
+  function visibleLineRange() {
+    if (!cm) return [0, -1];
+    var info = cm.getScrollInfo();
+    var top = Math.max(0, cm.lineAtHeight(info.top, 'local'));
+    var bot = Math.min(docLineCount() - 1, cm.lineAtHeight(info.top + info.clientHeight, 'local'));
+    return [top, bot];
   }
 
   function scheduleRender() {
@@ -124,7 +162,7 @@ import { cm } from './04-editor-init.js';
     });
   }
 
-  // 视口指示器：跟随 cm 滚动位置（实时同步，开销极小）
+  // 视口指示器：跟随 cm 滚动位置（行区间 × 行距，与文字渲染同坐标系）
   function updateViewport() {
     vpRaf = null;
     var vp = els.docMapViewport;
@@ -133,13 +171,13 @@ import { cm } from './04-editor-init.js';
       if (vp) vp.style.display = 'none';
       return;
     }
-    var cssH = container.clientHeight;
-    if (cssH <= 0) { vp.style.display = 'none'; return; }
-    var s = cm.getScrollInfo();
-    var total = Math.max(s.height, 1);
-    var scale = cssH / total;
-    var top = s.top * scale;
-    var h = Math.max(16, Math.min(cssH - top, s.clientHeight * scale));
+    if (container.clientHeight <= 0) { vp.style.display = 'none'; return; }
+    var range = visibleLineRange();
+    var visTop = range[0], visBot = range[1];
+    if (visBot < visTop) { vp.style.display = 'none'; return; }
+    var gap = lineSpacing();
+    var top = visTop * gap;
+    var h = Math.max(8, (visBot - visTop + 1) * gap);
     vp.style.display = '';
     vp.style.top = top + 'px';
     vp.style.height = h + 'px';
