@@ -128,17 +128,36 @@ import { dirOf, getApi, hasApi, isAbsPath, joinPath, normPath, resolveImgSrc, to
     els.previewEmpty.style.display = 'none';
 
     var seq = ++state.mermaidSeq;
-    mermaid.render('mmd-' + seq, code).then(function (res) {
-      if (seq !== state.mermaidSeq) return; // 已有更新的渲染
-      els.mermaidOut.innerHTML = res.svg;
-      prepareSvg();
-    }).catch(function (err) {
+    function doRender() {
+      mermaid.render('mmd-' + seq, code).then(function (res) {
+        if (seq !== state.mermaidSeq) return; // 已有更新的渲染
+        els.mermaidOut.innerHTML = res.svg;
+        prepareSvg();
+      }).catch(function (err) {
+        if (seq !== state.mermaidSeq) return;
+        var div = document.createElement('div');
+        div.className = 'mermaid-error';
+        div.textContent = '图表语法错误：\n' + (err && err.message ? err.message : String(err));
+        els.previewPane.querySelector('#preview-body').appendChild(div);
+      });
+    }
+    function showErr(msg) {
       if (seq !== state.mermaidSeq) return;
       var div = document.createElement('div');
       div.className = 'mermaid-error';
-      div.textContent = '图表语法错误：\n' + (err && err.message ? err.message : String(err));
+      div.textContent = String(msg);
       els.previewPane.querySelector('#preview-body').appendChild(div);
-    });
+    }
+    // 懒加载：首次预览 mermaid 时才注入 vendor-mermaid.js
+    if (typeof mermaid === 'undefined') {
+      if (window.__mermaidReady) {
+        window.__mermaidReady(function (err) { err ? showErr('图表渲染失败：' + (err.message || err)) : doRender(); });
+      } else {
+        showErr('（未加载 mermaid）');
+      }
+    } else {
+      doRender();
+    }
   }
 
   function renderHtmlPreview() {

@@ -408,17 +408,87 @@ window.InkpadBlocks = (function () {
   }
 
   /* ---- 图片 ---- */
+  // 为某个图片块打开文件选择器，选中后写入 src 并重渲染（供斜杠菜单/插入菜单/替换按钮复用）
+  function pickImageForBlock(b) {
+    if (!b) return;
+    if (!hasApi()) { toast('选择图片需桌面版', 'error'); return; }
+    api().pick_files().then(function (paths) {
+      if (!paths || !paths.length) return;
+      var p = paths[0];
+      var dir = (state.doc && state.doc.diskPath) ? dirOf(state.doc.diskPath) : null;
+      if (!dir && window.InkpadApp && window.InkpadApp.getRichDir) {
+        dir = window.InkpadApp.getRichDir();
+      }
+      if (dir) {
+        api().copy_image_to_assets(dir, p).then(function (res) {
+          if (res && res.path) {
+            b.src = res.rel; b.alt = p.split(/[\\/]/).pop(); render(); scheduleSave();
+          } else if (res && res.error) {
+            toast('插入失败：' + res.error, 'error');
+          } else {
+            toast('插入失败：未知错误', 'error');
+          }
+        }).catch(function () { toast('插入图片异常', 'error'); });
+      } else {
+        api().read_file_b64(p).then(function (res) {
+          if (res && res.b64) {
+            b.src = 'data:' + (res.mime || guessMime(p)) + ';base64,' + res.b64;
+            b.alt = p.split(/[\\/]/).pop(); render(); scheduleSave();
+          } else if (res && res.error) {
+            toast('读取图片失败：' + res.error, 'error');
+          } else {
+            toast('读取图片失败', 'error');
+          }
+        }).catch(function () { toast('读取图片异常', 'error'); });
+      }
+    });
+  }
+
   function renderImageBlock(b, body) {
     var img = document.createElement('img');
     img.className = 'ink-block-img';
     img.alt = b.alt || '';
     var src = b.src || '';
+    var baseDir = null;
     if (src) {
       var d = state.doc;
-      var baseDir = (d && d.diskPath) ? dirOf(d.diskPath) : null;
+      baseDir = (d && d.diskPath) ? dirOf(d.diskPath) : null;
+      if (!baseDir && window.InkpadApp && window.InkpadApp.getRichDir) {
+        baseDir = window.InkpadApp.getRichDir();
+      }
+    }
+    // 先添加 error 监听，再设置 src，确保 error 事件不被遗漏
+    var errRetried = false;
+    img.addEventListener('error', function () {
+      img.classList.add('ink-img-err');
+      // 诊断：输出 src 前 100 字符到 toast
+      var diag = (img.src || '').substring(0, 100);
+      console.error('[inkpad] img load error, src=' + diag);
+      // 回退：通过 API 读取图片为 base64 data URI
+      if (errRetried || !src || !hasApi()) return;
+      errRetried = true;
+      var absPath = null;
+      if (/^[a-z]:[\\\/]/i.test(src)) {
+        absPath = src;
+      } else if (baseDir) {
+        absPath = baseDir.replace(/[\\\/]+$/, '') + '/' + src.replace(/^\.\//, '').replace(/^[\\\/]+/, '');
+      }
+      if (absPath) {
+        api().read_file_b64(absPath).then(function (res) {
+          if (res && res.b64) {
+            img.src = 'data:' + (res.mime || 'image/png') + ';base64,' + res.b64;
+            img.classList.remove('ink-img-err');
+          } else {
+            toast('图片加载失败：' + (res && res.error ? res.error : '未知'), 'error');
+          }
+        }).catch(function (e) { toast('图片加载异常', 'error'); });
+      } else {
+        toast('图片路径无法解析：' + diag, 'error');
+      }
+    });
+    if (src) {
       img.src = resolveImgSrc(src, baseDir) || src;
     }
-    img.addEventListener('error', function () { img.classList.add('ink-img-err'); });
     // 【v0.19.0】双击图片 → 灯箱（可放大缩小 / 在新窗口打开）
     if (src) {
       img.style.cursor = 'zoom-in';
@@ -430,26 +500,21 @@ window.InkpadBlocks = (function () {
     var bar = document.createElement('div');
     bar.className = 'ink-block-bar';
     var pick = document.createElement('span'); pick.className = 'ink-mini-btn'; pick.textContent = '选择图片';
-    pick.addEventListener('click', function () {
-      if (!hasApi()) { toast('选择图片需桌面版', 'error'); return; }
-      api().pick_files().then(function (paths) {
-        if (!paths || !paths.length) return;
-        var p = paths[0];
-        if (state.doc && state.doc.diskPath) {
-          api().copy_image_to_assets(dirOf(state.doc.diskPath), p).then(function (res) {
-            if (res && res.path) { b.src = res.rel; b.alt = p.split(/[\\/]/).pop(); render(); scheduleSave(); }
-          });
-        } else {
-          api().read_file_b64(p).then(function (res) {
-            if (res && res.b64) { b.src = 'data:' + (res.mime || guessMime(p)) + ';base64,' + res.b64; b.alt = p.split(/[\\/]/).pop(); render(); scheduleSave(); }
-          });
-        }
-      });
-    });
+    pick.addEventListener('click', function () { pickImageForBlock(b); });
     bar.appendChild(pick);
-    body.appendChild(bar);
-    if (src) body.appendChild(img);
-    else { var ph = document.createElement('div'); ph.className = 'ink-img-ph'; ph.textContent = '🖼 暂无图片，点「选择图片」或粘贴图片'; body.appendChild(ph); }
+    if (src) {
+      body.appendChild(img);
+      // 图片已存在时，移除默认显示的操作栏，改为在图片下方提供一个较小的“更换图片”入口，避免视觉冗余
+      var changeBtn = document.createElement('span');
+      changeBtn.className = 'ink-mini-btn';
+      changeBtn.textContent = '更换图片';
+      changeBtn.style.marginTop = '6px';
+      changeBtn.addEventListener('click', function () { pick.click(); });
+      body.appendChild(changeBtn);
+    } else {
+      body.appendChild(bar);
+      var ph = document.createElement('div'); ph.className = 'ink-img-ph'; ph.textContent = '🖼 暂无图片，点「选择图片」或粘贴图片'; body.appendChild(ph);
+    }
   }
 
   /* ---- 图片灯箱（双击图片放大查看 + 在新窗口打开）【v0.19.0】 ---- */
@@ -591,13 +656,27 @@ window.InkpadBlocks = (function () {
     drawMermaid(ph, b.src || '');
   }
   function drawMermaid(ph, code) {
-    if (typeof mermaid === 'undefined') { ph.textContent = '（未加载 mermaid）'; return; }
     if (!code.trim()) { ph.textContent = '（空图表）'; return; }
-    try {
-      mermaid.render('inkm-' + Date.now() + '-' + Math.floor(Math.random() * 1e6), code)
-        .then(function (res) { ph.innerHTML = res.svg; })
-        .catch(function (err) { ph.className = 'ink-mermaid-view ink-err'; ph.textContent = '图表渲染失败：' + (err && err.message ? err.message : err); });
-    } catch (e) { ph.className = 'ink-mermaid-view ink-err'; ph.textContent = '图表渲染失败：' + e; }
+    function renderNow() {
+      try {
+        mermaid.render('inkm-' + Date.now() + '-' + Math.floor(Math.random() * 1e6), code)
+          .then(function (res) { ph.innerHTML = res.svg; })
+          .catch(function (err) { ph.className = 'ink-mermaid-view ink-err'; ph.textContent = '图表渲染失败：' + (err && err.message ? err.message : err); });
+      } catch (e) { ph.className = 'ink-mermaid-view ink-err'; ph.textContent = '图表渲染失败：' + e; }
+    }
+    if (typeof mermaid === 'undefined') {
+      ph.textContent = '图表加载中…';
+      if (window.__mermaidReady) {
+        window.__mermaidReady(function (err) {
+          if (err) { ph.className = 'ink-mermaid-view ink-err'; ph.textContent = '图表渲染失败：' + (err.message || err); return; }
+          renderNow();
+        });
+      } else {
+        ph.textContent = '（未加载 mermaid）';
+      }
+      return;
+    }
+    renderNow();
   }
 
   /* ---- 公式 ---- */
@@ -1266,6 +1345,8 @@ window.InkpadBlocks = (function () {
       render();
       focusBlock(nb.id);
       scheduleSave();
+      // 选图片时直接弹出文件选择器，无需二次点击「选择图片」按钮
+      if (type === 'image') pickImageForBlock(nb);
     }
   }
 
@@ -1277,6 +1358,8 @@ window.InkpadBlocks = (function () {
     render();
     focusBlock(nb.id);
     scheduleSave();
+    // 选图片时直接弹出文件选择器，无需二次点击「选择图片」按钮
+    if (type === 'image') pickImageForBlock(nb);
   }
 
   /* ---------------- 导出 Markdown ---------------- */

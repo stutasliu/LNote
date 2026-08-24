@@ -3,10 +3,13 @@ export { folderState, switchSideTab, openFolder, renderFileTree, renderDirInto, 
 /* [esm] 导入依赖模块绑定 */
 import { els, state } from './01-core.js';
 import { persist, uid } from './05-store.js';
+import { renderList } from './06-doc-list.js';
 import { openDoc } from './07-doc-open.js';
-import { EXT_LANGS, getApi, hasApi, isImageExt, isRichDocContent, normPath, toFileUrl } from './13-api-path.js';
+import { EXT_LANGS, getApi, hasApi, isImageExt, isPdfExt, isDocExt, isRichDocContent, normPath, toFileUrl } from './13-api-path.js';
 import { openSingleModal } from './15-insert.js';
 import { toast } from './16-doc-ops.js';
+import { openPdfFile } from './23-pdf.js';
+import { openDocFile } from './24-doc.js';
   var folderState = { root: null, expanded: {}, openFiles: {} }; // openFiles: path -> docId
 
   function switchSideTab(tab) {
@@ -85,8 +88,11 @@ import { toast } from './16-doc-ops.js';
           if (open) renderDirInto(item.path, container); // 递归加载子目录
         } else {
           var isImg = isImageExt(item.name);
-          row.className = 'ft-item ft-file' + (isImg ? ' is-image' : '');
-          row.innerHTML = '<span class="ft-arrow"></span><span class="ft-ico">' + (isImg ? '🖼️' : '📄') + '</span>' +
+          var isPdf = isPdfExt(item.name);
+          var isDoc = isDocExt(item.name);
+          var ftIco = isImg ? '🖼️' : (isPdf ? '📕' : (isDoc ? '📘' : '📄'));
+          row.className = 'ft-item ft-file' + (isImg ? ' is-image' : '') + (isPdf ? ' is-pdf' : '') + (isDoc ? ' is-doc' : '');
+          row.innerHTML = '<span class="ft-arrow"></span><span class="ft-ico">' + ftIco + '</span>' +
             '<span class="ft-name"></span><span class="ft-size"></span>';
           row.querySelector('.ft-name').textContent = item.name;
           row.querySelector('.ft-name').title = item.path;
@@ -113,10 +119,31 @@ import { toast } from './16-doc-ops.js';
   // openFiles 缓存 key 统一用规范化小写路径，避免正/反斜杠不一致导致重复条目
   function fileKey(p) { return normPath(p).toLowerCase(); }
 
+  function dbgLog(m) {
+    try {
+      if (getApi() && getApi().debug_log) getApi().debug_log('[openDiskFile] ' + m);
+    } catch (e) { /* ignore */ }
+  }
+
   function openDiskFile(path, name) {
+    dbgLog('enter: ' + path);
     if (folderState.openFiles[fileKey(path)]) { openDoc(folderState.openFiles[fileKey(path)]); return; }
     if (isImageExt(name)) { openImageFile(path, name); return; }
+    if (isPdfExt(name)) {
+      var pdfId = openPdfFile(path, name);
+      if (pdfId) folderState.openFiles[fileKey(path)] = pdfId;
+      return;
+    }
+    if (isDocExt(name)) {
+      var docId = openDocFile(path, name);
+      if (docId) {
+        folderState.openFiles[fileKey(path)] = docId;
+        renderList();
+      }
+      return;
+    }
     getApi().read_text_file(path).then(function (res) {
+      dbgLog('read_text_file -> ' + JSON.stringify(res));
       if (!res || res.error) { toast('读取失败：' + (res && res.error || '未知错误'), 'error'); return; }
       var ext = (name.match(/\.([^.]+)$/) || [])[1] || '';
 

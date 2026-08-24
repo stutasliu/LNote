@@ -2,6 +2,30 @@
 
 本项目所有值得记录的变更均会收录在此文件中。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [v0.21.5] - 2026-08-24
+
+### 新增
+
+- **PDF 查看器**：文件树双击 /「打开方式」/ 导入菜单可直接打开 `.pdf`。基于 pdf.js 懒加载渲染（首次打开才加载，离线携带 cmaps 与标准字体，中文 CID 不乱码），支持翻页（◀/▶）、缩放（＋－/Ctrl+滚轮/重置/适应宽度）、文本层选中复制、空白页检测告警；提供「提取为文本」（跨页抽取转 Markdown 新文档）与「复制内容」（全文到剪贴板）；PDF 以只读方式登记进侧栏（`kind=pdf`，保存/导出/磁盘写回全链路拦截）。
+- **Word 文档查看与导入**：双击 `.doc/.docx` 打开模态查看器——`.docx` 经 mammoth 渲染为排版富文本并统计字数，旧版 `.doc` 由内置 OLE2 piece table / RTF 控制字 / ZIP-OOXML / HTML / 纯文本多格式解析引擎提取文本；支持一键「导入富文档」（行文本转块编辑器）、「导入 Markdown」与「复制内容」；`kind=doc` 条目复用磁盘路径避免重复，全程只读。
+- **文档地图（小地图）**：编辑器右侧新增仿 VS Code 的 130px 代码小地图（Canvas 按行采样绘制全景缩略图，行长度映射色块宽度，采样步长自动适配避免全行遍历卡顿）；高亮视口框随滚动实时同步，点击 / 拖拽按比例跳转（点击点置于视口中线）；顶栏开关状态持久化到 localStorage（`inkpad.docmap.v1`），仅文本文档显示，非文本自动隐藏。
+- **图片查看器升级为图片编辑器**：通过文件关联双击 /「打开方式」传入图片直接进入独立图片编辑窗口；新增完整编辑链——旋转 90°、水平/垂直翻转、裁剪框拖拽（四角手柄）、尺寸调整（锁定宽高比 + 高质量重采样 + unsharp 锐化）、滤镜（亮度/对比度/饱和度滑杆 + 灰度/反色）；支持撤销/重置、覆盖保存、另存为、窗口缩放，退出可放弃修改。
+- **文件关联注册脚本**：新增 `register-file-assoc.ps1`（`.bat` 仅为包装），仅写 HKCU（无需管理员权限）将 `dist\L.Note.exe` 注册为常见图片格式与 `.md/.markdown` 的默认打开程序，并在右键「打开方式」中登记 L.Note。
+- **JSON 结构折叠**：新增 `json-brace` 折叠（自动跳过字符串/注释配对，单行紧凑 JSON 也可折叠，数组折叠显示元素数「⋯ N 项」）与 `json-auto` 全局兜底（首非空字符为 `{`/`[` 即启用折叠）。
+- **块编辑器图片增强**：图片块支持选中后「更换图片」、插入图片块直接弹出选择器；图片加载失败自动经 `read_file_b64` 以 data URI 重试；新增富文档目录缓存（`getCachedRichDir/setCachedRichDir`）加速图片解析。
+- **后端新增能力**：新增 `get_pending_open_file`（「打开方式」传入非图片文件时启动自动打开并防重入）、`debug_log`、`read_file_b64`、`read_doc_text`（旧版 `.doc` 文本提取）；ImvApi 新增 `save_image_file/save_image_as/close_window/resize_window`；启动分流重构——图片参数直接进图片编辑器，非图片文件记入待打开队列，否则按原逻辑起主窗口。
+
+### 变更
+
+- **启动性能优化**：Mermaid（约 2.5MB）、PDF.js、mammoth 三个大库从启动 bundle 拆分为独立懒加载包（`vendor-mermaid.js` / `vendor-pdf.js` / `vendor-doc.js`），首次使用时才动态注入，启动时间大幅缩短。
+- **启动首文档决策重构**：`openPendingExternal` 最先调度并防重入、等待 pywebviewready 重试，有外部传入文件时跳过默认文档，避免启动瞬间默认文档闪现。
+- **折叠命令兼容修复**：`foldAll/unfoldAll` 改用 `execCommand`、`foldToLevel` 改用 `CodeMirror.fold.auto`，兼容新版 helper 注册方式。
+- **PDF/Word 全链路只读保护**：保存 / 导出 / 磁盘写回 / 复制文档对 PDF/Word 条目统一拦截。
+
+### 测试
+
+- 前端构建通过（`node tools/build-app.js` + `npx vite build`，dist-web 同步更新）；Python 语法检查通过；单元测试全量通过（87 项）。
+
 ## [v0.21.4] - 2026-08-18
 
 ### 新增

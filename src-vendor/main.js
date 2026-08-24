@@ -46,9 +46,9 @@ window.CodeMirror = CodeMirror;
 import { marked } from 'marked';
 window.marked = marked;
 
-/* ---------- mermaid（图表） ---------- */
-import mermaid from 'mermaid';
-window.mermaid = mermaid;
+/* ---------- mermaid（图表）已拆分为 vendor-mermaid.js，按需懒加载 ----------
+ * 启动不再同步加载 mermaid（约 2.5MB），首次渲染图表时由
+ * window.__mermaidReady(cb) 动态注入 vendor-mermaid.js。 */
 
 /* ---------- highlight.js（代码高亮） ---------- */
 import hljs from 'highlight.js';

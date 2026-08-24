@@ -15,6 +15,8 @@ import { getApi, hasApi } from './13-api-path.js';
 import { applyImgZoom, closeImageModal, fitImage, openFolder, openDiskFile, switchSideTab } from './14-filetree-image.js';
 import { closeAllToolMenus, closeCalloutModal, closeCodeModal, closeIconModal, closeInsertMenu, closeTableModal, filterIcons, handlePastedImage, insertCallout, insertCode, insertImageFile, insertTable, openInsertMenu, openSingleModal, routeInsert, scheduleFoldDataUris, showMenuAtMoreBtn } from './15-insert.js';
 import { exportDoc, importFile, newDoc, openCompareWindow, openEncModal, setLang, toast } from './16-doc-ops.js';
+import { closePdfModal, extractPdfText, pdfFitWidth, pdfNext, pdfPrev, pdfZoomIn, pdfZoomOut, pdfZoomReset } from './23-pdf.js';
+import { closeDocModal, extractDocText, importDocAsRich, importDocAsText } from './24-doc.js';
 import { openFindModal } from './19-find-replace.js';
 import { translateSelection } from './22-translate.js';
   /* ---------------- 事件绑定 ----------------
@@ -605,6 +607,86 @@ import { translateSelection } from './22-translate.js';
   window.addEventListener('mouseup', function () { state.imgDragging = false; els.imageStage.classList.remove('dragging'); });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && els.imageModal.style.display === 'flex') closeImageModal();
+  });
+
+  // PDF 查看器（23-pdf.js）
+  els.pdfClose.addEventListener('click', closePdfModal);
+  els.pdfPrev.addEventListener('click', pdfPrev);
+  els.pdfNext.addEventListener('click', pdfNext);
+  els.pdfZoomIn.addEventListener('click', pdfZoomIn);
+  els.pdfZoomOut.addEventListener('click', pdfZoomOut);
+  els.pdfZoomReset.addEventListener('click', pdfZoomReset);
+  els.pdfFit.addEventListener('click', pdfFitWidth);
+  els.pdfModal.addEventListener('click', function (e) {
+    if (e.target === els.pdfModal) closePdfModal();
+  });
+  // Ctrl / Cmd + 滚轮缩放（普通滚动交给页面自然滚动）
+  els.pdfStage.addEventListener('wheel', function (e) {
+    if (els.pdfModal.style.display !== 'flex') return;
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    if (e.deltaY < 0) pdfZoomIn(); else pdfZoomOut();
+  }, { passive: false });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && els.pdfModal.style.display === 'flex') closePdfModal();
+  });
+  // 📄 提取为文本：把 PDF 文本转为可编辑的 Markdown 文档（编辑入口）
+  els.pdfExtract.addEventListener('click', function () {
+    if (!window.pdfjsLib) { toast('PDF 解析器未就绪', 'error'); return; }
+    extractPdfText().then(function (text) {
+      if (!text || !text.trim()) { toast('未提取到文本（可能是扫描版 PDF）', 'error'); return; }
+      closePdfModal();
+      var name = (els.pdfName.textContent || 'PDF 文档').replace(/\.pdf$/i, '');
+      newDoc('markdown', name + '（提取）', text);
+      toast('已提取为 Markdown 文档，可继续编辑', 'success');
+    }).catch(function () { toast('提取失败', 'error'); });
+  });
+  // 📋 复制内容：把 PDF 全文复制到剪贴板
+  els.pdfCopy.addEventListener('click', function () {
+    if (!window.pdfjsLib) { toast('PDF 解析器未就绪', 'error'); return; }
+    extractPdfText().then(function (text) {
+      if (!text || !text.trim()) { toast('未提取到文本（可能是扫描版 PDF）', 'error'); return; }
+      return copyToClipboard(text).then(function (ok) {
+        if (ok) toast('已复制全文 ' + text.length + ' 字到剪贴板', 'success');
+        else toast('复制失败，请手动选择文字复制', 'error');
+      });
+    }).catch(function () { toast('提取失败', 'error'); });
+  });
+
+  // DOC 查看器（24-doc.js）
+  els.docClose.addEventListener('click', closeDocModal);
+  els.docModal.addEventListener('click', function (e) {
+    if (e.target === els.docModal) closeDocModal();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && els.docModal.style.display === 'flex') closeDocModal();
+  });
+  // doc 内容就绪判定：docx 依赖 mammoth 渲染，旧版 .doc 由后端 olefile 提取文本，
+  // 两者最终都会在 doc-body 内渲染 .doc-content 容器；mammoth 未加载时仅放行已渲染内容
+  function docContentViewReady() {
+    var b = document.getElementById('doc-body');
+    return !!(b && b.querySelector('.doc-content'));
+  }
+  // 📝 导入富文档：把 DOCX 文字转为富文档（块编辑器）继续编辑
+  els.docImportRich.addEventListener('click', function () {
+    if (!window.mammoth && !docContentViewReady()) { toast('文档解析器未就绪', 'error'); return; }
+    importDocAsRich();
+  });
+  // 📄 导入 Markdown：把 DOCX 文字转为 Markdown 文本继续编辑
+  els.docImportText.addEventListener('click', function () {
+    if (!window.mammoth && !docContentViewReady()) { toast('文档解析器未就绪', 'error'); return; }
+    importDocAsText();
+  });
+  // 📋 复制内容：把 DOCX 全文复制到剪贴板
+  els.docCopy.addEventListener('click', function () {
+    if (!window.mammoth && !docContentViewReady()) { toast('文档解析器未就绪', 'error'); return; }
+    extractDocText().then(function (text) {
+      if (!text || !text.trim()) { toast('未提取到文本（文档为空或尚未加载完成）', 'error'); return; }
+      return copyToClipboard(text).then(function (ok) {
+        if (ok) toast('已复制全文 ' + text.length + ' 字到剪贴板', 'success');
+        else toast('复制失败，请手动选择文字复制', 'error');
+      });
+    }).catch(function () { toast('提取失败', 'error'); });
   });
 
   // v0.21.3：剪贴板是否携带可用文本。

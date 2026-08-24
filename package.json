@@ -1,6 +1,6 @@
 {
   "name": "l-note",
-  "version": "0.21.4",
+  "version": "0.21.5",
   "private": true,
   "description": "Inkpad(L.Note) 前端构建管线：Vite dev server + 产物打包（src-app 拼接由 tools/build-app.js 负责）",
   "scripts": {
@@ -25,7 +25,9 @@
     "diff": "^5.2.2",
     "highlight.js": "^11.11.2",
     "katex": "^0.16.47",
+    "mammoth": "^1.12.1",
     "marked": "^12.0.2",
-    "mermaid": "^10.9.8"
+    "mermaid": "^10.9.8",
+    "pdfjs-dist": "^3.11.174"
   }
 }

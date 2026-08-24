@@ -194,23 +194,45 @@ window.InkpadMd = (function () {
 
     bindMdAnchorClick(container);
 
-    // 异步渲染 mermaid
-    var idxM = 0;
+    // 异步渲染 mermaid（懒加载：首次需要时才注入 vendor-mermaid.js）
     var mermaids = container.querySelectorAll('.md-mermaid');
-    Array.prototype.forEach.call(mermaids, function (ph) {
-      var code = ph.getAttribute('data-code') || '';
-      if (!code.trim()) { ph.textContent = '（空 Mermaid 代码块）'; return; }
-      mermaid.render('mdm-' + seq + '-' + (idxM++), code)
-        .then(function (res) {
-          if (seq !== mermaidSeq) return;
-          ph.innerHTML = res.svg;
-        })
-        .catch(function (err) {
-          if (seq !== mermaidSeq) return;
-          ph.className = 'md-mermaid md-mermaid-error';
-          ph.textContent = '图表渲染失败：' + (err && err.message ? err.message : err);
+    if (mermaids.length) {
+      var renderMdMermaids = function () {
+        var idxM = 0;
+        Array.prototype.forEach.call(mermaids, function (ph) {
+          var code = ph.getAttribute('data-code') || '';
+          if (!code.trim()) { ph.textContent = '（空 Mermaid 代码块）'; return; }
+          mermaid.render('mdm-' + seq + '-' + (idxM++), code)
+            .then(function (res) {
+              if (seq !== mermaidSeq) return;
+              ph.innerHTML = res.svg;
+            })
+            .catch(function (err) {
+              if (seq !== mermaidSeq) return;
+              ph.className = 'md-mermaid md-mermaid-error';
+              ph.textContent = '图表渲染失败：' + (err && err.message ? err.message : err);
+            });
         });
-    });
+      };
+      if (typeof mermaid === 'undefined') {
+        if (window.__mermaidReady) {
+          window.__mermaidReady(function (err) {
+            if (err) {
+              Array.prototype.forEach.call(mermaids, function (ph) {
+                ph.className = 'md-mermaid md-mermaid-error';
+                ph.textContent = '图表渲染失败：' + (err.message || err);
+              });
+              return;
+            }
+            renderMdMermaids();
+          });
+        } else {
+          Array.prototype.forEach.call(mermaids, function (ph) { ph.textContent = '（未加载 mermaid）'; });
+        }
+      } else {
+        renderMdMermaids();
+      }
+    }
 
     // 异步渲染数学公式（块级）
     var maths = container.querySelectorAll('.md-math');

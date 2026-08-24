@@ -56,6 +56,9 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, $, els,
     richOutlineSplitter: $('rich-outline-splitter'),
     btnRichOutline: $('btn-rich-outline'),
     btnCloseOutline: $('btn-close-outline'),
+    // 文档地图（右侧小地图）
+    docMap: $('doc-map'), docMapCanvas: $('doc-map-canvas'), docMapViewport: $('doc-map-viewport'),
+    btnDocMap: $('btn-doc-map'),
     btnOutlineUp: $('btn-outline-up'), btnOutlineDown: $('btn-outline-down'),
     btnOutlineReload: $('btn-outline-reload'), outlineFoot: $('outline-foot'),
     toolsWrap: $('tools-wrap'), toolsWrap2: $('tools-wrap2'), btnFormatXml: $('btn-format-xml'), btnFind: $('btn-find'),
@@ -81,6 +84,18 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, $, els,
     imageModal: $('image-modal'), imageView: $('image-view'), imageStage: $('image-stage'),
     imageName: $('image-name'), imgZoomReset: $('img-zoom-reset'),
     imgClose: $('img-close'), imgZoomIn: $('img-zoom-in'), imgZoomOut: $('img-zoom-out'), imgFit: $('img-fit'),
+    // PDF 查看器
+    pdfModal: $('pdf-modal'), pdfName: $('pdf-name'), pdfPageInfo: $('pdf-page-info'),
+    pdfPrev: $('pdf-prev'), pdfNext: $('pdf-next'),
+    pdfZoomOut: $('pdf-zoom-out'), pdfZoomReset: $('pdf-zoom-reset'), pdfZoomIn: $('pdf-zoom-in'),
+    pdfFit: $('pdf-fit'), pdfExtract: $('pdf-extract'), pdfClose: $('pdf-close'),
+    pdfCopy: $('pdf-copy'),
+    pdfStage: $('pdf-stage'), pdfCanvasWrap: $('pdf-canvas-wrap'),
+    // DOC 查看器
+    docModal: $('doc-modal'), docName: $('doc-name'), docPageInfo: $('doc-page-info'),
+    docClose: $('doc-close'), docCopy: $('doc-copy'),
+    docImportRich: $('doc-import-rich'), docImportText: $('doc-import-text'),
+    docStage: $('doc-stage'), docBody: $('doc-body'),
     // 批量管理工具栏
     batchToggle: $('btn-batch-toggle'),
     btnSortToggle: $('btn-sort-toggle'),   // 文档按时间分组排序开关
@@ -158,6 +173,8 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, $, els,
     batchSelected: {},   // { docId: true } 已选中的文档 id 集合
     docFilter: 'recent',  // 当前侧栏过滤模式：recent / my-space / wiki / favorites / trash / sticky
     sortGroup: false,     // 文档列表是否按时间分组排序（今天/昨天/本周/更早），默认关闭
+    // 文档地图（右侧小地图）
+    docMapOn: false,      // 文档地图是否显示（启动时由 25-doc-map 从 localStorage 恢复）
     // 便签模块：标签 / 便利贴
     tagFilter: null,      // 当前标签过滤（null 表示未过滤）
     tagEditDocId: null,   // 正在编辑标签的文档 id

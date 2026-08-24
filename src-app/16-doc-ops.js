@@ -9,8 +9,12 @@ import { syncFromEditor } from './09-rich-save.js';
 import { updatePreviewVisibility } from './10-status-preview.js';
 import { getApi, hasApi, isRichDocContent } from './13-api-path.js';
 import { openSingleModal } from './15-insert.js';
+import { openPdfFromData } from './23-pdf.js';
+import { openDocFromData } from './24-doc.js';
   function saveDiskDoc(d) {
     if (!d || !d.diskPath || !hasApi()) return;
+    // PDF / Word 只读：绝不把 content 写回磁盘覆盖原二进制文件
+    if (d.kind === 'pdf' || d.kind === 'doc') return;
     getApi().write_text_file(d.diskPath, d.content, d.encoding).then(function (ok) {
       if (ok) {
         els.statSaved.textContent = '已保存到磁盘';
@@ -112,6 +116,15 @@ import { openSingleModal } from './15-insert.js';
   function exportDoc() {
     var d = activeDoc();
     if (!d) return;
+    // PDF 只读：不提供文本导出（避免把不可见内容导出为乱码文本）
+    if (d.kind === 'pdf') {
+      toast('PDF 文档为只读，如需导出文本请使用「提取为文本」', 'info');
+      return;
+    }
+    if (d.kind === 'doc') {
+      toast('Word 文档为只读，如需导出文本请使用「复制内容」或「导入」', 'info');
+      return;
+    }
     // 富文档：序列化为 Markdown 导出（块编辑器自带 toMarkdown）
     if (d.kind === 'rich') {
       var md = window.InkpadBlocks ? window.InkpadBlocks.toMarkdown() : d.content;
@@ -154,6 +167,29 @@ import { openSingleModal } from './15-insert.js';
   }
 
   function importFile(file) {
+    var ext = (file.name.match(/\.([^.]+)$/) || [])[1] || '';
+    // PDF：二进制读取直接预览（浏览器降级场景；桌面版「导入」走 pick_file 已登记磁盘路径）
+    if (ext.toLowerCase() === 'pdf') {
+      var pr = new FileReader();
+      pr.onload = function () {
+        if (!pr.result) { toast('PDF 读取失败', 'error'); return; }
+        openPdfFromData(pr.result, file.name);
+        toast('已打开 PDF：' + file.name, 'success');
+      };
+      pr.readAsArrayBuffer(file);
+      return;
+    }
+    // DOCX/DOC：二进制读取直接预览（浏览器降级场景；桌面版「导入」走 pick_file 已登记磁盘路径）
+    if (ext.toLowerCase() === 'docx' || ext.toLowerCase() === 'doc') {
+      var dr = new FileReader();
+      dr.onload = function () {
+        if (!dr.result) { toast('Word 文档读取失败', 'error'); return; }
+        openDocFromData(dr.result, file.name);
+        toast('已打开 Word 文档：' + file.name, 'success');
+      };
+      dr.readAsArrayBuffer(file);
+      return;
+    }
     var reader = new FileReader();
     reader.onload = function () {
       var content = String(reader.result || '');
@@ -235,6 +271,8 @@ import { openSingleModal } from './15-insert.js';
     };
     if (d.kind) copy.kind = d.kind;
     if (d.encoding) copy.encoding = d.encoding;
+    // PDF 登记式存储：副本引用同一磁盘文件，避免复制二进制内容
+    if (d.diskPath) copy.diskPath = d.diskPath;
     state.docs.push(copy);
     persist();
     return copy;
@@ -244,6 +282,11 @@ import { openSingleModal } from './15-insert.js';
   function exportDocById(id) {
     var d = findDoc(id);
     if (!d) { toast('文档不存在', 'error'); return; }
+    // PDF 只读：不提供文本导出
+    if (d.kind === 'pdf') {
+      toast('PDF 文档为只读，请在查看器中「提取为文本」后再导出', 'info');
+      return;
+    }
     // 富文档
     if (d.kind === 'rich') {
       var md = d.content || '';

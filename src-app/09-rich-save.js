@@ -7,7 +7,7 @@ import { activeDoc, persist, uid } from './05-store.js';
 import { fullTime } from './06-doc-list.js';
 import { openDoc } from './07-doc-open.js';
 import { onVisualChange, saveUniversal } from './08-visual.js';
-import { dirOf, getApi, hasApi, normPath } from './13-api-path.js';
+import { dirOf, getApi, hasApi, normPath, setCachedRichDir } from './13-api-path.js';
 import { folderState } from './14-filetree-image.js';
 import { saveDiskDoc, toast } from './16-doc-ops.js';
   function newVisualDoc(kind) {
@@ -52,6 +52,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
     if (!d || d.diskPath || !hasApi()) return Promise.resolve(false);
     return getApi().get_rich_dir().then(function (dir) {
       if (!dir) return false;
+      setCachedRichDir(dir);
       var dirNorm = dir.replace(/\\/g, '/');
       var desired = (d.title && d.title.trim()) || '未命名文档';
       d.diskPath = computeRichFilePath(dirNorm, d, desired);
@@ -172,6 +173,14 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
   function syncFromEditor() {
     var d = activeDoc();
     if (!d) return;
+    // PDF 只读：仅同步标题（允许重命名），内容不可写回磁盘
+    if (d.kind === 'pdf') {
+      d.title = els.title.value;
+      d.updated = Date.now();
+      els.statEdit.textContent = '最后编辑 ' + fullTime(d.updated);
+      persist();
+      return;
+    }
     d.content = cm.getValue();
     d.title = els.title.value;
     d.updated = Date.now();
@@ -223,6 +232,11 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
   function saveDoc(forceAsk) {
     var d = activeDoc();
     if (!d) { toast('没有可保存的文档', 'error'); return; }
+    // PDF 只读：避免把 CodeMirror 残留内容写回磁盘覆盖原 PDF
+    if (d.kind === 'pdf') {
+      toast('PDF 文档为只读，如需编辑请使用「提取为文本」', 'info');
+      return;
+    }
     clearTimeout(state.saveTimer);
 
     if (d.kind === 'rich') {

@@ -10,7 +10,8 @@ import { frFindNext, openFindModal } from './19-find-replace.js';
     flow: { icon: '🔀', label: '流程图' },
     mind: { icon: '🧠', label: '思维导图' },
     note: { icon: '📋', label: '思维笔记' },
-    sticky: { icon: '🗒️', label: '便利贴' }
+    sticky: { icon: '🗒️', label: '便利贴' },
+    pdf: { icon: '📕', label: 'PDF 文档' }
   };
   var VISUAL_MODULES = { flow: 'InkpadFlow', mind: 'InkpadMind', note: 'InkpadNote' };
 
@@ -33,7 +34,13 @@ import { frFindNext, openFindModal } from './19-find-replace.js';
     rectangularSelection: true,
     foldGutter: true,
     gutters: ['CodeMirror-foldgutter', 'CodeMirror-linenumbers'],
-    foldOptions: { widget: '⋯' },
+    foldOptions: {
+      widget: function (from) {
+        // 折叠数组时显示顶层元素数量（由 json-cm.js 的折叠 helper 挂到 range.from 上）
+        if (from.elementCount != null) return '⋯ ' + from.elementCount + ' 项';
+        return '⋯';
+      }
+    },
     highlightSelectionMatches: { showToken: /[\w$\u4e00-\u9fff]+/, annotateScrollbar: false },
     extraKeys: {
       'Ctrl-Shift-F': formatCurrent,
@@ -70,10 +77,5 @@ import { frFindNext, openFindModal } from './19-find-replace.js';
     }
   });
 
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: 'loose',
-    theme: 'neutral',
-    flowchart: { htmlLabels: true, curve: 'basis' },
-    fontFamily: 'inherit'
-  });
+  // mermaid 改为懒加载：初始化配置已下沉到 index.html 的 __mermaidReady 中，
+  // 首次真正渲染图表时才加载并 initialize，避免启动时解析约 2.5MB 的 mermaid。

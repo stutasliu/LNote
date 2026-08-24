@@ -1028,19 +1028,26 @@
 .CodeMirror-search-label { color: var(--text-secondary); }
 .CodeMirror-matchhighlight { background: rgba(62, 155, 220, 0.18); }
 .CodeMirror-searching { background: rgba(255, 213, 0, 0.45) !important; }
+.CodeMirror-foldgutter { width: 18px; }
+.CodeMirror-foldgutter-open, .CodeMirror-foldgutter-folded {
+  display: block;
+  text-align: center;
+}
 .CodeMirror-foldgutter-open::after, .CodeMirror-foldgutter-folded::after {
   content: '▾';
-  font-size: 11px;
+  font-size: 16px;
+  line-height: 1;
   color: var(--text-secondary);
 }
 .CodeMirror-foldgutter-folded::after { content: '▸'; }
 .CodeMirror-foldmarker {
-  background: var(--hover);
-  border: 1px solid var(--border);
+  background: var(--primary-container);
+  border: 1px solid var(--accent-soft);
   border-radius: 4px;
   padding: 0 6px;
   font-size: 11px;
-  color: var(--text-secondary);
+  color: var(--accent);
+  text-shadow: none;
   cursor: pointer;
   font-family: var(--font-ui);
 }
@@ -1722,6 +1729,154 @@
 .ft-item.is-image .ft-ico { filter: none; }
 .ft-item.is-image { color: #1a7f37; }
 
+/* ===== PDF 查看器 ===== */
+.pdf-stage {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: #232328;
+  cursor: grab;
+  position: relative;
+}
+.pdf-stage.dragging { cursor: grabbing; }
+.pdf-stage::-webkit-scrollbar { width: 10px; height: 10px; }
+.pdf-stage::-webkit-scrollbar-thumb { background: #3d3d46; border-radius: 5px; }
+.pdf-stage::-webkit-scrollbar-track { background: transparent; }
+#pdf-canvas-wrap {
+  padding: 18px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  min-height: 100%;
+  width: max-content;
+  min-width: 100%;
+}
+.pdf-page-wrap {
+  background: #fff;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+  position: relative;
+  flex-shrink: 0;
+}
+.pdf-page-wrap canvas { display: block; }
+.pdf-loading {
+  color: #9a9aa2;
+  font-size: 13px;
+  padding: 48px;
+  text-align: center;
+}
+.pdf-error {
+  color: #e06c75;
+  font-size: 13px;
+  padding: 48px;
+  text-align: center;
+}
+.pdf-blank-warn {
+  color: #e5c07b;
+  font-size: 13px;
+  padding: 10px 16px;
+  text-align: center;
+  background: rgba(229, 192, 123, 0.12);
+  border: 1px dashed #e5c07b;
+  border-radius: 6px;
+  max-width: 480px;
+}
+.pdf-page-marker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -14px;
+  text-align: center;
+  font-size: 11px;
+  color: #9a9aa2;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 2;
+}
+/* 文本层：透明可选中，用于鼠标选中复制 */
+.pdf-page-wrap .textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  line-height: 1;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  transform-origin: 0 0;
+  z-index: 1;
+}
+.pdf-page-wrap .textLayer span,
+.pdf-page-wrap .textLayer br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.pdf-page-wrap .textLayer ::selection {
+  background: rgba(86, 156, 255, 0.45);
+}
+
+/* ===== DOC 查看器 ===== */
+#doc-stage { cursor: auto; }
+#doc-body {
+  padding: 20px 28px 36px;
+  min-height: 100%;
+}
+.doc-content {
+  background: #fff;
+  color: #2c2c2e;
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+  padding: 28px 36px;
+  max-width: 860px;
+  margin: 0 auto;
+  font-size: 15px;
+  line-height: 1.7;
+  word-break: break-word;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.doc-content p { margin: 0 0 0.8em; }
+.doc-content pre.doc-plain {
+  margin: 0;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.doc-content h1, .doc-content h2, .doc-content h3, .doc-content h4 {
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 1em 0 0.5em;
+}
+.doc-content h1 { font-size: 1.7em; }
+.doc-content h2 { font-size: 1.45em; }
+.doc-content h3 { font-size: 1.2em; }
+.doc-content ul, .doc-content ol { margin: 0 0 0.8em; padding-left: 1.6em; }
+.doc-content li { margin: 0.2em 0; }
+.doc-content img { max-width: 100%; border-radius: 4px; }
+.doc-content a { color: #1a73e8; }
+.doc-content table { border-collapse: collapse; margin: 0 0 0.8em; }
+.doc-content td, .doc-content th {
+  border: 1px solid #d0d0d4;
+  padding: 4px 10px;
+  text-align: left;
+}
+.doc-loading, .doc-error {
+  color: #9a9aa2;
+  font-size: 13px;
+  padding: 48px;
+  text-align: center;
+}
+.doc-error { color: #e06c75; }
+
+/* 文件树：PDF 文件图标 */
+.ft-item.is-pdf .ft-ico { filter: none; }
+.ft-item.is-pdf { color: #c43d3d; }
+
 /* ============ data: URI 折叠显示 ============ */
 /* 把 `![alt](data:image/png;base64,XXXX)` 中的 base64 区段折叠成内嵌小卡片 */
 .CodeMirror .ink-datauri-fold {
@@ -1996,6 +2151,39 @@
 #appbar .icon-btn:not(.ab-toggle):not(.ab-tb):not(.ab-rbtn) .ico {
   width: 18px;
   height: 18px;
+}
+
+/* ============================================================
+   文档地图（右侧小地图）—— 代码全景缩略图
+   仿 VS Code minimap：130px 窄竖栏 + 全高画布 + 高亮视口框
+   ============================================================ */
+#doc-map {
+  flex: 0 0 auto;
+  width: 130px; min-width: 130px;
+  border-left: 1px solid var(--border-light);
+  background: var(--surface);
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  height: 100%;
+  min-height: 0;
+}
+#doc-map-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: block;
+  cursor: pointer;
+}
+#doc-map-viewport {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  border-left: 2px solid rgba(var(--accent-rgb), 0.85);
+  background: rgba(var(--accent-rgb), 0.10);
+  pointer-events: none;
+  box-sizing: border-box;
+  display: none;
 }
 
 /* ============================================================

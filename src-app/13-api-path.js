@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { API, getApi, hasApi, EXT_LANGS, RICH_BLOCK_TYPES, isRichDocContent, IMG_EXTS, isImageExt, dirOf, joinPath, normPath, isAbsPath, toFileUrl, resolveImgSrc };
+export { API, getApi, hasApi, EXT_LANGS, RICH_BLOCK_TYPES, isRichDocContent, IMG_EXTS, isImageExt, PDF_EXTS, isPdfExt, DOC_EXTS, isDocExt, dirOf, joinPath, normPath, isAbsPath, toFileUrl, resolveImgSrc, getCachedRichDir, setCachedRichDir };
   /* ---------------- 磁盘文件（打开文件夹 / 编码 / 比较） ---------------- */
   // pywebview 的 JS 桥是在页面加载完成后（pywebviewready）才注入的，
   // 因此必须在调用时动态获取，不能初始化时缓存，否则会误判为浏览器环境。
@@ -13,7 +13,16 @@ export { API, getApi, hasApi, EXT_LANGS, RICH_BLOCK_TYPES, isRichDocContent, IMG
   function hasApi() { return !!getApi(); }
   window.addEventListener('pywebviewready', function () {
     API = window.pywebview && window.pywebview.api ? window.pywebview.api : API;
+    // 预取富文档目录并缓存，供图片渲染时作为 baseDir 回退
+    if (API && API.get_rich_dir) {
+      API.get_rich_dir().then(function (dir) { setCachedRichDir(dir); }).catch(function () {});
+    }
   });
+
+  // 缓存富文档目录，避免每次渲染图片都异步调用 Python API
+  var _cachedRichDir = null;
+  function getCachedRichDir() { return _cachedRichDir; }
+  function setCachedRichDir(dir) { _cachedRichDir = dir ? dir.replace(/\\/g, '/') : null; }
 
   var EXT_LANGS = {
     md: 'markdown', markdown: 'markdown', json: 'json', xml: 'xml', html: 'html', htm: 'html',
@@ -50,6 +59,22 @@ export { API, getApi, hasApi, EXT_LANGS, RICH_BLOCK_TYPES, isRichDocContent, IMG
   function isImageExt(name) {
     var m = (name || '').match(/\.([^.]+)$/);
     return !!(m && IMG_EXTS[m[1].toLowerCase()]);
+  }
+
+  // PDF 扩展名（文件树图标、双击查看、导入分发）
+  var PDF_EXTS = { pdf: 1 };
+  function isPdfExt(name) {
+    var m = (name || '').match(/\.([^.]+)$/);
+    return !!(m && PDF_EXTS[m[1].toLowerCase()]);
+  }
+
+  // Word 扩展名（文件树图标、双击查看、导入分发）
+  // 说明：mammoth 只支持 .docx（OOXML）；.doc 老式二进制无法解析，
+  // 打开时按只读二进制提示，用户可改用 Word/WPS 另存为 .docx。
+  var DOC_EXTS = { docx: 1, doc: 1 };
+  function isDocExt(name) {
+    var m = (name || '').match(/\.([^.]+)$/);
+    return !!(m && DOC_EXTS[m[1].toLowerCase()]);
   }
 
   /* ---------------- 路径工具 ---------------- */

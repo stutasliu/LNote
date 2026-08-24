@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>L.Note 图片查看器</title>
+<title>L.Note 图片编辑</title>
 <style>
   * { box-sizing: border-box; }
   html, body {
@@ -15,70 +15,206 @@
   #app { display: flex; flex-direction: column; height: 100%; }
 
   .iv-top {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 14px; background: #2a2a30;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 8px 12px; background: #2a2a30;
     border-bottom: 1px solid #38383f; flex: none;
   }
   .iv-title { font-size: 13px; font-weight: 600; color: #cfcfd4; overflow: hidden;
-    text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-  .iv-zoom-label { font-size: 12px; color: #9a9aa2; min-width: 52px; text-align: center; }
+    text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+  .iv-zoom-label { font-size: 12px; color: #9a9aa2; min-width: 44px; text-align: center; }
   .iv-btn {
     border: 1px solid #44444c; background: #35353d; color: #e8e8ea;
-    border-radius: 6px; padding: 5px 11px; font-size: 13px; cursor: pointer;
-    font-family: inherit; line-height: 1; user-select: none;
+    border-radius: 6px; padding: 5px 10px; font-size: 13px; cursor: pointer;
+    font-family: inherit; line-height: 1; user-select: none; white-space: nowrap;
   }
   .iv-btn:hover { background: #41414a; }
   .iv-btn:active { background: #2f2f37; }
-  .iv-btn.icon { min-width: 34px; padding: 5px 0; text-align: center; }
+  .iv-btn.icon { min-width: 32px; padding: 5px 0; text-align: center; }
+  .iv-btn.primary { background: #4b3fe3; border-color: #4b3fe3; color: #fff; }
+  .iv-btn.primary:hover { background: #5a4df0; }
+  .iv-btn.danger { background: #3a3a42; }
+  .iv-btn.on { background: #4b3fe3; border-color: #4b3fe3; color: #fff; }
   .iv-sep { width: 1px; height: 20px; background: #44444c; margin: 0 2px; }
+  .iv-gap { flex: 1; }
+
+  /* 编辑工具栏 */
+  .iv-editbar {
+    display: none; align-items: center; gap: 6px; flex-wrap: wrap;
+    padding: 6px 12px; background: #232329; border-bottom: 1px solid #38383f; flex: none;
+  }
+  .iv-editbar.show { display: flex; }
+  .iv-editbar .iv-btn { padding: 4px 9px; font-size: 12px; }
+
+  /* 滤镜面板 */
+  .iv-filterbox {
+    display: none; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 6px 12px; background: #232329; border-bottom: 1px solid #38383f; flex: none;
+  }
+  .iv-filterbox.show { display: flex; }
+  .iv-frow { display: flex; align-items: center; gap: 6px; }
+  .iv-flbl { font-size: 12px; color: #9a9aa2; min-width: 40px; }
+  .iv-frow input[type=range] { width: 96px; accent-color: #4b3fe3; }
+  .iv-fval { font-size: 11px; color: #9a9aa2; min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* 尺寸调整面板 */
+  .iv-resizebox {
+    display: none; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 6px 12px; background: #232329; border-bottom: 1px solid #38383f; flex: none;
+  }
+  .iv-resizebox.show { display: flex; }
+  .iv-resizebox input[type=number] {
+    width: 80px; background: #1b1b1f; color: #e8e8ea; border: 1px solid #44444c;
+    border-radius: 5px; padding: 4px 6px; font-size: 12px; font-family: inherit;
+  }
+  .iv-rs-label { font-size: 12px; color: #9a9aa2; }
 
   .iv-stage {
     flex: 1; position: relative; overflow: hidden;
-    cursor: grab; background:
+    cursor: default; background:
       repeating-conic-gradient(#26262b 0% 25%, #202024 0% 50%) 50% / 24px 24px;
     touch-action: none;
   }
-  .iv-stage.grabbing { cursor: grabbing; }
+  .iv-stage.grabbing { cursor: move; }
   .iv-stage .iv-img-wrap {
     position: absolute; left: 50%; top: 50%;
     transform-origin: center center;
     will-change: transform;
   }
-  .iv-stage img {
+  .iv-stage img, .iv-stage canvas {
     display: block; max-width: none; user-select: none; -webkit-user-drag: none;
-    box-shadow: 0 6px 30px rgba(0,0,0,0.5);
   }
+  .iv-stage img { box-shadow: 0 6px 30px rgba(0,0,0,0.5); }
+  .iv-stage #iv-canvas { box-shadow: 0 6px 30px rgba(0,0,0,0.5); }
   .iv-hint {
     position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
     background: rgba(0,0,0,0.55); color: #d6d6da; font-size: 12px;
     padding: 5px 12px; border-radius: 20px; pointer-events: none;
-    opacity: 0; transition: opacity 0.3s ease;
+    opacity: 0; transition: opacity 0.3s ease; z-index: 50;
   }
   .iv-hint.show { opacity: 1; }
   .iv-loading {
     position: absolute; inset: 0; display: flex; align-items: center;
     justify-content: center; color: #9a9aa2; font-size: 14px;
   }
+
+  /* 裁剪层 */
+  .iv-crop-layer {
+    display: none; position: absolute; inset: 0; z-index: 40; pointer-events: none;
+  }
+  .iv-crop-layer.show { display: block; }
+  .crop-box {
+    position: absolute; border: 2px dashed #4b3fe3;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.45);
+    cursor: move; pointer-events: auto;
+  }
+  .crop-h {
+    position: absolute; width: 12px; height: 12px; background: #fff;
+    border: 2px solid #4b3fe3; pointer-events: auto;
+  }
+  .crop-h.tl { left: -7px; top: -7px; cursor: nwse-resize; }
+  .crop-h.tr { right: -7px; top: -7px; cursor: nesw-resize; }
+  .crop-h.bl { left: -7px; bottom: -7px; cursor: nesw-resize; }
+  .crop-h.br { right: -7px; bottom: -7px; cursor: nwse-resize; }
 </style>
 </head>
 <body>
 <div id="app">
   <div class="iv-top">
-    <span class="iv-title" id="iv-title">图片查看器</span>
+    <span class="iv-title" id="iv-title">图片编辑</span>
+
+    <!-- 查看态控件 -->
     <span class="iv-sep"></span>
-    <button class="iv-btn icon" id="iv-zoom-out" title="缩小 (Ctrl+-)">－</button>
     <span class="iv-zoom-label" id="iv-zoom">100%</span>
+    <button class="iv-btn icon" id="iv-zoom-out" title="缩小 (Ctrl+-)">－</button>
     <button class="iv-btn icon" id="iv-zoom-in" title="放大 (Ctrl++)">＋</button>
-    <span class="iv-sep"></span>
     <button class="iv-btn" id="iv-actual" title="实际大小 (1:1)">实际大小</button>
     <button class="iv-btn" id="iv-fit" title="适应窗口">适应</button>
-    <button class="iv-btn" id="iv-reset" title="重置 (0)">重置</button>
     <span class="iv-sep"></span>
+    <button class="iv-btn" id="iv-edit-toggle" title="进入编辑模式">编辑</button>
+
+    <!-- 编辑态控件 -->
+    <span id="iv-edit-controls" style="display:none">
+      <button class="iv-btn primary" id="iv-save" title="覆盖保存到原文件">保存</button>
+      <button class="iv-btn" id="iv-save-as" title="另存为">另存为</button>
+      <button class="iv-btn danger" id="iv-edit-cancel" title="退出编辑（放弃修改）">取消编辑</button>
+    </span>
+
+    <span class="iv-gap"></span>
+    <button class="iv-btn icon" id="iv-win-smaller" title="缩小窗口">⋐</button>
+    <button class="iv-btn icon" id="iv-win-bigger" title="放大窗口">⋑</button>
     <button class="iv-btn" id="iv-close" title="关闭 (Esc)">关闭</button>
   </div>
+
+  <!-- 编辑工具栏 -->
+  <div class="iv-editbar" id="iv-editbar">
+    <button class="iv-btn" data-edit="rotl" title="逆时针旋转 90°">⟲ 旋转</button>
+    <button class="iv-btn" data-edit="rotr" title="顺时针旋转 90°">⟳ 旋转</button>
+    <button class="iv-btn" data-edit="fliph" title="水平翻转">水平翻转</button>
+    <button class="iv-btn" data-edit="flipv" title="垂直翻转">垂直翻转</button>
+    <button class="iv-btn" data-edit="crop" title="裁剪">裁剪</button>
+    <button class="iv-btn" data-edit="resize" title="调整尺寸">尺寸</button>
+    <span class="iv-sep"></span>
+    <button class="iv-btn" data-edit="undo" title="撤销上一步">撤销</button>
+    <button class="iv-btn" data-edit="reset" title="恢复原图">重置</button>
+    <span class="iv-gap"></span>
+    <span class="iv-flbl" id="iv-crop-hint" style="display:none">拖动裁剪框调整选区，再次点「裁剪」应用</span>
+  </div>
+
+  <!-- 滤镜面板 -->
+  <div class="iv-filterbox" id="iv-filterbox">
+    <div class="iv-frow">
+      <span class="iv-flbl">亮度</span>
+      <input type="range" id="f-brightness" min="0" max="200" value="100">
+      <span class="iv-fval" id="fv-brightness">100%</span>
+    </div>
+    <div class="iv-frow">
+      <span class="iv-flbl">对比度</span>
+      <input type="range" id="f-contrast" min="0" max="200" value="100">
+      <span class="iv-fval" id="fv-contrast">100%</span>
+    </div>
+    <div class="iv-frow">
+      <span class="iv-flbl">饱和度</span>
+      <input type="range" id="f-saturate" min="0" max="200" value="100">
+      <span class="iv-fval" id="fv-saturate">100%</span>
+    </div>
+    <span class="iv-sep"></span>
+    <button class="iv-btn" id="f-gray" style="min-width:0; padding:4px 9px;">灰度</button>
+    <button class="iv-btn" id="f-invert" style="min-width:0; padding:4px 9px;">反色</button>
+  </div>
+
+  <!-- 尺寸调整面板 -->
+  <div class="iv-resizebox" id="iv-resizebox">
+    <div class="iv-frow">
+      <span class="iv-flbl">宽</span>
+      <input type="number" id="rs-w" min="1" value="0">
+      <span class="iv-rs-label">px</span>
+    </div>
+    <div class="iv-frow">
+      <span class="iv-flbl">高</span>
+      <input type="number" id="rs-h" min="1" value="0">
+      <span class="iv-rs-label">px</span>
+    </div>
+    <label class="iv-frow" style="cursor:pointer; user-select:none;">
+      <input type="checkbox" id="rs-lock" checked>
+      <span class="iv-rs-label">保持宽高比</span>
+    </label>
+    <span class="iv-gap"></span>
+    <button class="iv-btn primary" id="rs-apply">应用</button>
+    <button class="iv-btn" id="rs-cancel">取消</button>
+  </div>
+
   <div class="iv-stage" id="iv-stage">
     <div class="iv-img-wrap" id="iv-wrap">
       <img id="iv-img" alt="图片">
+      <canvas id="iv-canvas" style="display:none"></canvas>
+    </div>
+    <div class="iv-crop-layer" id="iv-crop-layer">
+      <div class="crop-box" id="iv-crop-box">
+        <span class="crop-h tl" data-h="tl"></span>
+        <span class="crop-h tr" data-h="tr"></span>
+        <span class="crop-h bl" data-h="bl"></span>
+        <span class="crop-h br" data-h="br"></span>
+      </div>
     </div>
     <div class="iv-loading" id="iv-loading">加载中…</div>
     <div class="iv-hint" id="iv-hint"></div>
@@ -86,38 +222,45 @@
 </div>
 
 <script>
-  var data = { src: "", name: "图片" };
+  var data = { src: "", name: "图片", path: "", mime: "" };
   var img = document.getElementById('iv-img');
+  var canvas = document.getElementById('iv-canvas');
   var wrap = document.getElementById('iv-wrap');
   var stage = document.getElementById('iv-stage');
   var zoomLabel = document.getElementById('iv-zoom');
   var loading = document.getElementById('iv-loading');
   var hintEl = document.getElementById('iv-hint');
 
+  /* ================= 查看态：缩放 / 平移 ================= */
   var scale = 1, tx = 0, ty = 0;
-  var minScale = 0.1, maxScale = 8;
+  var minScale = 0.1, maxScale = 16;
+
+  // 返回当前显示元素的自然尺寸（查看态=img，编辑态=currentCanvas 逻辑尺寸）
+  function dispW() { return editMode ? (currentCanvas ? currentCanvas.width : 0) : (img.naturalWidth || 0); }
+  function dispH() { return editMode ? (currentCanvas ? currentCanvas.height : 0) : (img.naturalHeight || 0); }
 
   function showHint(msg) {
     hintEl.textContent = msg;
     hintEl.classList.add('show');
     clearTimeout(showHint._t);
-    showHint._t = setTimeout(function () { hintEl.classList.remove('show'); }, 1100);
+    showHint._t = setTimeout(function () { hintEl.classList.remove('show'); }, 1200);
   }
 
-  function apply() {
-    wrap.style.transform = 'translate(-50%, -50%) translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
+  function applyTransform(d) {
+    wrap.style.transform = 'translate(-50%, -50%) translate(' + tx + 'px,' + ty + 'px) scale(' + d + ')';
     zoomLabel.textContent = Math.round(scale * 100) + '%';
   }
-
+  function apply() {
+    if (editMode && currentCanvas) { renderEditCanvas(); return; }
+    applyTransform(scale);
+  }
   function clampScale(s) { return Math.max(minScale, Math.min(maxScale, s)); }
 
   function setScale(ns, cx, cy) {
-    // 以 (cx,cy) 为锚点缩放（视口坐标）
     ns = clampScale(ns);
     var rect = stage.getBoundingClientRect();
     var px = (cx != null ? cx : rect.width / 2) - rect.left;
     var py = (cy != null ? cy : rect.height / 2) - rect.top;
-    // 锚点相对 wrap 中心：变换前
     var ocx = (px - rect.width / 2 - tx);
     var ocy = (py - rect.height / 2 - ty);
     var ratio = ns / scale;
@@ -126,51 +269,527 @@
     scale = ns;
     apply();
   }
-
   function zoomBy(factor) {
     var rect = stage.getBoundingClientRect();
     setScale(scale * factor, rect.width / 2 + rect.left, rect.height / 2 + rect.top);
   }
-
   function fitToStage() {
     var rect = stage.getBoundingClientRect();
-    if (!img.naturalWidth) return;
+    var w = dispW(), h = dispH();
+    if (!w) return;
     var pad = 24;
-    var s = Math.min((rect.width - pad) / img.naturalWidth, (rect.height - pad) / img.naturalHeight);
-    scale = clampScale(s);
+    scale = clampScale(Math.min((rect.width - pad) / w, (rect.height - pad) / h));
     tx = 0; ty = 0;
     apply();
-    showHint('已适应窗口');
+  }
+  function actualSize() { scale = 1; tx = 0; ty = 0; apply(); }
+
+  /* ================= 编辑引擎 ================= */
+  var editMode = false, cropMode = false;
+  var sourceCanvas = null;   // 原始位图
+  var currentCanvas = null;  // 当前几何编辑结果（合成滤波前的）
+  var editHistory = [];          // 几何操作快照栈（canvas 引用）
+  var hiResCache = null;         // 尺寸调整前的高清快照（放大查看时提供真实细节，避免缩小后放大变糊）
+  var editFactor = 1;            // 编辑态显示 canvas 的分辨率放大因子
+  var filters = { brightness: 100, contrast: 100, saturate: 100, grayscale: 0, invert: 0 };
+
+  function cloneCanvas(c) {
+    var n = document.createElement('canvas');
+    n.width = c.width; n.height = c.height;
+    n.getContext('2d').drawImage(c, 0, 0);
+    return n;
+  }
+  function pushHistory() {
+    if (editHistory.length > 24) editHistory.shift();
+    editHistory.push(currentCanvas);
+  }
+  function filterString() {
+    var f = filters, parts = [];
+    if (f.brightness !== 100) parts.push('brightness(' + (f.brightness / 100) + ')');
+    if (f.contrast !== 100) parts.push('contrast(' + (f.contrast / 100) + ')');
+    if (f.saturate !== 100) parts.push('saturate(' + (f.saturate / 100) + ')');
+    if (f.grayscale) parts.push('grayscale(1)');
+    if (f.invert) parts.push('invert(1)');
+    return parts.join(' ');
+  }
+  // 把当前编辑结果（含滤镜）重绘到显示 canvas。
+  // 分辨率随显示缩放自适应：放大查看时用高清快照重采样，保证像素级清晰（缩小不再等于丢失可查看的细节）
+  function calcEditFactor() {
+    var lw = currentCanvas.width, lh = currentCanvas.height;
+    if (!lw || !lh) return 1;
+    if (scale <= 1) return scale;                    // 缩小显示：分辨率跟随缩放，1:1 像素
+    if (!hiResCache) return 1;                       // 无高清源：保持原分辨率，由浏览器放大
+    var maxf = Math.min(hiResCache.width / lw, hiResCache.height / lh);
+    if (!(maxf > 1)) return 1;
+    return Math.min(scale, maxf);                    // 放大显示：分辨率提升到高清源上限
+  }
+  function renderEditCanvas() {
+    var lw = currentCanvas.width, lh = currentCanvas.height;
+    var f = calcEditFactor();
+    if (f !== editFactor) {
+      editFactor = f;
+      var rw = Math.max(1, Math.round(lw * f));
+      var rh = Math.max(1, Math.round(lh * f));
+      canvas.width = rw; canvas.height = rh;
+      canvas.style.width = lw * f + 'px';
+      canvas.style.height = lh * f + 'px';
+      var ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.filter = filterString() || 'none';
+      var src = (hiResCache && f !== 1) ? hiResCache : currentCanvas;
+      ctx.drawImage(src, 0, 0, rw, rh);
+    }
+    applyTransform(scale / (editFactor > 0 ? editFactor : 1));
+  }
+  function updatePreview() {
+    editFactor = -1; // 强制刷新分辨率与重绘
+    renderEditCanvas();
+  }
+  function syncEditUI() {
+    document.getElementById('iv-editbar').classList.toggle('show', editMode);
+    document.getElementById('iv-filterbox').classList.toggle('show', editMode);
+    document.getElementById('iv-edit-toggle').style.display = editMode ? 'none' : '';
+    document.getElementById('iv-edit-controls').style.display = editMode ? '' : 'none';
+    document.getElementById('iv-crop-layer').classList.toggle('show', cropMode);
+    document.getElementById('iv-crop-hint').style.display = cropMode ? '' : 'none';
+    img.style.display = editMode ? 'none' : '';
+    canvas.style.display = editMode ? '' : 'none';
+    document.getElementById('iv-resizebox').classList.remove('show');
+  }
+  function setFilterInputs() {
+    setRange('f-brightness', filters.brightness);
+    setRange('f-contrast', filters.contrast);
+    setRange('f-saturate', filters.saturate);
+    document.getElementById('f-gray').classList.toggle('on', !!filters.grayscale);
+    document.getElementById('f-invert').classList.toggle('on', !!filters.invert);
+  }
+  function setRange(id, v) {
+    var el = document.getElementById(id); el.value = v;
+    document.getElementById('fv-' + id.slice(2)).textContent = v + '%';
   }
 
-  function actualSize() {
-    scale = 1; tx = 0; ty = 0; apply(); showHint('实际大小 100%');
+  function enterEdit() {
+    if (!img.complete || !img.naturalWidth) { showHint('图片尚未加载完成'); return; }
+    sourceCanvas = document.createElement('canvas');
+    sourceCanvas.width = img.naturalWidth; sourceCanvas.height = img.naturalHeight;
+    sourceCanvas.getContext('2d').drawImage(img, 0, 0);
+    currentCanvas = cloneCanvas(sourceCanvas);
+    editHistory = [];
+    hiResCache = null;
+    editFactor = 1;
+    filters = { brightness: 100, contrast: 100, saturate: 100, grayscale: 0, invert: 0 };
+    setFilterInputs();
+    editMode = true; cropMode = false;
+    syncEditUI();
+    updatePreview();
+    fitToStage();
+    showHint('编辑模式：操作不写回文件，直到「保存」');
   }
-
-  function resetView() {
+  function exitEdit() {
+    editMode = false; cropMode = false;
+    syncEditUI();
     fitToStage();
   }
+  function rotate90(turnRight) {
+    if (cropMode) return;
+    pushHistory();
+    var c = currentCanvas, n = document.createElement('canvas');
+    var deg = turnRight ? 90 : -90;
+    n.width = c.height; n.height = c.width;
+    var ctx = n.getContext('2d');
+    ctx.translate(n.width / 2, n.height / 2);
+    ctx.rotate(deg * Math.PI / 180);
+    ctx.drawImage(c, -c.width / 2, -c.height / 2);
+    currentCanvas = n;
+    if (hiResCache) {
+      var h = hiResCache, hn = document.createElement('canvas');
+      hn.width = h.height; hn.height = h.width;
+      var hctx = hn.getContext('2d');
+      hctx.translate(hn.width / 2, hn.height / 2);
+      hctx.rotate(deg * Math.PI / 180);
+      hctx.drawImage(h, -h.width / 2, -h.height / 2);
+      hiResCache = hn;
+    }
+    updatePreview(); fitToStage();
+  }
+  function flip(axis) {
+    if (cropMode) return;
+    pushHistory();
+    var c = currentCanvas, n = document.createElement('canvas');
+    n.width = c.width; n.height = c.height;
+    var ctx = n.getContext('2d');
+    ctx.translate(axis === 'h' ? n.width : 0, axis === 'v' ? n.height : 0);
+    ctx.scale(axis === 'h' ? -1 : 1, axis === 'v' ? -1 : 1);
+    ctx.drawImage(c, 0, 0);
+    currentCanvas = n;
+    if (hiResCache) {
+      var h = hiResCache, hn = document.createElement('canvas');
+      hn.width = h.width; hn.height = h.height;
+      var hctx = hn.getContext('2d');
+      hctx.translate(axis === 'h' ? hn.width : 0, axis === 'v' ? hn.height : 0);
+      hctx.scale(axis === 'h' ? -1 : 1, axis === 'v' ? -1 : 1);
+      hctx.drawImage(h, 0, 0);
+      hiResCache = hn;
+    }
+    updatePreview(); fitToStage();
+  }
+  function undo() {
+    if (cropMode) { exitCrop(); return; }
+    if (!editHistory.length) { showHint('没有可撤销的操作'); return; }
+    currentCanvas = editHistory.pop();
+    hiResCache = null;
+    updatePreview(); fitToStage();
+  }
+  function resetEdit() {
+    if (cropMode) { exitCrop(); return; }
+    editHistory = [];
+    currentCanvas = cloneCanvas(sourceCanvas);
+    hiResCache = null;
+    editFactor = 1;
+    filters = { brightness: 100, contrast: 100, saturate: 100, grayscale: 0, invert: 0 };
+    setFilterInputs();
+    updatePreview(); fitToStage();
+    showHint('已恢复原图');
+  }
 
-  // ---- 事件 ----
+  /* ================= 尺寸调整 ================= */
+  var resizeAspect = 0; // 打开尺寸面板时记录的宽高比
+
+  function openResize() {
+    if (!editMode || cropMode) return;
+    var w = currentCanvas.width, h = currentCanvas.height;
+    resizeAspect = h ? (w / h) : 0;
+    document.getElementById('rs-w').value = w;
+    document.getElementById('rs-h').value = h;
+    document.getElementById('rs-lock').checked = true;
+    document.getElementById('iv-resizebox').classList.add('show');
+    showHint('输入宽高后点「应用」');
+  }
+  function closeResize() {
+    document.getElementById('iv-resizebox').classList.remove('show');
+  }
+  // 高质量缩放：缩小用金字塔多步重采样（减少混叠），放大附带轻度锐化（减少插值发虚）
+  function highQualityResize(src, w, h) {
+    var sw = src.width, sh = src.height;
+    if (sw === w && sh === h) return cloneCanvas(src);
+    var cur = document.createElement('canvas');
+    cur.width = sw; cur.height = sh;
+    cur.getContext('2d').drawImage(src, 0, 0);
+    var cw = sw, ch = sh;
+    while (cw / 2 >= w && ch / 2 >= h) {
+      cw = Math.max(w, Math.floor(cw / 2));
+      ch = Math.max(h, Math.floor(ch / 2));
+      var s = document.createElement('canvas');
+      s.width = cw; s.height = ch;
+      var sx = s.getContext('2d');
+      sx.imageSmoothingEnabled = true;
+      sx.imageSmoothingQuality = 'high';
+      sx.drawImage(cur, 0, 0, cw, ch);
+      cur = s;
+    }
+    if (cw !== w || ch !== h) {
+      var f = document.createElement('canvas');
+      f.width = w; f.height = h;
+      var fx = f.getContext('2d');
+      fx.imageSmoothingEnabled = true;
+      fx.imageSmoothingQuality = 'high';
+      fx.drawImage(cur, 0, 0, w, h);
+      cur = f;
+    }
+    if (w > sw && h > sh && w * h <= 16000000) cur = unsharpMask(cur, 0.35);
+    return cur;
+  }
+  function unsharpMask(c, amount) {
+    var w = c.width, h = c.height;
+    var ctx = c.getContext('2d');
+    var srcData = ctx.getImageData(0, 0, w, h).data;
+    var out = new Uint8ClampedArray(srcData);
+    for (var y = 1; y < h - 1; y++) {
+      for (var x = 1; x < w - 1; x++) {
+        var i = (y * w + x) * 4;
+        for (var k = 0; k < 3; k++) {
+          var sum = srcData[i - w * 4 + k] + srcData[i + w * 4 + k] + srcData[i - 4 + k] + srcData[i + 4 + k];
+          var cen = srcData[i + k];
+          var v = Math.round(cen + amount * (5 * cen - sum) / 4);
+          out[i + k] = v < 0 ? 0 : (v > 255 ? 255 : v);
+        }
+      }
+    }
+    ctx.putImageData(new ImageData(out, w, h), 0, 0);
+    return c;
+  }
+  function applyResize() {
+    var w = parseInt(document.getElementById('rs-w').value, 10);
+    var h = parseInt(document.getElementById('rs-h').value, 10);
+    if (!(w > 0) || !(h > 0)) { showHint('请输入有效宽高'); return; }
+    var MAX = 16384;
+    if (w > MAX || h > MAX) { showHint('尺寸过大（最大 ' + MAX + ' px）'); return; }
+    var ow = currentCanvas.width, oh = currentCanvas.height;
+    if (w === ow && h === oh) { closeResize(); showHint('尺寸未变化'); return; }
+    pushHistory();
+    // 缩小前保留高清快照：缩小本身不可逆，但之后放大查看时用快照重采样，细节不再丢失
+    if (w < ow && h < oh && (!hiResCache || hiResCache.width < ow || hiResCache.height < oh)) {
+      hiResCache = cloneCanvas(currentCanvas);
+    }
+    currentCanvas = highQualityResize(currentCanvas, w, h);
+    closeResize();
+    updatePreview();
+    // 缩小后回落到 ≤100% 显示并居中，保证 1:1 像素级清晰（否则沿用旧放大比例会把变小的画布放大到模糊）
+    if (w < ow && h < oh) {
+      var r = stage.getBoundingClientRect();
+      var fit = (r.width - 24) / w;
+      var fitH = (r.height - 24) / h;
+      scale = clampScale(Math.min(Math.min(fit, fitH), 1));
+      tx = 0; ty = 0;
+    }
+    // 放大保持当前缩放比例，让宽高变化直接反映为屏幕上的大小变化
+    apply();
+    var msg;
+    if (w > ow && h > oh) msg = '已放大 ' + ow + '×' + oh + ' → ' + w + '×' + h + '（已做优化，放大不增加细节）';
+    else if (w < ow && h < oh) msg = '已缩小 ' + ow + '×' + oh + ' → ' + w + '×' + h + '（像素已重采样）';
+    else msg = '已调整尺寸 ' + ow + '×' + oh + ' → ' + w + '×' + h;
+    showHint(msg);
+  }
+  function bindResizeInputs() {
+    var wEl = document.getElementById('rs-w');
+    var hEl = document.getElementById('rs-h');
+    var lockEl = document.getElementById('rs-lock');
+    wEl.addEventListener('input', function () {
+      if (lockEl.checked) {
+        var v = parseInt(wEl.value, 10);
+        if (v > 0 && resizeAspect > 0) hEl.value = Math.max(1, Math.round(v / resizeAspect));
+      }
+    });
+    hEl.addEventListener('input', function () {
+      if (lockEl.checked) {
+        var v = parseInt(hEl.value, 10);
+        if (v > 0 && resizeAspect > 0) wEl.value = Math.max(1, Math.round(v * resizeAspect));
+      }
+    });
+  }
+
+  /* ================= 裁剪 ================= */
+  var cropRect = null; // 进入裁剪时固定的 fit 参数：{dw, dh, imgLeft, imgTop}
+
+  function enterCrop() {
+    if (!editMode) return;
+    // 若已在裁剪模式，再次点击视为应用
+    if (cropMode) { applyCrop(); return; }
+    fitToStage();
+    // 计算图片显示矩形（fit => tx=ty=0，居中）
+    var sr = stage.getBoundingClientRect();
+    var dw = dispW() * scale, dh = dispH() * scale;
+    var imgLeft = (sr.width - dw) / 2, imgTop = (sr.height - dh) / 2;
+    cropRect = { dw: dw, dh: dh, imgLeft: imgLeft, imgTop: imgTop };
+    // 初始裁剪框 = 图片 80% 居中
+    var cw = dw * 0.8, ch = dh * 0.8, cl = imgLeft + (dw - cw) / 2, ct = imgTop + (dh - ch) / 2;
+    setCropBox(cl, ct, cw, ch);
+    cropMode = true;
+    syncEditUI();
+    showHint('拖动裁剪框，点「裁剪」应用');
+  }
+  function exitCrop() {
+    cropMode = false;
+    cropRect = null;
+    syncEditUI();
+  }
+  function setCropBox(l, t, w, h) {
+    var b = document.getElementById('iv-crop-box');
+    b.style.left = l + 'px'; b.style.top = t + 'px';
+    b.style.width = w + 'px'; b.style.height = h + 'px';
+  }
+  function applyCrop() {
+    var sr = stage.getBoundingClientRect();
+    var b = document.getElementById('iv-crop-box');
+    var r = b.getBoundingClientRect();
+    var left = r.left - sr.left, top = r.top - sr.top;
+    // 显示坐标 → 原图像素
+    var x = (left - cropRect.imgLeft) / scale;
+    var y = (top - cropRect.imgTop) / scale;
+    var w = r.width / scale, h = r.height / scale;
+    var c = currentCanvas;
+    var ix = Math.max(0, Math.round(x)), iy = Math.max(0, Math.round(y));
+    var iw = Math.min(c.width - ix, Math.max(1, Math.round(w)));
+    var ih = Math.min(c.height - iy, Math.max(1, Math.round(h)));
+    pushHistory();
+    var n = document.createElement('canvas');
+    n.width = iw; n.height = ih;
+    n.getContext('2d').drawImage(c, ix, iy, iw, ih, 0, 0, iw, ih);
+    currentCanvas = n;
+    if (hiResCache) {
+      var hc = hiResCache, rx = hc.width / c.width, ry = hc.height / c.height;
+      var hn = document.createElement('canvas');
+      hn.width = Math.max(1, Math.round(iw * rx));
+      hn.height = Math.max(1, Math.round(ih * ry));
+      hn.getContext('2d').drawImage(hc, Math.round(ix * rx), Math.round(iy * ry), hn.width, hn.height, 0, 0, hn.width, hn.height);
+      hiResCache = hn;
+    }
+    exitCrop();
+    updatePreview(); fitToStage();
+    showHint('已裁剪');
+  }
+
+  /* ================= 导出 & 保存 ================= */
+  function exportDataUrl() {
+    var c = currentCanvas;
+    var out = document.createElement('canvas');
+    out.width = c.width; out.height = c.height;
+    var ctx = out.getContext('2d');
+    ctx.filter = filterString();
+    ctx.drawImage(c, 0, 0);
+    var ext = (data.name || '').split('.').pop().toLowerCase();
+    var mime = (ext === 'jpg' || ext === 'jpeg') ? 'image/jpeg' : 'image/png';
+    return out.toDataURL(mime, mime === 'image/jpeg' ? 0.92 : undefined);
+  }
+  function api() { return (window.pywebview && window.pywebview.api) || null; }
+
+  function saveOverwrite() {
+    var a = api();
+    if (!a || !a.save_image_file) { showHint('未连接保存 API'); return; }
+    if (!data.path) { showHint('无原文件路径，请用「另存为」'); return; }
+    var url = exportDataUrl();
+    a.save_image_file(data.path, url).then(function (r) {
+      if (r && r.ok) showHint('已保存到 ' + data.path);
+      else showHint('保存失败：' + ((r && r.error) || '未知错误'), 'error');
+    }).catch(function (e) { showHint('保存失败：' + e); });
+  }
+  function saveAs() {
+    var a = api();
+    if (!a || !a.save_image_as) { showHint('未连接保存 API'); return; }
+    var url = exportDataUrl();
+    a.save_image_as(url, data.name).then(function (p) {
+      if (typeof p === 'string' && p) showHint('已另存为 ' + p);
+      else if (p && p.error) showHint('保存失败：' + p.error);
+      else showHint('已取消');
+    }).catch(function (e) { showHint('保存失败：' + e); });
+  }
+
+  /* ================= 事件 ================= */
   document.getElementById('iv-zoom-in').addEventListener('click', function () { zoomBy(1.2); });
   document.getElementById('iv-zoom-out').addEventListener('click', function () { zoomBy(1 / 1.2); });
   document.getElementById('iv-actual').addEventListener('click', actualSize);
   document.getElementById('iv-fit').addEventListener('click', fitToStage);
-  document.getElementById('iv-reset').addEventListener('click', resetView);
+  document.getElementById('iv-edit-toggle').addEventListener('click', enterEdit);
+  document.getElementById('iv-edit-cancel').addEventListener('click', exitEdit);
+  document.getElementById('iv-save').addEventListener('click', saveOverwrite);
+  document.getElementById('iv-save-as').addEventListener('click', saveAs);
   document.getElementById('iv-close').addEventListener('click', function () {
-    if (window.pywebview && window.pywebview.api && window.close) window.close();
-    else window.open('', '_self').close();
+    var a = api();
+    if (a) { try { a.close_window(); return; } catch (e) {} }
+    window.close();
   });
 
-  stage.addEventListener('wheel', function (e) {
+  // 窗口尺寸调整
+  document.getElementById('iv-win-bigger').addEventListener('click', function () {
+    var a = api(); if (!a) return;
+    a.resize_window(window.outerWidth + 120, window.outerHeight + 80).then(function(){ fitToStage(); });
+  });
+  document.getElementById('iv-win-smaller').addEventListener('click', function () {
+    var a = api(); if (!a) return;
+    var w = Math.max(560, window.outerWidth - 120);
+    var h = Math.max(480, window.outerHeight - 80);
+    a.resize_window(w, h).then(function(){ fitToStage(); });
+  });
+
+  // 编辑操作
+  document.getElementById('iv-editbar').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-edit]');
+    if (!btn) return;
+    var act = btn.getAttribute('data-edit');
+    if (act === 'rotl') rotate90(false);
+    else if (act === 'rotr') rotate90(true);
+    else if (act === 'fliph') flip('h');
+    else if (act === 'flipv') flip('v');
+    else if (act === 'crop') enterCrop();
+    else if (act === 'resize') openResize();
+    else if (act === 'undo') undo();
+    else if (act === 'reset') resetEdit();
+  });
+
+  // 滤镜
+  function bindFilterRange(id, key) {
+    var el = document.getElementById(id);
+    el.addEventListener('input', function () {
+      filters[key] = parseInt(el.value, 10);
+      document.getElementById('fv-' + key).textContent = el.value + '%';
+      updatePreview();
+    });
+  }
+  bindFilterRange('f-brightness', 'brightness');
+  bindFilterRange('f-contrast', 'contrast');
+  bindFilterRange('f-saturate', 'saturate');
+  document.getElementById('f-gray').addEventListener('click', function () {
+    filters.grayscale = filters.grayscale ? 0 : 1;
+    this.classList.toggle('on', !!filters.grayscale);
+    updatePreview();
+  });
+  document.getElementById('f-invert').addEventListener('click', function () {
+    filters.invert = filters.invert ? 0 : 1;
+    this.classList.toggle('on', !!filters.invert);
+    updatePreview();
+  });
+
+  // 尺寸调整
+  document.getElementById('rs-apply').addEventListener('click', applyResize);
+  document.getElementById('rs-cancel').addEventListener('click', closeResize);
+  bindResizeInputs();
+
+  // 裁剪拖拽
+  var cropDrag = null; // {mode:'move'|'resize', dir, sx, sy, orig{left,top,width,height}}
+  var cropBox = document.getElementById('iv-crop-box');
+  function clampCrop(l, t, w, h) {
+    var cr = cropRect;
+    l = Math.max(cr.imgLeft, Math.min(l, cr.imgLeft + cr.dw - w));
+    t = Math.max(cr.imgTop, Math.min(t, cr.imgTop + cr.dh - h));
+    return { l: l, t: t, w: w, h: h };
+  }
+  cropBox.addEventListener('pointerdown', function (e) {
+    if (!cropMode) return;
     e.preventDefault();
-    var factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-    setScale(scale * factor, e.clientX, e.clientY);
+    var handle = e.target.closest('.crop-h');
+    var r = cropBox.getBoundingClientRect(), sr = stage.getBoundingClientRect();
+    var left = r.left - sr.left, top = r.top - sr.top;
+    cropDrag = {
+      mode: handle ? 'resize' : 'move',
+      dir: handle ? handle.getAttribute('data-h') : null,
+      sx: e.clientX, sy: e.clientY,
+      left: left, top: top, width: r.width, height: r.height
+    };
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener('pointermove', function (e) {
+    if (!cropDrag) return;
+    var dx = e.clientX - cropDrag.sx, dy = e.clientY - cropDrag.sy;
+    var l = cropDrag.left, t = cropDrag.top, w = cropDrag.width, h = cropDrag.height;
+    var cr = cropRect, minS = 24;
+    if (cropDrag.mode === 'move') {
+      l += dx; t += dy;
+      var c = clampCrop(l, t, w, h); setCropBox(c.l, c.t, c.w, c.h);
+    } else {
+      var d = cropDrag.dir;
+      if (d.indexOf('r') >= 0) w = Math.max(minS, w + dx);
+      if (d.indexOf('b') >= 0) h = Math.max(minS, h + dy);
+      if (d.indexOf('l') >= 0) { l += dx; w = Math.max(minS, w - dx); }
+      if (d.indexOf('t') >= 0) { t += dy; h = Math.max(minS, h - dy); }
+      var c2 = clampCrop(l, t, w, h); setCropBox(c2.l, c2.t, c2.w, c2.h);
+    }
+  });
+  function endCropDrag() { cropDrag = null; }
+  stage.addEventListener('pointerup', endCropDrag);
+  stage.addEventListener('pointercancel', endCropDrag);
+
+  // 滚轮缩放
+  stage.addEventListener('wheel', function (e) {
+    if (cropMode) return;
+    e.preventDefault();
+    setScale(scale * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e.clientX, e.clientY);
   }, { passive: false });
 
-  // 拖拽平移
+  // 拖拽平移（查看态 / 编辑态均可用；裁剪态拦截）
   var dragging = false, lastX = 0, lastY = 0;
   stage.addEventListener('pointerdown', function (e) {
+    if (cropMode) return;
     if (e.button !== 0) return;
     dragging = true; lastX = e.clientX; lastY = e.clientY;
     stage.classList.add('grabbing');
@@ -186,11 +805,16 @@
   stage.addEventListener('pointerup', endDrag);
   stage.addEventListener('pointercancel', endDrag);
 
+  // 键盘
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') { document.getElementById('iv-close').click(); }
-    else if (e.key === '+' || e.key === '=') { zoomBy(1.2); }
+    if (e.key === 'Escape') {
+      if (cropMode) { exitCrop(); return; }
+      if (editMode) { exitEdit(); return; }
+      document.getElementById('iv-close').click();
+    } else if (e.key === '+' || e.key === '=') { zoomBy(1.2); }
     else if (e.key === '-' || e.key === '_') { zoomBy(1 / 1.2); }
-    else if (e.key === '0') { resetView(); }
+    else if (e.key === '0') { fitToStage(); }
+    else if ((e.ctrlKey || e.metaKey) && e.key === 's' && editMode) { e.preventDefault(); saveOverwrite(); }
   });
 
   img.addEventListener('load', function () {
@@ -202,15 +826,15 @@
   });
 
   function init() {
-    if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_image) {
-      loading.textContent = '（未连接到查看器 API）';
+    var a = window.pywebview && window.pywebview.api;
+    if (!a || !a.get_image) {
+      loading.textContent = '（未连接到图片 API）';
       return;
     }
-    window.pywebview.api.get_image().then(function (d) {
-      if (d && d.src) data = d;
+    a.get_image().then(function (d) {
+      if (d) data = d;
       document.getElementById('iv-title').textContent = data.name || '图片';
       img.src = data.src;
-      // 若已是缓存命中（complete）则直接 fit
       if (img.complete && img.naturalWidth) {
         loading.style.display = 'none'; fitToStage();
       }

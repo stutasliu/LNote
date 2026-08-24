@@ -44,6 +44,11 @@
     richOutlineSplitter: $("rich-outline-splitter"),
     btnRichOutline: $("btn-rich-outline"),
     btnCloseOutline: $("btn-close-outline"),
+    // 文档地图（右侧小地图）
+    docMap: $("doc-map"),
+    docMapCanvas: $("doc-map-canvas"),
+    docMapViewport: $("doc-map-viewport"),
+    btnDocMap: $("btn-doc-map"),
     btnOutlineUp: $("btn-outline-up"),
     btnOutlineDown: $("btn-outline-down"),
     btnOutlineReload: $("btn-outline-reload"),
@@ -93,6 +98,31 @@
     imgZoomIn: $("img-zoom-in"),
     imgZoomOut: $("img-zoom-out"),
     imgFit: $("img-fit"),
+    // PDF 查看器
+    pdfModal: $("pdf-modal"),
+    pdfName: $("pdf-name"),
+    pdfPageInfo: $("pdf-page-info"),
+    pdfPrev: $("pdf-prev"),
+    pdfNext: $("pdf-next"),
+    pdfZoomOut: $("pdf-zoom-out"),
+    pdfZoomReset: $("pdf-zoom-reset"),
+    pdfZoomIn: $("pdf-zoom-in"),
+    pdfFit: $("pdf-fit"),
+    pdfExtract: $("pdf-extract"),
+    pdfClose: $("pdf-close"),
+    pdfCopy: $("pdf-copy"),
+    pdfStage: $("pdf-stage"),
+    pdfCanvasWrap: $("pdf-canvas-wrap"),
+    // DOC 查看器
+    docModal: $("doc-modal"),
+    docName: $("doc-name"),
+    docPageInfo: $("doc-page-info"),
+    docClose: $("doc-close"),
+    docCopy: $("doc-copy"),
+    docImportRich: $("doc-import-rich"),
+    docImportText: $("doc-import-text"),
+    docStage: $("doc-stage"),
+    docBody: $("doc-body"),
     // 批量管理工具栏
     batchToggle: $("btn-batch-toggle"),
     btnSortToggle: $("btn-sort-toggle"),
@@ -199,6 +229,9 @@
     // 当前侧栏过滤模式：recent / my-space / wiki / favorites / trash / sticky
     sortGroup: false,
     // 文档列表是否按时间分组排序（今天/昨天/本周/更早），默认关闭
+    // 文档地图（右侧小地图）
+    docMapOn: false,
+    // 文档地图是否显示（启动时由 25-doc-map 从 localStorage 恢复）
     // 便签模块：标签 / 便利贴
     tagFilter: null,
     // 当前标签过滤（null 表示未过滤）
@@ -390,7 +423,20 @@
   }
   window.addEventListener("pywebviewready", function() {
     API = window.pywebview && window.pywebview.api ? window.pywebview.api : API;
+    if (API && API.get_rich_dir) {
+      API.get_rich_dir().then(function(dir) {
+        setCachedRichDir(dir);
+      }).catch(function() {
+      });
+    }
   });
+  var _cachedRichDir = null;
+  function getCachedRichDir() {
+    return _cachedRichDir;
+  }
+  function setCachedRichDir(dir) {
+    _cachedRichDir = dir ? dir.replace(/\\/g, "/") : null;
+  }
   var EXT_LANGS = {
     md: "markdown",
     markdown: "markdown",
@@ -459,6 +505,16 @@
     var m = (name || "").match(/\.([^.]+)$/);
     return !!(m && IMG_EXTS[m[1].toLowerCase()]);
   }
+  var PDF_EXTS = { pdf: 1 };
+  function isPdfExt(name) {
+    var m = (name || "").match(/\.([^.]+)$/);
+    return !!(m && PDF_EXTS[m[1].toLowerCase()]);
+  }
+  var DOC_EXTS = { docx: 1, doc: 1 };
+  function isDocExt(name) {
+    var m = (name || "").match(/\.([^.]+)$/);
+    return !!(m && DOC_EXTS[m[1].toLowerCase()]);
+  }
   function dirOf(p) {
     if (!p) return "";
     var i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
@@ -490,6 +546,601 @@
     return null;
   }
 
+  // src-app/23-pdf.js
+  var toastTimer = null;
+  function toast(msg, type) {
+    els.toast.textContent = msg;
+    els.toast.className = "show" + (type ? " " + type : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() {
+      els.toast.className = "";
+    }, 2600);
+  }
+  var pdfSess = 0;
+  var pdfState = { doc: null, page: 0, numPages: 0, zoom: 1, text: "", path: "", name: "" };
+  function _showPdfModal() {
+    var all = document.querySelectorAll(".modal-overlay, #fr-overlay");
+    Array.prototype.forEach.call(all, function(el) {
+      if (el.id !== "pdf-modal") el.style.display = "none";
+    });
+    els.pdfModal.style.display = "flex";
+    els.pdfStage.scrollTop = 0;
+  }
+  function pdfLoading(on) {
+    if (on) {
+      els.pdfCanvasWrap.innerHTML = '<div class="pdf-loading">\u6B63\u5728\u52A0\u8F7D PDF\u2026</div>';
+    } else {
+      var l = els.pdfCanvasWrap.querySelector(".pdf-loading");
+      if (l && l.parentNode) l.parentNode.removeChild(l);
+    }
+  }
+  function pdfError(msg) {
+    els.pdfCanvasWrap.innerHTML = '<div class="pdf-error">' + (msg || "\u52A0\u8F7D\u5931\u8D25") + "</div>";
+  }
+  function base64ToArrayBuffer(b64) {
+    var bin = atob(b64);
+    var len = bin.length;
+    var bytes = new Uint8Array(len);
+    for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer;
+  }
+  function loadWithPdfjs(data, sess) {
+    if (!window.__pdfReady) {
+      pdfError("pdf.js \u672A\u5C31\u7EEA");
+      return;
+    }
+    pdfLoading(true);
+    window.__pdfReady(function(err) {
+      if (sess !== pdfSess) return;
+      if (err || !window.pdfjsLib) {
+        pdfError("pdf.js \u52A0\u8F7D\u5931\u8D25");
+        return;
+      }
+      window.pdfjsLib.getDocument({
+        data,
+        cMapUrl: "js/cmaps/",
+        cMapPacked: true,
+        standardFontDataUrl: "js/standard_fonts/",
+        useWorkerFetch: false
+      }).promise.then(function(pdf) {
+        if (sess !== pdfSess) {
+          try {
+            pdf.destroy();
+          } catch (e) {
+          }
+          return;
+        }
+        pdfState.doc = pdf;
+        pdfState.numPages = pdf.numPages;
+        pdfState.page = 1;
+        pdfState.zoom = 1;
+        pdfState.text = "";
+        pdfLoading(false);
+        renderPage(1);
+      }).catch(function(e) {
+        if (sess !== pdfSess) return;
+        if (getApi() && getApi().debug_log) getApi().debug_log("[pdf] getDocument error: " + (e && e.message ? e.message : String(e)));
+        pdfError("PDF \u89E3\u6790\u5931\u8D25\uFF0C\u6587\u4EF6\u53EF\u80FD\u5DF2\u635F\u574F");
+      });
+    });
+  }
+  function renderPage(n) {
+    var pdf = pdfState.doc;
+    if (!pdf || !pdfState.numPages) return;
+    pdfState.page = Math.min(Math.max(1, n), pdfState.numPages);
+    pdf.getPage(pdfState.page).then(function(page) {
+      var wrap = els.pdfCanvasWrap;
+      var wrapEl = document.createElement("div");
+      wrapEl.className = "pdf-page-wrap";
+      var canvas = document.createElement("canvas");
+      canvas.className = "pdf-page-canvas";
+      var vp = page.getViewport({ scale: pdfState.zoom });
+      var dpr = Math.max(1, window.devicePixelRatio || 1);
+      canvas.width = Math.floor(vp.width * dpr);
+      canvas.height = Math.floor(vp.height * dpr);
+      canvas.style.width = vp.width + "px";
+      canvas.style.height = vp.height + "px";
+      var ctx = canvas.getContext("2d");
+      var marker = document.createElement("div");
+      marker.className = "pdf-page-marker";
+      marker.textContent = pdfState.page + " / " + pdfState.numPages;
+      var tlDiv = document.createElement("div");
+      tlDiv.className = "textLayer";
+      tlDiv.style.setProperty("--scale-factor", String(vp.scale));
+      wrapEl.appendChild(tlDiv);
+      wrapEl.appendChild(canvas);
+      wrapEl.appendChild(marker);
+      wrap.innerHTML = "";
+      wrap.appendChild(wrapEl);
+      var rtask = page.render({ canvasContext: ctx, viewport: vp, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : void 0 });
+      if (getApi() && getApi().debug_log) getApi().debug_log("[pdf] render start p" + pdfState.page + " canvas=" + canvas.width + "x" + canvas.height);
+      if (rtask && rtask.promise) {
+        rtask.promise.then(function() {
+          if (getApi() && getApi().debug_log) getApi().debug_log("[pdf] render ok p" + pdfState.page);
+          _checkBlankCanvas(canvas);
+        }).catch(function(e) {
+          if (getApi() && getApi().debug_log) getApi().debug_log("[pdf] render error: " + (e && e.message ? e.message : String(e)));
+          if (e && e.name === "RenderingCancelledException") return;
+          pdfError("\u9875\u9762\u6E32\u67D3\u5931\u8D25\uFF1A" + (e && e.message ? e.message : "\u672A\u77E5\u9519\u8BEF"));
+        });
+      }
+      if (window.pdfjsLib && window.pdfjsLib.renderTextLayer) {
+        page.getTextContent().then(function(tc) {
+          if (!tlDiv.isConnected) return;
+          if (getApi() && getApi().debug_log) getApi().debug_log("[pdf] text layer start p" + pdfState.page + " items=" + (tc && tc.items ? tc.items.length : 0));
+          var tlt = window.pdfjsLib.renderTextLayer({
+            textContentSource: tc,
+            container: tlDiv,
+            viewport: vp
+          });
+          if (tlt && tlt.promise) {
+            tlt.promise.then(function() {
+              if (getApi() && getApi().debug_log) getApi().debug_log("[pdf] text layer ok p" + pdfState.page + " spans=" + tlDiv.querySelectorAll("span").length);
+            }).catch(function(e) {
+              if (getApi() && getApi().debug_log) getApi().debug_log("[pdf] text layer error: " + (e && e.message ? e.message : String(e)));
+            });
+          }
+        }).catch(function(e) {
+          if (getApi() && getApi().debug_log) getApi().debug_log("[pdf] getTextContent error: " + (e && e.message ? e.message : String(e)));
+        });
+      }
+      updatePdfBar();
+    }).catch(function(e) {
+      if (getApi() && getApi().debug_log) getApi().debug_log("[pdf] getPage error: " + (e && e.message ? e.message : String(e)));
+      toast("\u9875\u9762\u6E32\u67D3\u5931\u8D25", "error");
+    });
+  }
+  function _checkBlankCanvas(canvas) {
+    try {
+      var prev = els.pdfCanvasWrap.querySelector(".pdf-blank-warn");
+      if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+      var cw = canvas.width;
+      var ch = canvas.height;
+      if (!cw || !ch) return;
+      var ctx = canvas.getContext("2d");
+      var imgd = ctx.getImageData(0, 0, cw, ch);
+      var d = imgd.data;
+      var nw = 0;
+      var step = 8;
+      for (var i = 0; i < d.length; i += 4 * step) {
+        if (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2] < 250) nw++;
+      }
+      var sampled = d.length / 4 / step;
+      if (nw === 0 && sampled >= 400) {
+        if (getApi() && getApi().debug_log) getApi().debug_log("[pdf] blank canvas detected p" + pdfState.page);
+        var warn = document.createElement("div");
+        warn.className = "pdf-blank-warn";
+        warn.textContent = "\u6B64\u9875\u5185\u5BB9\u4E3A\u7A7A\uFF1APDF \u6587\u4EF6\u53EF\u80FD\u5DF2\u635F\u574F\uFF0C\u5EFA\u8BAE\u91CD\u65B0\u83B7\u53D6\u8BE5\u6587\u4EF6";
+        els.pdfCanvasWrap.appendChild(warn);
+      }
+    } catch (e) {
+    }
+  }
+  function updatePdfBar() {
+    var pct = Math.round(pdfState.zoom * 100);
+    els.pdfPageInfo.textContent = pdfState.numPages ? pdfState.page + " / " + pdfState.numPages + " \u9875 \xB7 " + pct + "%" : "";
+    els.pdfPrev.disabled = pdfState.page <= 1;
+    els.pdfNext.disabled = pdfState.page >= pdfState.numPages;
+  }
+  function registerPdfEntry(path, name) {
+    var key = normPath(path).toLowerCase();
+    for (var i = 0; i < state.docs.length; i++) {
+      var x = state.docs[i];
+      if (x && x.kind === "pdf" && x.diskPath && normPath(x.diskPath).toLowerCase() === key) {
+        x.updated = Date.now();
+        persist();
+        return x;
+      }
+    }
+    var d = {
+      id: uid(),
+      title: (name || "PDF \u6587\u6863").replace(/\.pdf$/i, ""),
+      kind: "pdf",
+      lang: "pdf",
+      encoding: "binary",
+      diskPath: path,
+      updated: Date.now()
+    };
+    state.docs.push(d);
+    persist();
+    return d;
+  }
+  function openPdfFile(path, name) {
+    if (!path) {
+      toast("PDF \u6587\u6863\u7F3A\u5C11\u78C1\u76D8\u8DEF\u5F84", "error");
+      return null;
+    }
+    var entry = registerPdfEntry(path, name);
+    if (!hasApi()) {
+      window.addEventListener("pywebviewready", function h() {
+        window.removeEventListener("pywebviewready", h);
+        openPdfFile(path, name);
+      }, { once: true });
+      return entry ? entry.id : null;
+    }
+    var sess = ++pdfSess;
+    pdfState.path = path;
+    pdfState.name = name || path.replace(/\\/g, "/").split("/").pop() || "PDF";
+    els.pdfName.textContent = pdfState.name;
+    pdfLoading(true);
+    _showPdfModal();
+    getApi().read_file_b64(path).then(function(res) {
+      if (sess !== pdfSess) return;
+      if (!res || !res.b64) {
+        pdfError("\u8BFB\u53D6\u5931\u8D25");
+        return;
+      }
+      loadWithPdfjs(base64ToArrayBuffer(res.b64), sess);
+    }).catch(function(e) {
+      if (sess !== pdfSess) return;
+      pdfError("\u8BFB\u53D6\u6587\u4EF6\u5931\u8D25");
+    });
+    return entry ? entry.id : null;
+  }
+  function openPdfFromData(data, name) {
+    var sess = ++pdfSess;
+    pdfState.path = "";
+    pdfState.name = name || "PDF \u6587\u6863";
+    els.pdfName.textContent = pdfState.name;
+    pdfLoading(true);
+    _showPdfModal();
+    loadWithPdfjs(data, sess);
+  }
+  function closePdfModal() {
+    pdfSess++;
+    els.pdfModal.style.display = "none";
+    els.pdfCanvasWrap.innerHTML = "";
+    els.pdfPageInfo.textContent = "";
+    if (pdfState.doc) {
+      try {
+        pdfState.doc.destroy();
+      } catch (e) {
+      }
+    }
+    pdfState.doc = null;
+    pdfState.page = 0;
+    pdfState.numPages = 0;
+    pdfState.zoom = 1;
+    pdfState.text = "";
+    pdfState.path = "";
+    pdfState.name = "";
+  }
+  function pdfPrev() {
+    if (pdfState.page > 1) renderPage(pdfState.page - 1);
+  }
+  function pdfNext() {
+    if (pdfState.page < pdfState.numPages) renderPage(pdfState.page + 1);
+  }
+  function pdfZoomIn() {
+    pdfZoomBy(1.25);
+  }
+  function pdfZoomOut() {
+    pdfZoomBy(1 / 1.25);
+  }
+  function pdfZoomBy(f) {
+    var nz = Math.round(pdfState.zoom * f * 100) / 100;
+    if (nz < 0.2 || nz > 8) return;
+    pdfState.zoom = nz;
+    if (pdfState.doc) renderPage(pdfState.page);
+  }
+  function pdfZoomReset() {
+    pdfState.zoom = 1;
+    if (pdfState.doc) renderPage(pdfState.page);
+  }
+  function pdfFitWidth() {
+    var pdf = pdfState.doc;
+    if (!pdf) return;
+    pdf.getPage(pdfState.page).then(function(page) {
+      var vp1 = page.getViewport({ scale: 1 });
+      var avail = els.pdfStage.clientWidth - 48;
+      if (avail < 100) avail = 800;
+      pdfState.zoom = Math.min(8, Math.max(0.2, avail / vp1.width));
+      renderPage(pdfState.page);
+    }).catch(function() {
+    });
+  }
+  function extractPdfText() {
+    var pdf = pdfState.doc;
+    if (!pdf) return Promise.resolve("");
+    if (pdfState.text) return Promise.resolve(pdfState.text);
+    var parts = [];
+    var chain = Promise.resolve();
+    var i;
+    for (i = 1; i <= pdf.numPages; i++) {
+      chain = chain.then(/* @__PURE__ */ function(n) {
+        return function() {
+          return pdf.getPage(n).then(function(pg) {
+            return pg.getTextContent().then(function(tc) {
+              var strs = tc.items.map(function(it) {
+                return it.str || "";
+              });
+              var joined = strs.join("");
+              var cjkCount = (joined.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length;
+              var sep = joined.length && cjkCount / joined.length > 0.25 ? "" : " ";
+              parts.push(strs.join(sep).replace(/[ \t]{2,}/g, " ").replace(/^ +| +$/g, ""));
+            });
+          });
+        };
+      }(i));
+    }
+    return chain.then(function() {
+      pdfState.text = parts.join("\n").replace(/\n{3,}/g, "\n\n");
+      return pdfState.text;
+    });
+  }
+
+  // src-app/24-doc.js
+  var toastTimer2 = null;
+  function toast2(msg, type) {
+    els.toast.textContent = msg;
+    els.toast.className = "show" + (type ? " " + type : "");
+    clearTimeout(toastTimer2);
+    toastTimer2 = setTimeout(function() {
+      els.toast.className = "";
+    }, 2600);
+  }
+  var docSess = 0;
+  var docState = { html: "", text: "", path: "", name: "", ext: "", busy: false };
+  function _showDocModal() {
+    var all = document.querySelectorAll(".modal-overlay, #fr-overlay");
+    Array.prototype.forEach.call(all, function(el) {
+      if (el.id !== "doc-modal") el.style.display = "none";
+    });
+    els.docModal.style.display = "flex";
+    els.docStage.scrollTop = 0;
+  }
+  function docLoading(on) {
+    if (on) {
+      els.docBody.innerHTML = '<div class="doc-loading">\u6B63\u5728\u52A0\u8F7D\u6587\u6863\u2026</div>';
+    } else {
+      var l = els.docBody.querySelector(".doc-loading");
+      if (l && l.parentNode) l.parentNode.removeChild(l);
+    }
+  }
+  function docError(msg) {
+    els.docBody.innerHTML = '<div class="doc-error">' + (msg || "\u52A0\u8F7D\u5931\u8D25") + "</div>";
+  }
+  function base64ToArrayBuffer2(b64) {
+    var bin = atob(b64);
+    var len = bin.length;
+    var bytes = new Uint8Array(len);
+    for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer;
+  }
+  function loadWithMammoth(buf, sess) {
+    if (!window.__docReady) {
+      docError("\u6587\u6863\u89E3\u6790\u5668\u672A\u5C31\u7EEA");
+      return;
+    }
+    docLoading(true);
+    window.__docReady(function(err) {
+      if (sess !== docSess) return;
+      if (err || !window.mammoth) {
+        docError("\u6587\u6863\u89E3\u6790\u5668\u52A0\u8F7D\u5931\u8D25");
+        return;
+      }
+      window.mammoth.convertToHtml({ arrayBuffer: buf }).then(function(res) {
+        if (sess !== docSess) return;
+        docLoading(false);
+        var html = res.value || "";
+        docState.html = html;
+        if (html.trim()) {
+          els.docBody.innerHTML = '<div class="doc-content">' + html + "</div>";
+        } else {
+          docError("\u672A\u80FD\u89E3\u6790\u51FA\u6587\u6863\u5185\u5BB9\uFF0C\u6587\u4EF6\u53EF\u80FD\u4E0D\u662F\u6709\u6548\u7684 .docx");
+        }
+        updateDocBar();
+      }).catch(function(e) {
+        if (sess !== docSess) return;
+        if (getApi() && getApi().debug_log) getApi().debug_log("[doc] convertToHtml error: " + (e && e.message ? e.message : String(e)));
+        docError("\u6587\u6863\u89E3\u6790\u5931\u8D25\uFF1A\u6587\u4EF6\u53EF\u80FD\u4E0D\u662F\u6709\u6548\u7684 .docx");
+        updateDocBar();
+      });
+      window.mammoth.extractRawText({ arrayBuffer: buf }).then(function(res) {
+        if (sess !== docSess) return;
+        docState.text = String(res.value || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n{3,}/g, "\n\n");
+        updateDocBar();
+      }).catch(function() {
+        if (sess !== docSess) return;
+        docState.text = "";
+      });
+    });
+  }
+  function updateDocBar() {
+    if (els.docPageInfo) {
+      els.docPageInfo.textContent = docState.text ? docState.text.length + " \u5B57" : docState.html ? "\u89E3\u6790\u4E2D\u2026" : "";
+    }
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function loadOldDocText(text, sess) {
+    if (sess !== docSess) return;
+    docLoading(false);
+    var t = String(text || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n{3,}/g, "\n\n");
+    docState.text = t;
+    if (t.trim()) {
+      var html = t.split("\n").map(function(line) {
+        return escapeHtml(line) || "<br>";
+      }).join("<br>");
+      els.docBody.innerHTML = '<div class="doc-content"><pre class="doc-plain">' + html + "</pre></div>";
+    } else {
+      docError("\u672A\u80FD\u89E3\u6790\u51FA\u6587\u6863\u5185\u5BB9\uFF0C\u6587\u4EF6\u53EF\u80FD\u4E0D\u662F\u6709\u6548\u7684 .doc");
+    }
+    updateDocBar();
+  }
+  function registerDocEntry(path, name) {
+    var key = normPath(path).toLowerCase();
+    for (var i = 0; i < state.docs.length; i++) {
+      var x = state.docs[i];
+      if (x && x.kind === "doc" && x.diskPath && normPath(x.diskPath).toLowerCase() === key) {
+        x.updated = Date.now();
+        persist();
+        return x;
+      }
+    }
+    var d = {
+      id: uid(),
+      title: (name || "Word \u6587\u6863").replace(/\.(docx|doc)$/i, ""),
+      kind: "doc",
+      lang: "doc",
+      encoding: "binary",
+      diskPath: path,
+      updated: Date.now()
+    };
+    state.docs.push(d);
+    persist();
+    return d;
+  }
+  function openDocFile(path, name) {
+    if (!path) {
+      toast2("Word \u6587\u6863\u7F3A\u5C11\u78C1\u76D8\u8DEF\u5F84", "error");
+      return null;
+    }
+    var entry = registerDocEntry(path, name);
+    if (!hasApi()) {
+      window.addEventListener("pywebviewready", function h() {
+        window.removeEventListener("pywebviewready", h);
+        openDocFile(path, name);
+      }, { once: true });
+      return entry ? entry.id : null;
+    }
+    var sess = ++docSess;
+    docState.path = path;
+    docState.name = name || path.replace(/\\/g, "/").split("/").pop() || "Word \u6587\u6863";
+    docState.ext = ((name || "").match(/\.([^.]+)$/) || [])[1] || "";
+    docState.ext = docState.ext.toLowerCase();
+    docState.html = "";
+    docState.text = "";
+    els.docName.textContent = docState.name;
+    docLoading(true);
+    _showDocModal();
+    if (docState.ext === "doc") {
+      getApi().read_doc_text(path).then(function(res) {
+        if (sess !== docSess) return;
+        if (!res || res.error) {
+          docError(res && res.error ? String(res.error) : "\u89E3\u6790\u5931\u8D25");
+          updateDocBar();
+          return;
+        }
+        loadOldDocText(res.text || "", sess);
+      }).catch(function() {
+        if (sess !== docSess) return;
+        docError("\u89E3\u6790 .doc \u6587\u4EF6\u5931\u8D25");
+        updateDocBar();
+      });
+      return entry ? entry.id : null;
+    }
+    getApi().read_file_b64(path).then(function(res) {
+      if (sess !== docSess) return;
+      if (!res || !res.b64) {
+        docError("\u8BFB\u53D6\u5931\u8D25");
+        return;
+      }
+      loadWithMammoth(base64ToArrayBuffer2(res.b64), sess);
+    }).catch(function() {
+      if (sess !== docSess) return;
+      docError("\u8BFB\u53D6\u6587\u4EF6\u5931\u8D25");
+    });
+    return entry ? entry.id : null;
+  }
+  function openDocFromData(buf, name) {
+    var sess = ++docSess;
+    docState.path = "";
+    docState.name = name || "Word \u6587\u6863";
+    docState.ext = "docx";
+    docState.html = "";
+    docState.text = "";
+    els.docName.textContent = docState.name;
+    docLoading(true);
+    _showDocModal();
+    loadWithMammoth(buf, sess);
+  }
+  function closeDocModal() {
+    docSess++;
+    els.docModal.style.display = "none";
+    els.docBody.innerHTML = "";
+    els.docPageInfo.textContent = "";
+    docState.html = "";
+    docState.text = "";
+    docState.path = "";
+    docState.name = "";
+    docState.ext = "";
+  }
+  function extractDocText() {
+    return Promise.resolve(docState.text || "");
+  }
+  function textToBlocks(text) {
+    var blocks = [];
+    String(text || "").split("\n").forEach(function(line) {
+      var t = line.replace(/\r$/, "");
+      var trimmed = t.trim();
+      if (!trimmed) return;
+      var type = "text";
+      if (/^#{1,3}\s/.test(trimmed)) {
+        type = "h" + trimmed.match(/^#+/)[0].length;
+        t = trimmed.replace(/^#+\s*/, "");
+      } else if (/^[-*]\s/.test(trimmed)) {
+        type = "ulist";
+        t = trimmed.replace(/^[-*]\s*/, "");
+      } else if (/^\d+[.、)]\s/.test(trimmed)) {
+        type = "olist";
+        t = trimmed.replace(/^\d+[.、)]\s*/, "");
+      }
+      blocks.push({ id: uid(), type, text: t });
+    });
+    if (!blocks.length) blocks.push({ id: uid(), type: "text", text: "" });
+    return blocks;
+  }
+  function importDocAsRich() {
+    return extractDocText().then(function(text) {
+      if (!text || !text.trim()) {
+        toast2("\u672A\u63D0\u53D6\u5230\u6587\u672C\uFF08\u6587\u6863\u4E3A\u7A7A\u6216\u5C1A\u672A\u52A0\u8F7D\u5B8C\u6210\uFF09", "error");
+        return;
+      }
+      var name = (docState.name || "Word \u6587\u6863").replace(/\.(docx|doc)$/i, "");
+      closeDocModal();
+      var d = {
+        id: uid(),
+        title: name + "\uFF08\u5BFC\u5165\uFF09",
+        kind: "rich",
+        encoding: "utf-8",
+        content: JSON.stringify(textToBlocks(text)),
+        updated: Date.now()
+      };
+      state.docs.push(d);
+      persist();
+      openDoc(d.id);
+      els.title.focus();
+      toast2("\u5DF2\u5BFC\u5165\u4E3A\u5BCC\u6587\u6863\uFF0C\u53EF\u7EE7\u7EED\u7F16\u8F91", "success");
+    }).catch(function() {
+      toast2("\u5BFC\u5165\u5931\u8D25", "error");
+    });
+  }
+  function importDocAsText() {
+    return extractDocText().then(function(text) {
+      if (!text || !text.trim()) {
+        toast2("\u672A\u63D0\u53D6\u5230\u6587\u672C\uFF08\u6587\u6863\u4E3A\u7A7A\u6216\u5C1A\u672A\u52A0\u8F7D\u5B8C\u6210\uFF09", "error");
+        return;
+      }
+      var name = (docState.name || "Word \u6587\u6863").replace(/\.(docx|doc)$/i, "");
+      closeDocModal();
+      var d = {
+        id: uid(),
+        title: name + "\uFF08\u5BFC\u5165\uFF09",
+        lang: "markdown",
+        content: text,
+        updated: Date.now()
+      };
+      state.docs.push(d);
+      persist();
+      openDoc(d.id);
+      toast2("\u5DF2\u5BFC\u5165\u4E3A Markdown \u6587\u6863\uFF0C\u53EF\u7EE7\u7EED\u7F16\u8F91", "success");
+    }).catch(function() {
+      toast2("\u5BFC\u5165\u5931\u8D25", "error");
+    });
+  }
+
   // src-app/14-filetree-image.js
   var folderState = { root: null, expanded: {}, openFiles: {} };
   function switchSideTab(tab) {
@@ -502,7 +1153,7 @@
   }
   function openFolder() {
     if (!hasApi()) {
-      toast("\u672C\u5730\u6587\u4EF6\u5939\u529F\u80FD\u9700\u5728\u684C\u9762\u7248\u4E2D\u4F7F\u7528", "error");
+      toast3("\u672C\u5730\u6587\u4EF6\u5939\u529F\u80FD\u9700\u5728\u684C\u9762\u7248\u4E2D\u4F7F\u7528", "error");
       return;
     }
     getApi().pick_folder().then(function(path) {
@@ -511,9 +1162,9 @@
       folderState.expanded = {};
       switchSideTab("files");
       renderFileTree();
-      toast("\u5DF2\u6253\u5F00\u6587\u4EF6\u5939", "success");
+      toast3("\u5DF2\u6253\u5F00\u6587\u4EF6\u5939", "success");
     }).catch(function() {
-      toast("\u6253\u5F00\u6587\u4EF6\u5939\u5931\u8D25", "error");
+      toast3("\u6253\u5F00\u6587\u4EF6\u5939\u5931\u8D25", "error");
     });
   }
   function renderFileTree() {
@@ -565,8 +1216,11 @@
           if (open) renderDirInto(item.path, container);
         } else {
           var isImg = isImageExt(item.name);
-          row.className = "ft-item ft-file" + (isImg ? " is-image" : "");
-          row.innerHTML = '<span class="ft-arrow"></span><span class="ft-ico">' + (isImg ? "\u{1F5BC}\uFE0F" : "\u{1F4C4}") + '</span><span class="ft-name"></span><span class="ft-size"></span>';
+          var isPdf = isPdfExt(item.name);
+          var isDoc = isDocExt(item.name);
+          var ftIco = isImg ? "\u{1F5BC}\uFE0F" : isPdf ? "\u{1F4D5}" : isDoc ? "\u{1F4D8}" : "\u{1F4C4}";
+          row.className = "ft-item ft-file" + (isImg ? " is-image" : "") + (isPdf ? " is-pdf" : "") + (isDoc ? " is-doc" : "");
+          row.innerHTML = '<span class="ft-arrow"></span><span class="ft-ico">' + ftIco + '</span><span class="ft-name"></span><span class="ft-size"></span>';
           row.querySelector(".ft-name").textContent = item.name;
           row.querySelector(".ft-name").title = item.path;
           row.querySelector(".ft-size").textContent = item.size >= 1048576 ? (item.size / 1048576).toFixed(1) + "M" : item.size >= 1024 ? Math.round(item.size / 1024) + "K" : item.size + "B";
@@ -589,7 +1243,14 @@
   function fileKey(p) {
     return normPath(p).toLowerCase();
   }
+  function dbgLog(m) {
+    try {
+      if (getApi() && getApi().debug_log) getApi().debug_log("[openDiskFile] " + m);
+    } catch (e) {
+    }
+  }
   function openDiskFile(path, name) {
+    dbgLog("enter: " + path);
     if (folderState.openFiles[fileKey(path)]) {
       openDoc(folderState.openFiles[fileKey(path)]);
       return;
@@ -598,9 +1259,23 @@
       openImageFile(path, name);
       return;
     }
+    if (isPdfExt(name)) {
+      var pdfId = openPdfFile(path, name);
+      if (pdfId) folderState.openFiles[fileKey(path)] = pdfId;
+      return;
+    }
+    if (isDocExt(name)) {
+      var docId = openDocFile(path, name);
+      if (docId) {
+        folderState.openFiles[fileKey(path)] = docId;
+        renderList();
+      }
+      return;
+    }
     getApi().read_text_file(path).then(function(res) {
+      dbgLog("read_text_file -> " + JSON.stringify(res));
       if (!res || res.error) {
-        toast("\u8BFB\u53D6\u5931\u8D25\uFF1A" + (res && res.error || "\u672A\u77E5\u9519\u8BEF"), "error");
+        toast3("\u8BFB\u53D6\u5931\u8D25\uFF1A" + (res && res.error || "\u672A\u77E5\u9519\u8BEF"), "error");
         return;
       }
       var ext = (name.match(/\.([^.]+)$/) || [])[1] || "";
@@ -618,7 +1293,7 @@
           persist();
           folderState.openFiles[fileKey(path)] = existing.id;
           openDoc(existing.id);
-          toast("\u5DF2\u6253\u5F00\u5BCC\u6587\u6863\uFF1A" + name, "success");
+          toast3("\u5DF2\u6253\u5F00\u5BCC\u6587\u6863\uFF1A" + name, "success");
           return;
         }
         var d2 = {
@@ -634,7 +1309,7 @@
         persist();
         folderState.openFiles[fileKey(path)] = d2.id;
         openDoc(d2.id);
-        toast("\u5DF2\u6253\u5F00\u5BCC\u6587\u6863\uFF1A" + name, "success");
+        toast3("\u5DF2\u6253\u5F00\u5BCC\u6587\u6863\uFF1A" + name, "success");
         return;
       }
       var existing = state.docs.find(function(x) {
@@ -649,7 +1324,7 @@
         folderState.openFiles[fileKey(path)] = existing.id;
         if (existing.lang === "html") state.previewOn = true;
         openDoc(existing.id);
-        toast("\u5DF2\u6253\u5F00\uFF1A" + name + "\uFF08\u5DF2\u52A0\u8F7D\u78C1\u76D8\u6700\u65B0\u5185\u5BB9\uFF09", "success");
+        toast3("\u5DF2\u6253\u5F00\uFF1A" + name + "\uFF08\u5DF2\u52A0\u8F7D\u78C1\u76D8\u6700\u65B0\u5185\u5BB9\uFF09", "success");
         return;
       }
       var d = {
@@ -667,9 +1342,9 @@
       folderState.openFiles[fileKey(path)] = d.id;
       if (d.lang === "html") state.previewOn = true;
       openDoc(d.id);
-      toast("\u5DF2\u6253\u5F00\uFF1A" + name + "\uFF08" + (res.encoding || "UTF-8") + "\uFF09", "success");
+      toast3("\u5DF2\u6253\u5F00\uFF1A" + name + "\uFF08" + (res.encoding || "UTF-8") + "\uFF09", "success");
     }).catch(function() {
-      toast("\u8BFB\u53D6\u6587\u4EF6\u5931\u8D25", "error");
+      toast3("\u8BFB\u53D6\u6587\u4EF6\u5931\u8D25", "error");
     });
   }
   function openImageFile(path, name) {
@@ -679,10 +1354,10 @@
     }
     getApi().read_file_b64(path).then(function(res) {
       if (res && res.b64) showImageModal(path, name, "data:" + (res.mime || "image/png") + ";base64," + res.b64);
-      else if (res && res.error) toast("\u65E0\u6CD5\u9884\u89C8\u56FE\u7247\uFF1A" + res.error, "error");
-      else toast("\u56FE\u7247\u8BFB\u53D6\u5931\u8D25", "error");
+      else if (res && res.error) toast3("\u65E0\u6CD5\u9884\u89C8\u56FE\u7247\uFF1A" + res.error, "error");
+      else toast3("\u56FE\u7247\u8BFB\u53D6\u5931\u8D25", "error");
     }).catch(function() {
-      toast("\u56FE\u7247\u8BFB\u53D6\u5931\u8D25", "error");
+      toast3("\u56FE\u7247\u8BFB\u53D6\u5931\u8D25", "error");
     });
   }
   function showImageModal(path, name, url) {
@@ -853,7 +1528,7 @@
     }
     if (els.btnSortToggle) els.btnSortToggle.classList.toggle("active", !!state.sortGroup);
     renderList();
-    toast(state.sortGroup ? "\u5DF2\u5F00\u542F\u6309\u6700\u8FD1\u4F7F\u7528\u6392\u5E8F\uFF08\u65F6\u95F4\u5206\u7EC4\uFF09" : "\u5DF2\u5173\u95ED\u6392\u5E8F\uFF0C\u5217\u8868\u4FDD\u6301\u521B\u5EFA\u987A\u5E8F", "success");
+    toast3(state.sortGroup ? "\u5DF2\u5F00\u542F\u6309\u6700\u8FD1\u4F7F\u7528\u6392\u5E8F\uFF08\u65F6\u95F4\u5206\u7EC4\uFF09" : "\u5DF2\u5173\u95ED\u6392\u5E8F\uFF0C\u5217\u8868\u4FDD\u6301\u521B\u5EFA\u987A\u5E8F", "success");
   }
   function createDocItem(d) {
     var item = document.createElement("div");
@@ -865,7 +1540,7 @@
     var badgePinned = d.pinned ? '<span class="doc-badge doc-pin" title="\u5DF2\u7F6E\u9876">\u{1F4CC}</span>' : "";
     var threeDotBtn = state.batchMode ? "" : '<button class="doc-more-btn" title="\u66F4\u591A\u64CD\u4F5C"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></svg></button>';
     item.innerHTML = batchChk + '<span class="doc-emoji">' + docIcon(d) + '</span><span class="doc-mid"><span class="doc-name-wrap">' + badgePinned + badgeFavorite + '<span class="doc-name"></span></span><span class="doc-time">' + shortTime(d.updated) + "</span>" + (d.tags && d.tags.length ? '<span class="doc-tags">' + d.tags.map(function(t) {
-      return '<span class="doc-tag" data-tag="' + encodeURIComponent(t) + '">#' + escapeHtml(t) + "</span>";
+      return '<span class="doc-tag" data-tag="' + encodeURIComponent(t) + '">#' + escapeHtml2(t) + "</span>";
     }).join("") + "</span>" : "") + "</span>" + threeDotBtn;
     item.querySelector(".doc-name").textContent = d.title || "\u65E0\u6807\u9898";
     var tagEls = item.querySelectorAll(".doc-tag");
@@ -958,7 +1633,7 @@
       case "duplicate":
         var cp = duplicateDoc(d.id);
         bus.emit("docs:changed");
-        toast("\u5DF2\u521B\u5EFA\u526F\u672C\uFF1A" + (cp ? cp.title || "\u65E0\u6807\u9898" : ""), "success");
+        toast3("\u5DF2\u521B\u5EFA\u526F\u672C\uFF1A" + (cp ? cp.title || "\u65E0\u6807\u9898" : ""), "success");
         break;
       case "rename":
         renameDocId = d.id;
@@ -971,22 +1646,22 @@
       case "favorite":
         toggleFavorite(d.id);
         bus.emit("docs:changed");
-        toast("\u5DF2\u6536\u85CF", "success");
+        toast3("\u5DF2\u6536\u85CF", "success");
         break;
       case "unfavorite":
         toggleFavorite(d.id);
         bus.emit("docs:changed");
-        toast("\u5DF2\u53D6\u6D88\u6536\u85CF", "success");
+        toast3("\u5DF2\u53D6\u6D88\u6536\u85CF", "success");
         break;
       case "pin":
         togglePin(d.id);
         bus.emit("docs:changed");
-        toast("\u5DF2\u7F6E\u9876", "success");
+        toast3("\u5DF2\u7F6E\u9876", "success");
         break;
       case "unpin":
         togglePin(d.id);
         bus.emit("docs:changed");
-        toast("\u5DF2\u53D6\u6D88\u7F6E\u9876", "success");
+        toast3("\u5DF2\u53D6\u6D88\u7F6E\u9876", "success");
         break;
       case "export":
         exportDocById(d.id);
@@ -1026,7 +1701,7 @@
       var delTime = d.deletedAt ? fullTime(d.deletedAt) : "";
       var batchChk = state.batchMode ? '<label class="doc-batch-check" title="\u9009\u62E9"><input type="checkbox" ' + (state.batchSelected[d.id] ? "checked" : "") + "></label>" : "";
       var moreBtn = state.batchMode ? "" : '<button class="trash-more" title="\u66F4\u591A\u64CD\u4F5C"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></svg></button>';
-      item.innerHTML = batchChk + '<span class="doc-icon">' + icon + '</span><div class="doc-info"><div class="doc-title-row"><span class="doc-title">' + escapeHtml(title) + '</span></div><div class="doc-meta-row"><span class="doc-time">\u5220\u9664\u4E8E ' + delTime + "</span></div></div>" + moreBtn;
+      item.innerHTML = batchChk + '<span class="doc-icon">' + icon + '</span><div class="doc-info"><div class="doc-title-row"><span class="doc-title">' + escapeHtml2(title) + '</span></div><div class="doc-meta-row"><span class="doc-time">\u5220\u9664\u4E8E ' + delTime + "</span></div></div>" + moreBtn;
       item.addEventListener("click", function(e) {
         if (e.target.closest(".trash-more") || e.target.closest(".doc-menu") || e.target.closest(".doc-batch-check")) return;
         if (state.batchMode) {
@@ -1099,7 +1774,7 @@
     if (e.target.closest(".doc-menu")) return;
     closeTrashMenu();
   });
-  function escapeHtml(s) {
+  function escapeHtml2(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
   function restoreDoc(id) {
@@ -1112,7 +1787,7 @@
     d.updated = Date.now();
     persist();
     renderList();
-    toast("\u5DF2\u6062\u590D\uFF1A" + (d.title || "\u65E0\u6807\u9898"), "success");
+    toast3("\u5DF2\u6062\u590D\uFF1A" + (d.title || "\u65E0\u6807\u9898"), "success");
   }
   function destroyDoc(id) {
     var idx = -1;
@@ -1138,7 +1813,7 @@
     }
     persist();
     renderList();
-    toast("\u5DF2\u5F7B\u5E95\u5220\u9664\uFF1A" + (removed.title || "\u65E0\u6807\u9898"));
+    toast3("\u5DF2\u5F7B\u5E95\u5220\u9664\uFF1A" + (removed.title || "\u65E0\u6807\u9898"));
   }
   var pendingDelId = null;
   function openDocDelConfirm(id) {
@@ -1209,7 +1884,7 @@
       els.breadcrumb.textContent = "\u{1F4DD}";
     }
     renderList();
-    toast("\u5DF2\u79FB\u5165\u56DE\u6536\u7AD9\uFF1A" + (d.title || "\u65E0\u6807\u9898"));
+    toast3("\u5DF2\u79FB\u5165\u56DE\u6536\u7AD9\uFF1A" + (d.title || "\u65E0\u6807\u9898"));
   }
   function getBatchSelectedIds() {
     var ids = [];
@@ -1250,7 +1925,7 @@
   }
   function batchDelete(ids) {
     if (!ids || ids.length === 0) {
-      toast("\u8BF7\u5148\u9009\u62E9\u8981\u5220\u9664\u7684\u6587\u6863", "error");
+      toast3("\u8BF7\u5148\u9009\u62E9\u8981\u5220\u9664\u7684\u6587\u6863", "error");
       return 0;
     }
     var count = 0;
@@ -1304,7 +1979,7 @@
   }
   function batchDestroy(ids) {
     if (!ids || ids.length === 0) {
-      toast("\u8BF7\u5148\u9009\u62E9\u8981\u5F7B\u5E95\u5220\u9664\u7684\u6587\u6863", "error");
+      toast3("\u8BF7\u5148\u9009\u62E9\u8981\u5F7B\u5E95\u5220\u9664\u7684\u6587\u6863", "error");
       return 0;
     }
     var count = 0;
@@ -1340,7 +2015,7 @@
   }
   function batchExport(ids) {
     if (!ids || ids.length === 0) {
-      toast("\u8BF7\u5148\u9009\u62E9\u8981\u5BFC\u51FA\u7684\u6587\u6863", "error");
+      toast3("\u8BF7\u5148\u9009\u62E9\u8981\u5BFC\u51FA\u7684\u6587\u6863", "error");
       return 0;
     }
     var count = 0;
@@ -1352,7 +2027,7 @@
         console.warn(e);
       }
     });
-    if (count > 0) toast("\u6279\u91CF\u5BFC\u51FA\u5B8C\u6210\uFF1A\u5171 " + count + " \u9879", "success");
+    if (count > 0) toast3("\u6279\u91CF\u5BFC\u51FA\u5B8C\u6210\uFF1A\u5171 " + count + " \u9879", "success");
     return count;
   }
   function shortTime(ts) {
@@ -1391,7 +2066,7 @@
         var meta = state.tagMeta[t];
         var expMark = meta && meta.expiresAt ? ' <span class="sb-tag-exp" title="\u5230\u671F ' + fmtStamp(meta.expiresAt) + '">\u23F3</span>' : "";
         it.className = "sb-tag-item" + (state.tagFilter === t ? " active" : "");
-        it.innerHTML = '<span class="sb-tag-name"><span class="sb-tag-hash">#</span>' + escapeHtml(t) + expMark + '</span><span class="sb-tag-num">' + tagMap[t] + "</span>";
+        it.innerHTML = '<span class="sb-tag-name"><span class="sb-tag-hash">#</span>' + escapeHtml2(t) + expMark + '</span><span class="sb-tag-num">' + tagMap[t] + "</span>";
         it.addEventListener("click", function() {
           state.tagFilter = state.tagFilter === t ? null : t;
           state.docFilter = "recent";
@@ -1508,7 +2183,7 @@
         else if (d.dueAt - nowTs < 864e5) statusHtml += '<span class="sticky-card-due near" title="\u5373\u5C06\u5230\u671F">\u5373\u5C06\u5230\u671F</span>';
         else statusHtml += '<span class="sticky-card-due" title="\u5230\u671F\u65F6\u95F4">' + fmtStamp(d.dueAt) + "</span>";
       }
-      item.innerHTML = '<div class="sticky-card-head">' + (d.pinned ? '<span class="sticky-pin-badge" title="\u5DF2\u7F6E\u9876">\u{1F4CC}</span>' : "") + '<span class="sticky-card-title">' + escapeHtml(title) + "</span></div>" + (content ? '<div class="sticky-card-content">' + escapeHtml(content) + "</div>" : "") + (statusHtml ? '<div class="sticky-card-status">' + statusHtml + "</div>" : "") + '<div class="sticky-card-foot"><span class="sticky-card-time">' + shortTime(d.updated) + '</span><button class="sticky-card-more" title="\u66F4\u591A\u64CD\u4F5C"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></svg></button></div>';
+      item.innerHTML = '<div class="sticky-card-head">' + (d.pinned ? '<span class="sticky-pin-badge" title="\u5DF2\u7F6E\u9876">\u{1F4CC}</span>' : "") + '<span class="sticky-card-title">' + escapeHtml2(title) + "</span></div>" + (content ? '<div class="sticky-card-content">' + escapeHtml2(content) + "</div>" : "") + (statusHtml ? '<div class="sticky-card-status">' + statusHtml + "</div>" : "") + '<div class="sticky-card-foot"><span class="sticky-card-time">' + shortTime(d.updated) + '</span><button class="sticky-card-more" title="\u66F4\u591A\u64CD\u4F5C"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></svg></button></div>';
       item.addEventListener("click", function(e) {
         if (e.target.closest(".sticky-card-more") || e.target.closest(".doc-menu")) return;
         openStickyEditModal(d.id);
@@ -1595,7 +2270,7 @@
       cur.forEach(function(t) {
         var c = document.createElement("span");
         c.className = "tag-chip";
-        c.innerHTML = "#" + escapeHtml(t) + ' <span class="tag-chip-x" data-tag="' + encodeURIComponent(t) + '">\xD7</span>';
+        c.innerHTML = "#" + escapeHtml2(t) + ' <span class="tag-chip-x" data-tag="' + encodeURIComponent(t) + '">\xD7</span>';
         c.querySelector(".tag-chip-x").addEventListener("click", function(e) {
           e.stopPropagation();
           var raw = this.getAttribute("data-tag");
@@ -1642,19 +2317,19 @@
     var t = (els.tagEditInput.value || "").trim();
     if (!t) return;
     if (t.length > 20) {
-      toast("\u6807\u7B7E\u6700\u957F 20 \u5B57", "error");
+      toast3("\u6807\u7B7E\u6700\u957F 20 \u5B57", "error");
       return;
     }
     var d = findDoc(state.tagEditDocId);
     if (!d) return;
     var next = (d.tags || []).slice();
     if (next.indexOf(t) >= 0) {
-      toast("\u6807\u7B7E\u5DF2\u5B58\u5728", "error");
+      toast3("\u6807\u7B7E\u5DF2\u5B58\u5728", "error");
       els.tagEditInput.value = "";
       return;
     }
     if (next.length >= 20) {
-      toast("\u6700\u591A 20 \u4E2A\u6807\u7B7E", "error");
+      toast3("\u6700\u591A 20 \u4E2A\u6807\u7B7E", "error");
       return;
     }
     next.push(t);
@@ -1701,7 +2376,7 @@
     if (ok) {
       closeStickyEditModal();
       renderList();
-      toast("\u4FBF\u5229\u8D34\u5DF2\u4FDD\u5B58", "success");
+      toast3("\u4FBF\u5229\u8D34\u5DF2\u4FDD\u5B58", "success");
     }
   }
 
@@ -1819,10 +2494,10 @@
     var title = (cv.doc.title || KIND_META[cv.kind].label).replace(/[\\/:*?"<>|]/g, "_");
     var svg = els.visualCanvas.querySelector("svg");
     function done(path) {
-      if (path) toast("\u5DF2\u5BFC\u51FA\uFF1A" + path, "success");
+      if (path) toast3("\u5DF2\u5BFC\u51FA\uFF1A" + path, "success");
     }
     function fail(err) {
-      toast("\u5BFC\u51FA\u5931\u8D25\uFF1A" + (err && err.message ? err.message : err), "error");
+      toast3("\u5BFC\u51FA\u5931\u8D25\uFF1A" + (err && err.message ? err.message : err), "error");
     }
     function saveText(text) {
       saveUniversal(title + ext, text, false).then(done, fail);
@@ -1937,6 +2612,7 @@
     if (!d || d.diskPath || !hasApi()) return Promise.resolve(false);
     return getApi().get_rich_dir().then(function(dir) {
       if (!dir) return false;
+      setCachedRichDir(dir);
       var dirNorm = dir.replace(/\\/g, "/");
       var desired = d.title && d.title.trim() || "\u672A\u547D\u540D\u6587\u6863";
       d.diskPath = computeRichFilePath(dirNorm, d, desired);
@@ -2041,6 +2717,13 @@
   function syncFromEditor() {
     var d = activeDoc();
     if (!d) return;
+    if (d.kind === "pdf") {
+      d.title = els.title.value;
+      d.updated = Date.now();
+      els.statEdit.textContent = "\u6700\u540E\u7F16\u8F91 " + fullTime(d.updated);
+      persist();
+      return;
+    }
     d.content = cm.getValue();
     d.title = els.title.value;
     d.updated = Date.now();
@@ -2084,7 +2767,11 @@
   function saveDoc(forceAsk) {
     var d = activeDoc();
     if (!d) {
-      toast("\u6CA1\u6709\u53EF\u4FDD\u5B58\u7684\u6587\u6863", "error");
+      toast3("\u6CA1\u6709\u53EF\u4FDD\u5B58\u7684\u6587\u6863", "error");
+      return;
+    }
+    if (d.kind === "pdf") {
+      toast3("PDF \u6587\u6863\u4E3A\u53EA\u8BFB\uFF0C\u5982\u9700\u7F16\u8F91\u8BF7\u4F7F\u7528\u300C\u63D0\u53D6\u4E3A\u6587\u672C\u300D", "info");
       return;
     }
     clearTimeout(state.saveTimer);
@@ -2097,19 +2784,19 @@
           els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
           els.statSaved.style.color = "#0f7b0f";
           bus.emit("docs:changed");
-          toast("\u5DF2\u4FDD\u5B58\uFF1A" + d.diskPath, "success");
+          toast3("\u5DF2\u4FDD\u5B58\uFF1A" + d.diskPath, "success");
         }).catch(function() {
-          toast("\u4FDD\u5B58\u5931\u8D25", "error");
+          toast3("\u4FDD\u5B58\u5931\u8D25", "error");
         });
         return;
       }
-      if (!forceAsk && !d.diskPath) toast("\u8BE5\u6587\u6863\u5C1A\u672A\u5173\u8054\u78C1\u76D8\u6587\u4EF6\uFF0C\u8BF7\u9009\u62E9\u4FDD\u5B58\u4F4D\u7F6E\uFF08\u4EC5\u9996\u6B21\u4FDD\u5B58\u9700\u8981\u9009\u62E9\uFF09", "info");
+      if (!forceAsk && !d.diskPath) toast3("\u8BE5\u6587\u6863\u5C1A\u672A\u5173\u8054\u78C1\u76D8\u6587\u4EF6\uFF0C\u8BF7\u9009\u62E9\u4FDD\u5B58\u4F4D\u7F6E\uFF08\u4EC5\u9996\u6B21\u4FDD\u5B58\u9700\u8981\u9009\u62E9\uFF09", "info");
       var oldPath = d.diskPath || null;
       var initialName = docSaveName(d);
       var richContent = d.content || "";
       getApi().save_file_encoded(initialName, richContent, d.encoding || "UTF-8", richDocSaveFilters()).then(function(newPath) {
         if (!newPath) {
-          toast("\u5DF2\u53D6\u6D88\u4FDD\u5B58", "info");
+          toast3("\u5DF2\u53D6\u6D88\u4FDD\u5B58", "info");
           return;
         }
         d.diskPath = newPath;
@@ -2125,9 +2812,9 @@
         els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
         els.statSaved.style.color = "#0f7b0f";
         bus.emit("docs:changed");
-        toast((forceAsk ? "\u5DF2\u53E6\u5B58\u4E3A\uFF1A" : "\u5DF2\u4FDD\u5B58\uFF1A") + newPath, "success");
+        toast3((forceAsk ? "\u5DF2\u53E6\u5B58\u4E3A\uFF1A" : "\u5DF2\u4FDD\u5B58\uFF1A") + newPath, "success");
       }).catch(function() {
-        toast("\u4FDD\u5B58\u5931\u8D25", "error");
+        toast3("\u4FDD\u5B58\u5931\u8D25", "error");
       });
       return;
     }
@@ -2145,21 +2832,21 @@
           els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
           els.statSaved.style.color = "#0f7b0f";
           bus.emit("docs:changed");
-          toast("\u5DF2\u4FDD\u5B58\uFF1A" + d.diskPath, "success");
+          toast3("\u5DF2\u4FDD\u5B58\uFF1A" + d.diskPath, "success");
         } else {
-          toast("\u4FDD\u5B58\u5931\u8D25", "error");
+          toast3("\u4FDD\u5B58\u5931\u8D25", "error");
         }
       }).catch(function() {
         els.statSaved.textContent = "\u78C1\u76D8\u4FDD\u5B58\u5931\u8D25";
         els.statSaved.style.color = "var(--danger)";
-        toast("\u78C1\u76D8\u4FDD\u5B58\u5931\u8D25", "error");
+        toast3("\u78C1\u76D8\u4FDD\u5B58\u5931\u8D25", "error");
       });
       return;
     }
-    if (!forceAsk && !d.diskPath) toast("\u8BE5\u6587\u6863\u5C1A\u672A\u5173\u8054\u78C1\u76D8\u6587\u4EF6\uFF0C\u8BF7\u9009\u62E9\u4FDD\u5B58\u4F4D\u7F6E\uFF08\u4EC5\u9996\u6B21\u4FDD\u5B58\u9700\u8981\u9009\u62E9\uFF09", "info");
+    if (!forceAsk && !d.diskPath) toast3("\u8BE5\u6587\u6863\u5C1A\u672A\u5173\u8054\u78C1\u76D8\u6587\u4EF6\uFF0C\u8BF7\u9009\u62E9\u4FDD\u5B58\u4F4D\u7F6E\uFF08\u4EC5\u9996\u6B21\u4FDD\u5B58\u9700\u8981\u9009\u62E9\uFF09", "info");
     getApi().save_file_encoded(docSaveName(d), d.content, d.encoding || "UTF-8").then(function(path) {
       if (!path) {
-        toast("\u5DF2\u53D6\u6D88\u4FDD\u5B58", "info");
+        toast3("\u5DF2\u53D6\u6D88\u4FDD\u5B58", "info");
         return;
       }
       d.diskPath = path;
@@ -2171,9 +2858,9 @@
       els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
       els.statSaved.style.color = "#0f7b0f";
       bus.emit("docs:changed");
-      toast((forceAsk ? "\u5DF2\u53E6\u5B58\u4E3A\uFF1A" : "\u5DF2\u4FDD\u5B58\uFF1A") + path, "success");
+      toast3((forceAsk ? "\u5DF2\u53E6\u5B58\u4E3A\uFF1A" : "\u5DF2\u4FDD\u5B58\uFF1A") + path, "success");
     }).catch(function() {
-      toast("\u4FDD\u5B58\u5931\u8D25", "error");
+      toast3("\u4FDD\u5B58\u5931\u8D25", "error");
     });
   }
   function saveNow() {
@@ -2375,7 +3062,7 @@
           if (!b) return;
           if (it.type === "sync") {
             window.InkpadBlocks.transformBlockType(b.id, "callout");
-            toast("\u540C\u6B65\u5757\u662F\u534F\u4F5C\u6982\u5FF5\uFF0C\u672C\u5730\u7248\u6682\u4EE5\u9AD8\u4EAE\u5757\u627F\u8F7D", "info");
+            toast3("\u540C\u6B65\u5757\u662F\u534F\u4F5C\u6982\u5FF5\uFF0C\u672C\u5730\u7248\u6682\u4EE5\u9AD8\u4EAE\u5757\u627F\u8F7D", "info");
           } else {
             window.InkpadBlocks.transformBlockType(b.id, it.type);
           }
@@ -2657,6 +3344,216 @@
     });
   }
 
+  // src-app/25-doc-map.js
+  var DOCMAP_KEY = "inkpad.docmap.v1";
+  var currentKind = null;
+  var dragging = false;
+  var rafId = null;
+  var vpRaf = null;
+  function cssVar(name, fallback) {
+    try {
+      var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return v || fallback;
+    } catch (e) {
+      return fallback;
+    }
+  }
+  function detectKind() {
+    var id = state.activeId;
+    if (!id) return null;
+    for (var i = 0; i < state.docs.length; i++) {
+      if (state.docs[i] && state.docs[i].id === id) return state.docs[i].kind || "text";
+    }
+    return null;
+  }
+  function applyUI() {
+    if (!els.docMap) return;
+    var show = !!state.docMapOn && currentKind === "text";
+    els.docMap.style.display = show ? "" : "none";
+    if (els.btnDocMap) els.btnDocMap.classList.toggle("active", !!state.docMapOn);
+  }
+  function updateDocMapUI(kind) {
+    currentKind = kind;
+    applyUI();
+    if (state.docMapOn && currentKind === "text") {
+      scheduleRender();
+      scheduleViewport();
+    }
+  }
+  function toggle() {
+    if (!els.docMap || !els.btnDocMap) return;
+    state.docMapOn = !state.docMapOn;
+    try {
+      localStorage.setItem(DOCMAP_KEY, state.docMapOn ? "1" : "0");
+    } catch (e) {
+    }
+    applyUI();
+    if (state.docMapOn && currentKind === "text") {
+      scheduleRender();
+      scheduleViewport();
+    }
+  }
+  function draw() {
+    rafId = null;
+    var canvas = els.docMapCanvas;
+    if (!canvas || !state.docMapOn || currentKind !== "text") return;
+    var container = els.docMap;
+    var cssW = container.clientWidth;
+    var cssH = container.clientHeight;
+    if (cssW <= 0 || cssH <= 0) return;
+    var dpr = window.devicePixelRatio || 1;
+    var pxW = Math.round(cssW * dpr);
+    var pxH = Math.round(cssH * dpr);
+    if (canvas.width !== pxW) canvas.width = pxW;
+    if (canvas.height !== pxH) canvas.height = pxH;
+    var ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+    if (!cm) return;
+    var info = cm.getScrollInfo();
+    var total = Math.max(info.height, 1);
+    var px = cssH / total;
+    var lineCount = cm.lineCount();
+    var step = Math.max(1, Math.ceil(lineCount / Math.max(1, cssH * 2)));
+    var baseH = cm.defaultTextHeight() || 14;
+    var maxLen = 1;
+    var i, len, t;
+    for (i = 0; i < lineCount; i += step) {
+      t = cm.getLine(i);
+      if (t && t.length > maxLen) maxLen = t.length;
+    }
+    if (maxLen < 1) maxLen = 1;
+    var barW = cssW - 8;
+    ctx.fillStyle = cssVar("--text-faint", "#A8A29E");
+    ctx.globalAlpha = 0.55;
+    for (i = 0; i < lineCount; i += step) {
+      var y = cm.heightAtLine(i, "local") * px;
+      var handle = cm.getLineHandle(i);
+      var lh = handle && handle.height ? handle.height : baseH;
+      t = cm.getLine(i);
+      len = t ? t.length : 0;
+      var w = Math.max(2, barW * Math.min(1, len / maxLen));
+      ctx.fillRect((cssW - w) / 2, y, w, Math.max(1, lh * px * 0.7));
+    }
+    ctx.globalAlpha = 1;
+  }
+  function scheduleRender() {
+    if (rafId) return;
+    rafId = requestAnimationFrame(function() {
+      rafId = null;
+      draw();
+    });
+  }
+  function updateViewport() {
+    vpRaf = null;
+    var vp = els.docMapViewport;
+    var container = els.docMap;
+    if (!vp || !container || !state.docMapOn || currentKind !== "text" || !cm) {
+      if (vp) vp.style.display = "none";
+      return;
+    }
+    var cssH = container.clientHeight;
+    if (cssH <= 0) {
+      vp.style.display = "none";
+      return;
+    }
+    var s = cm.getScrollInfo();
+    var total = Math.max(s.height, 1);
+    var scale = cssH / total;
+    var top = s.top * scale;
+    var h = Math.max(16, Math.min(cssH - top, s.clientHeight * scale));
+    vp.style.display = "";
+    vp.style.top = top + "px";
+    vp.style.height = h + "px";
+  }
+  function scheduleViewport() {
+    if (vpRaf) return;
+    vpRaf = requestAnimationFrame(function() {
+      vpRaf = null;
+      updateViewport();
+    });
+  }
+  function jumpTo(e) {
+    if (!state.docMapOn || currentKind !== "text" || !cm) return;
+    var container = els.docMap;
+    var rect = container.getBoundingClientRect();
+    if (rect.height <= 0) return;
+    var ratio = (e.clientY - rect.top) / rect.height;
+    ratio = Math.max(0, Math.min(1, ratio));
+    var info = cm.getScrollInfo();
+    var maxTop = Math.max(0, info.height - info.clientHeight);
+    var targetTop = ratio * info.height - info.clientHeight / 2;
+    targetTop = Math.max(0, Math.min(maxTop, targetTop));
+    cm.scrollTo(null, targetTop);
+  }
+  function onMouseDown(e) {
+    if (e.button !== 0) return;
+    dragging = true;
+    jumpTo(e);
+    e.preventDefault();
+  }
+  function onMouseMove(e) {
+    if (!dragging) return;
+    jumpTo(e);
+  }
+  function onMouseUp() {
+    dragging = false;
+  }
+  function onMouseLeave() {
+    dragging = false;
+  }
+  function handleScroll() {
+    updateViewport();
+    scheduleRender();
+  }
+  function handleChanges() {
+    scheduleRender();
+    scheduleViewport();
+  }
+  function handleResize() {
+    scheduleRender();
+    scheduleViewport();
+  }
+  function bindEvents() {
+    if (els.btnDocMap) els.btnDocMap.addEventListener("click", toggle);
+    var canvas = els.docMapCanvas;
+    if (!canvas) return;
+    canvas.addEventListener("mousedown", onMouseDown);
+    canvas.addEventListener("mouseleave", onMouseLeave);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("resize", handleResize);
+    if (cm) {
+      cm.on("scroll", handleScroll);
+      cm.on("changes", handleChanges);
+      cm.on("swapDoc", handleChanges);
+      cm.on("refresh", handleResize);
+      cm.on("viewportChange", handleChanges);
+    }
+  }
+  function initDocMap() {
+    if (!els.docMap || !els.docMapCanvas) return;
+    var saved = null;
+    try {
+      saved = localStorage.getItem(DOCMAP_KEY);
+    } catch (e) {
+    }
+    state.docMapOn = saved ? saved === "1" : false;
+    currentKind = detectKind();
+    bindEvents();
+    applyUI();
+    if (state.docMapOn) {
+      scheduleRender();
+      scheduleViewport();
+    }
+    setTimeout(function() {
+      if (state.docMapOn) {
+        scheduleRender();
+        scheduleViewport();
+      }
+    }, 120);
+  }
+
   // src-app/18-bootstrap.js
   var FR_STORAGE = "inkpad.fr.v1";
   var frState = {
@@ -2692,18 +3589,69 @@
   var FR_HL_BATCH = 80;
   var FR_BACK_MAX = 5e4;
   function initApp() {
-    bindTsModal();
-    bindCodeModal();
-    bindFindReplaceModal();
-    loadDocs();
-    bus.on("docs:changed", renderList);
-    renderList();
-    openDoc(state.activeId);
+    dbgLog2("initApp enter");
+    openPendingExternal();
+    try {
+      bindTsModal();
+      bindCodeModal();
+      bindFindReplaceModal();
+      loadDocs();
+      bus.on("docs:changed", renderList);
+      renderList();
+    } catch (e) {
+      dbgLog2("initApp main error: " + (e && e.message));
+      console.warn("[inkpad] initApp main init error, continue", e);
+    }
     bindRichOutline();
     setTimeout(function() {
       cleanupRichOrphans();
     }, 800);
     bindRichBubble();
+    try {
+      initDocMap();
+    } catch (e) {
+      dbgLog2("initDocMap error: " + (e && e.message));
+      console.warn("[inkpad] initDocMap error", e);
+    }
+  }
+  function dbgLog2(m) {
+    try {
+      if (getApi() && getApi().debug_log) getApi().debug_log(String(m));
+    } catch (e) {
+    }
+  }
+  var pendingOpenBusy = false;
+  function openPendingExternal() {
+    if (pendingOpenBusy) return;
+    dbgLog2("openPendingExternal enter, hasApi=" + hasApi());
+    if (!hasApi()) {
+      window.addEventListener("pywebviewready", function h() {
+        window.removeEventListener("pywebviewready", h);
+        dbgLog2("pywebviewready fired -> retry");
+        openPendingExternal();
+      }, { once: true });
+      return;
+    }
+    pendingOpenBusy = true;
+    openInitialDoc();
+  }
+  function openInitialDoc() {
+    getApi().get_pending_open_file().then(function(pf) {
+      dbgLog2("get_pending_open_file -> " + JSON.stringify(pf));
+      var p = pf && pf.path ? pf.path : null;
+      var name = pf && pf.name || (p ? p.split(/[\\/]/).pop() || "\u6587\u4EF6" : "");
+      if (p && !/\.(png|jpe?g|gif|webp|bmp|svg|ico)$/i.test(name)) {
+        dbgLog2("skip default doc, open external: " + p);
+        openDiskFile(p, name);
+      } else {
+        dbgLog2("open default doc, activeId=" + state.activeId);
+        openDoc(state.activeId);
+      }
+    }).catch(function(e) {
+      dbgLog2("openPendingExternal failed: " + (e && e.message));
+      console.warn("[inkpad] open pending file failed", e);
+      openDoc(state.activeId);
+    });
   }
   function cleanupRichOrphans() {
     if (!hasApi()) return;
@@ -2714,7 +3662,7 @@
       if (!res) return;
       var del = (res.deleted || []).length;
       var skp = (res.skipped || []).length;
-      if (del > 0) toast("\u5DF2\u6E05\u7406 " + del + " \u4E2A\u5386\u53F2\u6B8B\u7559\u5BCC\u6587\u6863\u6587\u4EF6\uFF08\u5FFD\u7565 " + skp + " \u4E2A\u975E\u5BCC\u6587\u6863 JSON\uFF09", "success");
+      if (del > 0) toast3("\u5DF2\u6E05\u7406 " + del + " \u4E2A\u5386\u53F2\u6B8B\u7559\u5BCC\u6587\u6863\u6587\u4EF6\uFF08\u5FFD\u7565 " + skp + " \u4E2A\u975E\u5BCC\u6587\u6863 JSON\uFF09", "success");
       else if (skp > 0) {
       }
     }).catch(function(e) {
@@ -2764,10 +3712,10 @@
     (function() {
       var card = $("fr-card");
       var header = card.querySelector(".fr-header");
-      var dragging = false, sx = 0, sy = 0, sl = 0, st = 0;
+      var dragging2 = false, sx = 0, sy = 0, sl = 0, st = 0;
       header.addEventListener("mousedown", function(e) {
         if (e.target.closest(".fr-close-btn")) return;
-        dragging = true;
+        dragging2 = true;
         sx = e.clientX;
         sy = e.clientY;
         var rect = card.getBoundingClientRect();
@@ -2779,7 +3727,7 @@
         e.preventDefault();
       });
       document.addEventListener("mousemove", function(e) {
-        if (!dragging) return;
+        if (!dragging2) return;
         var nl = sl + (e.clientX - sx);
         var nt = st + (e.clientY - sy);
         nl = Math.max(0, Math.min(window.innerWidth - 100, nl));
@@ -2788,8 +3736,8 @@
         card.style.top = nt + "px";
       });
       document.addEventListener("mouseup", function() {
-        if (!dragging) return;
-        dragging = false;
+        if (!dragging2) return;
+        dragging2 = false;
         var rect = card.getBoundingClientRect();
         frState.pos = { left: rect.left, top: rect.top };
         frSave();
@@ -3814,11 +4762,11 @@
   function canInsertBlock() {
     var d = activeDoc();
     if (!d) {
-      toast("\u8BF7\u5148\u6253\u5F00\u6587\u6863", "error");
+      toast3("\u8BF7\u5148\u6253\u5F00\u6587\u6863", "error");
       return false;
     }
     if (d.lang !== "markdown" && d.lang !== "html") {
-      toast("\u300C\u63D2\u5165\u300D\u7EC4\u4EF6\u4EC5\u9002\u7528\u4E8E Markdown / HTML \u6587\u6863", "error");
+      toast3("\u300C\u63D2\u5165\u300D\u7EC4\u4EF6\u4EC5\u9002\u7528\u4E8E Markdown / HTML \u6587\u6863", "error");
       return false;
     }
     return true;
@@ -4004,7 +4952,7 @@
         var rk = kind === "task" ? "todo" : kind;
         var SUPPORTED = ["text", "h1", "h2", "h3", "todo", "quote", "code", "table", "image", "mermaid", "math", "callout", "hr", "cols"];
         if (SUPPORTED.indexOf(rk) >= 0) window.InkpadBlocks.insertBlock(rk);
-        else toast("\u8BE5\u7EC4\u4EF6\u5728\u5BCC\u6587\u6863\u6A21\u5F0F\u4E0B\u6682\u4E0D\u652F\u6301\uFF0C\u53EF\u5728\u6587\u672C\u5757\u4E2D\u76F4\u63A5\u7528 :icon-\u540D\u79F0: \u5D4C\u5165\u56FE\u6807", "info");
+        else toast3("\u8BE5\u7EC4\u4EF6\u5728\u5BCC\u6587\u6863\u6A21\u5F0F\u4E0B\u6682\u4E0D\u652F\u6301\uFF0C\u53EF\u5728\u6587\u672C\u5757\u4E2D\u76F4\u63A5\u7528 :icon-\u540D\u79F0: \u5D4C\u5165\u56FE\u6807", "info");
       }
       return;
     }
@@ -4122,15 +5070,15 @@
   function insertImageFile() {
     var d = activeDoc();
     if (!d || d.kind && d.kind !== "text") {
-      toast("\u8BF7\u5148\u6253\u5F00\u6587\u672C\u6587\u6863", "error");
+      toast3("\u8BF7\u5148\u6253\u5F00\u6587\u672C\u6587\u6863", "error");
       return;
     }
     if (d.lang !== "markdown" && d.lang !== "html") {
-      toast("\u63D2\u5165\u56FE\u7247\u9700\u5207\u6362\u5230 Markdown \u6216 HTML \u6587\u6863", "error");
+      toast3("\u63D2\u5165\u56FE\u7247\u9700\u5207\u6362\u5230 Markdown \u6216 HTML \u6587\u6863", "error");
       return;
     }
     if (!hasApi()) {
-      toast("\u63D2\u5165\u56FE\u7247\u9700\u5728\u684C\u9762\u7248\u4E2D\u4F7F\u7528", "error");
+      toast3("\u63D2\u5165\u56FE\u7247\u9700\u5728\u684C\u9762\u7248\u4E2D\u4F7F\u7528", "error");
       return;
     }
     var hasDisk = !!d.diskPath;
@@ -4144,25 +5092,25 @@
             return getApi().copy_image_to_assets(baseDir, p).then(function(res) {
               if (res && res.path) {
                 insertAtCursor("![](" + res.rel + ")");
-                toast("\u5DF2\u63D2\u5165\uFF1A" + res.rel, "success");
+                toast3("\u5DF2\u63D2\u5165\uFF1A" + res.rel, "success");
               } else if (res && res.error) {
-                toast("\u63D2\u5165\u5931\u8D25\uFF1A" + res.error, "error");
+                toast3("\u63D2\u5165\u5931\u8D25\uFF1A" + res.error, "error");
               }
             });
           } else {
             return getApi().read_file_b64(p).then(function(res) {
               if (!res || !res.b64) {
-                toast("\u8BFB\u53D6\u56FE\u7247\u5931\u8D25\uFF1A" + p, "error");
+                toast3("\u8BFB\u53D6\u56FE\u7247\u5931\u8D25\uFF1A" + p, "error");
                 return;
               }
               insertAtCursor("![image](" + buildDataUri(res.mime || _guessMimeFromPath(p), res.b64) + ")");
-              toast("\u5DF2\u63D2\u5165\u5185\u8054\u56FE\u7247\uFF08\u4FDD\u5B58\u6587\u6863\u540E\u56FE\u7247\u5C06\u968F\u6587\u6863\u4E00\u8D77\u4FDD\u5B58\uFF09", "success");
+              toast3("\u5DF2\u63D2\u5165\u5185\u8054\u56FE\u7247\uFF08\u4FDD\u5B58\u6587\u6863\u540E\u56FE\u7247\u5C06\u968F\u6587\u6863\u4E00\u8D77\u4FDD\u5B58\uFF09", "success");
             });
           }
         });
       });
     }).catch(function() {
-      toast("\u9009\u62E9\u56FE\u7247\u5931\u8D25", "error");
+      toast3("\u9009\u62E9\u56FE\u7247\u5931\u8D25", "error");
     });
   }
   function _guessMimeFromPath(p) {
@@ -4180,11 +5128,11 @@
     var d = activeDoc();
     if (!d) return;
     if (d.lang !== "markdown" && d.lang !== "html") {
-      toast("\u7C98\u8D34\u56FE\u7247\u9700\u4E3A Markdown / HTML \u6587\u6863", "error");
+      toast3("\u7C98\u8D34\u56FE\u7247\u9700\u4E3A Markdown / HTML \u6587\u6863", "error");
       return;
     }
     if (!hasApi()) {
-      toast("\u7C98\u8D34\u56FE\u7247\u9700\u5728\u684C\u9762\u7248\u4E2D\u4F7F\u7528", "error");
+      toast3("\u7C98\u8D34\u56FE\u7247\u9700\u5728\u684C\u9762\u7248\u4E2D\u4F7F\u7528", "error");
       return;
     }
     var reader = new FileReader();
@@ -4198,11 +5146,11 @@
         }
         b64 = btoa(bin);
       } catch (e) {
-        toast("\u8BFB\u53D6\u7C98\u8D34\u56FE\u7247\u5931\u8D25", "error");
+        toast3("\u8BFB\u53D6\u7C98\u8D34\u56FE\u7247\u5931\u8D25", "error");
         return;
       }
       if (typeof b64 !== "string" || !b64) {
-        toast("\u8BFB\u53D6\u7C98\u8D34\u56FE\u7247\u5931\u8D25", "error");
+        toast3("\u8BFB\u53D6\u7C98\u8D34\u56FE\u7247\u5931\u8D25", "error");
         return;
       }
       var mime = file && file.type || "image/png";
@@ -4213,18 +5161,18 @@
         getApi().save_image_binary(baseDir, fname, b64).then(function(res) {
           if (res && res.path) {
             insertAtCursor("![](" + res.rel + ")");
-            toast("\u5DF2\u7C98\u8D34\u56FE\u7247", "success");
-          } else if (res && res.error) toast("\u7C98\u8D34\u5931\u8D25\uFF1A" + res.error, "error");
+            toast3("\u5DF2\u7C98\u8D34\u56FE\u7247", "success");
+          } else if (res && res.error) toast3("\u7C98\u8D34\u5931\u8D25\uFF1A" + res.error, "error");
         }).catch(function() {
-          toast("\u7C98\u8D34\u56FE\u7247\u5931\u8D25", "error");
+          toast3("\u7C98\u8D34\u56FE\u7247\u5931\u8D25", "error");
         });
       } else {
         insertAtCursor("![image](" + buildDataUri(mime, b64) + ")");
-        toast("\u5DF2\u7C98\u8D34\u5185\u8054\u56FE\u7247\uFF08\u4FDD\u5B58\u6587\u6863\u540E\u56FE\u7247\u5C06\u968F\u6587\u6863\u4E00\u8D77\u4FDD\u5B58\uFF09", "success");
+        toast3("\u5DF2\u7C98\u8D34\u5185\u8054\u56FE\u7247\uFF08\u4FDD\u5B58\u6587\u6863\u540E\u56FE\u7247\u5C06\u968F\u6587\u6863\u4E00\u8D77\u4FDD\u5B58\uFF09", "success");
       }
     };
     reader.onerror = function() {
-      toast("\u8BFB\u53D6\u7C98\u8D34\u56FE\u7247\u5931\u8D25", "error");
+      toast3("\u8BFB\u53D6\u7C98\u8D34\u56FE\u7247\u5931\u8D25", "error");
     };
     reader.readAsArrayBuffer(file);
   }
@@ -4347,7 +5295,7 @@
       item.addEventListener("click", function() {
         insertSnippet(s);
         $("snippet-modal").style.display = "none";
-        toast("\u5DF2\u63D2\u5165\u300C" + s.name + "\u300D\uFF0C\u6309 Tab \u8DF3\u8F6C\u5360\u4F4D", "success");
+        toast3("\u5DF2\u63D2\u5165\u300C" + s.name + "\u300D\uFF0C\u6309 Tab \u8DF3\u8F6C\u5360\u4F4D", "success");
       });
       els.snippetList.appendChild(item);
     });
@@ -4400,7 +5348,7 @@
         if (cm.getSelection()) cm.replaceSelection(t);
         else cm.replaceRange(t, cm.getCursor());
         $("clip-modal").style.display = "none";
-        toast("\u5DF2\u63D2\u5165\u526A\u8D34\u677F\u5185\u5BB9 \u2713", "success");
+        toast3("\u5DF2\u63D2\u5165\u526A\u8D34\u677F\u5185\u5BB9 \u2713", "success");
       });
       els.clipList.appendChild(item);
     });
@@ -4410,7 +5358,7 @@
   function formatJSON() {
     var raw = cm.getValue().trim();
     if (!raw) {
-      toast("\u5185\u5BB9\u4E3A\u7A7A", "error");
+      toast3("\u5185\u5BB9\u4E3A\u7A7A", "error");
       return;
     }
     try {
@@ -4418,10 +5366,10 @@
       if (isWholeJson(raw)) setLang("json", true);
       var warns = countRecovered(raw);
       if (warns) highlightRecovered();
-      toast(warns ? "JSON \u683C\u5F0F\u5316\u5B8C\u6210 \u2713 \u68C0\u6D4B\u5230 " + warns + " \u5904\u6570\u636E\u4E0D\u5B8C\u6574\uFF0C\u5DF2\u9AD8\u4EAE\u5B9A\u4F4D" : "JSON \u683C\u5F0F\u5316\u5B8C\u6210 \u2713", "success");
+      toast3(warns ? "JSON \u683C\u5F0F\u5316\u5B8C\u6210 \u2713 \u68C0\u6D4B\u5230 " + warns + " \u5904\u6570\u636E\u4E0D\u5B8C\u6574\uFF0C\u5DF2\u9AD8\u4EAE\u5B9A\u4F4D" : "JSON \u683C\u5F0F\u5316\u5B8C\u6210 \u2713", "success");
     } catch (e) {
       if (/未找到可序列化的 JSON 数据/.test(e && e.message || "")) {
-        toast(e.message, "error");
+        toast3(e.message, "error");
       } else {
         highlightJSONError(e, raw);
       }
@@ -4429,7 +5377,7 @@
   }
   function highlightJSONError(err, content) {
     if (!err || !err.message) {
-      toast("JSON \u89E3\u6790\u5931\u8D25\uFF1A" + (err && err.message || "\u672A\u77E5\u9519\u8BEF"), "error");
+      toast3("JSON \u89E3\u6790\u5931\u8D25\uFF1A" + (err && err.message || "\u672A\u77E5\u9519\u8BEF"), "error");
       return;
     }
     var posMatch = err.message.match(/position\s+(\d+)/);
@@ -4486,7 +5434,7 @@
     cm.scrollIntoView({ line, ch: Math.max(0, ch - 4) }, 80);
     cm.setSelection({ line, ch }, { line, ch: safeEnd });
     cm.focus();
-    toast(
+    toast3(
       "JSON \u89E3\u6790\u5931\u8D25\uFF1A\u7B2C " + (line + 1) + " \u884C \u7B2C " + (ch + 1) + " \u5217\uFF08\u5B57\u7B26\u4F4D\u7F6E " + pos + "\uFF09" + hint,
       "error"
     );
@@ -4537,18 +5485,18 @@
   function formatXML() {
     var raw = cm.getValue().trim();
     if (!raw) {
-      toast("\u5185\u5BB9\u4E3A\u7A7A", "error");
+      toast3("\u5185\u5BB9\u4E3A\u7A7A", "error");
       return;
     }
     var parser = new DOMParser();
     var doc = parser.parseFromString(raw, "text/xml");
     if (doc.getElementsByTagName("parsererror").length) {
-      toast("XML \u8BED\u6CD5\u6709\u8BEF\uFF0C\u8BF7\u68C0\u67E5\u6807\u7B7E\u662F\u5426\u95ED\u5408", "error");
+      toast3("XML \u8BED\u6CD5\u6709\u8BEF\uFF0C\u8BF7\u68C0\u67E5\u6807\u7B7E\u662F\u5426\u95ED\u5408", "error");
       return;
     }
     cm.setValue(prettyXML(raw));
     setLang("xml");
-    toast("XML \u683C\u5F0F\u5316\u5B8C\u6210 \u2713", "success");
+    toast3("XML \u683C\u5F0F\u5316\u5B8C\u6210 \u2713", "success");
   }
   function prettyXML(xml) {
     var padded = xml.replace(/(>)(<)/g, "$1\n$2");
@@ -4574,7 +5522,7 @@
     if (!d) return;
     if (d.lang === "json") formatJSON();
     else if (d.lang === "xml") formatXML();
-    else toast("\u5F53\u524D\u8BED\u8A00\u6682\u4E0D\u652F\u6301\u81EA\u52A8\u683C\u5F0F\u5316\uFF0C\u53EF\u5207\u6362\u4E3A JSON / XML \u540E\u518D\u8BD5", "error");
+    else toast3("\u5F53\u524D\u8BED\u8A00\u6682\u4E0D\u652F\u6301\u81EA\u52A8\u683C\u5F0F\u5316\uFF0C\u53EF\u5207\u6362\u4E3A JSON / XML \u540E\u518D\u8BD5", "error");
   }
   function withContent(fn) {
     var sel = cm.getSelection();
@@ -4890,11 +5838,11 @@
     if (name === "copy") {
       var text = cm.getSelection() || cm.getValue();
       if (!text) {
-        toast("\u6CA1\u6709\u53EF\u590D\u5236\u7684\u5185\u5BB9", "error");
+        toast3("\u6CA1\u6709\u53EF\u590D\u5236\u7684\u5185\u5BB9", "error");
         return;
       }
       copyToClipboard(text).then(function(ok) {
-        toast(ok ? "\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F \u2713" : "\u590D\u5236\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8 Ctrl+C", ok ? "success" : "error");
+        toast3(ok ? "\u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F \u2713" : "\u590D\u5236\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8 Ctrl+C", ok ? "success" : "error");
       });
       return;
     }
@@ -4909,7 +5857,7 @@
     var fn = TOOL_FNS[name];
     if (!fn) return;
     if (!cm.getValue().trim()) {
-      toast("\u5185\u5BB9\u4E3A\u7A7A", "error");
+      toast3("\u5185\u5BB9\u4E3A\u7A7A", "error");
       return;
     }
     var rawText = cm.getValue();
@@ -4920,15 +5868,15 @@
       if (!hadSelection && (name === "format" || name === "compress") && isWholeJson(rawText)) setLang("json", true);
       var warns = countRecovered(scopeText);
       if (warns && name === "format") highlightRecovered();
-      toast(warns ? TOOL_NAMES[name] + " \u5B8C\u6210 \u2713 \u68C0\u6D4B\u5230 " + warns + " \u5904\u6570\u636E\u4E0D\u5B8C\u6574\uFF0C\u5DF2\u9AD8\u4EAE\u5B9A\u4F4D" : TOOL_NAMES[name] + " \u5B8C\u6210 \u2713", "success");
+      toast3(warns ? TOOL_NAMES[name] + " \u5B8C\u6210 \u2713 \u68C0\u6D4B\u5230 " + warns + " \u5904\u6570\u636E\u4E0D\u5B8C\u6574\uFF0C\u5DF2\u9AD8\u4EAE\u5B9A\u4F4D" : TOOL_NAMES[name] + " \u5B8C\u6210 \u2713", "success");
     } catch (e) {
       var em = e && e.message || String(e);
       if (/未找到可序列化的 JSON 数据/.test(em)) {
-        toast(em, "error");
+        toast3(em, "error");
       } else if (e instanceof SyntaxError || /JSON|JSON\.|position\s+\d+/.test(em)) {
         highlightJSONError(e, rawText);
       } else {
-        toast(em, "error");
+        toast3(em, "error");
       }
     }
   }
@@ -4939,7 +5887,7 @@
   function codeDo(op) {
     var t = $("code-input").value;
     if (!t) {
-      toast("\u8BF7\u5148\u8F93\u5165\u8981\u8F6C\u6362\u7684\u5185\u5BB9", "error");
+      toast3("\u8BF7\u5148\u8F93\u5165\u8981\u8F6C\u6362\u7684\u5185\u5BB9", "error");
       return;
     }
     var out;
@@ -4951,7 +5899,7 @@
       }
       $("code-output").value = out;
     } catch (e) {
-      toast(e && e.message ? e.message : "\u8F6C\u6362\u5931\u8D25", "error");
+      toast3(e && e.message ? e.message : "\u8F6C\u6362\u5931\u8D25", "error");
     }
   }
   function openCodeToolModal(mode, op) {
@@ -4989,22 +5937,22 @@
     $("code-copy").addEventListener("click", function() {
       var v = $("code-output").value;
       if (!v) {
-        toast("\u8FD8\u6CA1\u6709\u8F6C\u6362\u7ED3\u679C", "error");
+        toast3("\u8FD8\u6CA1\u6709\u8F6C\u6362\u7ED3\u679C", "error");
         return;
       }
       copyToClipboard(v).then(function(ok) {
-        toast(ok ? "\u5DF2\u590D\u5236 \u2713" : "\u590D\u5236\u5931\u8D25", ok ? "success" : "error");
+        toast3(ok ? "\u5DF2\u590D\u5236 \u2713" : "\u590D\u5236\u5931\u8D25", ok ? "success" : "error");
       });
     });
     $("code-apply").addEventListener("click", function() {
       var v = $("code-output").value;
       if (!v) {
-        toast("\u8FD8\u6CA1\u6709\u8F6C\u6362\u7ED3\u679C", "error");
+        toast3("\u8FD8\u6CA1\u6709\u8F6C\u6362\u7ED3\u679C", "error");
         return;
       }
       if (cm.getSelection()) cm.replaceSelection(v);
       else cm.replaceRange(v, cm.getCursor());
-      toast("\u5DF2\u5E94\u7528\u5230\u7F16\u8F91\u5668 \u2713", "success");
+      toast3("\u5DF2\u5E94\u7528\u5230\u7F16\u8F91\u5668 \u2713", "success");
       closeCodeToolModal();
     });
   }
@@ -5053,12 +6001,12 @@
       var raw = $("ts-input").value.trim();
       var ts = Number(raw);
       if (!raw || isNaN(ts)) {
-        toast("\u8BF7\u8F93\u5165\u5408\u6CD5\u7684\u65F6\u95F4\u6233\u6570\u5B57", "error");
+        toast3("\u8BF7\u8F93\u5165\u5408\u6CD5\u7684\u65F6\u95F4\u6233\u6570\u5B57", "error");
         return;
       }
       var ms = tsIsMs() ? ts : ts * 1e3;
       if (ms > 864e13 || ms < -864e13) {
-        toast("\u65F6\u95F4\u6233\u8D85\u51FA\u53EF\u8868\u793A\u8303\u56F4", "error");
+        toast3("\u65F6\u95F4\u6233\u8D85\u51FA\u53EF\u8868\u793A\u8303\u56F4", "error");
         return;
       }
       $("ts-date-out").value = formatBeijing(ms);
@@ -5067,11 +6015,11 @@
       var y = Number($("ts-y").value), mo = Number($("ts-mo").value), d = Number($("ts-d").value);
       var h = Number($("ts-h").value || 0), mi = Number($("ts-mi").value || 0), s = Number($("ts-s").value || 0);
       if (!y || !mo || !d) {
-        toast("\u8BF7\u81F3\u5C11\u586B\u5199\u5B8C\u6574\u7684 \u5E74 / \u6708 / \u65E5", "error");
+        toast3("\u8BF7\u81F3\u5C11\u586B\u5199\u5B8C\u6574\u7684 \u5E74 / \u6708 / \u65E5", "error");
         return;
       }
       if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || s > 59) {
-        toast("\u65E5\u671F\u65F6\u95F4\u6570\u503C\u8D85\u51FA\u8303\u56F4", "error");
+        toast3("\u65E5\u671F\u65F6\u95F4\u6570\u503C\u8D85\u51FA\u8303\u56F4", "error");
         return;
       }
       var ms = Date.UTC(y, mo - 1, d, h, mi, s) - 8 * 36e5;
@@ -5079,27 +6027,27 @@
     });
     $("ts-now-copy").addEventListener("click", function() {
       copyToClipboard($("ts-now").value).then(function(ok) {
-        toast(ok ? "\u5DF2\u590D\u5236 \u2713" : "\u590D\u5236\u5931\u8D25", ok ? "success" : "error");
+        toast3(ok ? "\u5DF2\u590D\u5236 \u2713" : "\u590D\u5236\u5931\u8D25", ok ? "success" : "error");
       });
     });
     $("ts-date-copy").addEventListener("click", function() {
       var v = $("ts-date-out").value;
       if (!v) {
-        toast("\u8FD8\u6CA1\u6709\u8F6C\u6362\u7ED3\u679C", "error");
+        toast3("\u8FD8\u6CA1\u6709\u8F6C\u6362\u7ED3\u679C", "error");
         return;
       }
       copyToClipboard(v).then(function(ok) {
-        toast(ok ? "\u5DF2\u590D\u5236 \u2713" : "\u590D\u5236\u5931\u8D25", ok ? "success" : "error");
+        toast3(ok ? "\u5DF2\u590D\u5236 \u2713" : "\u590D\u5236\u5931\u8D25", ok ? "success" : "error");
       });
     });
     $("ts-ts-copy").addEventListener("click", function() {
       var v = $("ts-ts-out").value;
       if (!v) {
-        toast("\u8FD8\u6CA1\u6709\u8F6C\u6362\u7ED3\u679C", "error");
+        toast3("\u8FD8\u6CA1\u6709\u8F6C\u6362\u7ED3\u679C", "error");
         return;
       }
       copyToClipboard(v).then(function(ok) {
-        toast(ok ? "\u5DF2\u590D\u5236 \u2713" : "\u590D\u5236\u5931\u8D25", ok ? "success" : "error");
+        toast3(ok ? "\u5DF2\u590D\u5236 \u2713" : "\u590D\u5236\u5931\u8D25", ok ? "success" : "error");
       });
     });
   }
@@ -5228,14 +6176,14 @@
     });
   }
   function foldAllDocs() {
-    cm.foldAll();
+    cm.execCommand("foldAll");
   }
   function unfoldAllDocs() {
-    cm.unfoldAll();
+    cm.execCommand("unfoldAll");
   }
   function foldToLevel(level) {
     cm.operation(function() {
-      cm.unfoldAll();
+      cm.execCommand("unfoldAll");
       var total = cm.lineCount(), opens = [];
       for (var i = 0; i < total; i++) {
         var txt = cm.getLine(i), ind = indentOf(txt);
@@ -5254,7 +6202,7 @@
         }
         if (hasDeeper && depth <= level) {
           try {
-            cm.foldCode({ line: i, ch: 0 }, { rangeFinder: CodeMirror.indentRangeFinder }, "fold");
+            cm.foldCode({ line: i, ch: 0 }, { rangeFinder: CodeMirror.fold.auto }, "fold");
           } catch (e) {
           }
         }
@@ -5284,7 +6232,7 @@
       "reverse"
     ];
     if (contentOps.indexOf(cmd) !== -1 && !cm.getValue().trim()) {
-      toast("\u5185\u5BB9\u4E3A\u7A7A", "error");
+      toast3("\u5185\u5BB9\u4E3A\u7A7A", "error");
       return;
     }
     switch (cmd) {
@@ -5407,8 +6355,8 @@
       "fold-all": "\u6298\u53E0\u5168\u90E8",
       "unfold-all": "\u5C55\u5F00\u5168\u90E8"
     };
-    if (cmd.indexOf("fold-") === 0) toast("\u6298\u53E0\u7EA7\u522B " + cmd.split("-")[1] + " \u2713", "success");
-    else if (labels[cmd]) toast(labels[cmd] + " \u5B8C\u6210 \u2713", "success");
+    if (cmd.indexOf("fold-") === 0) toast3("\u6298\u53E0\u7EA7\u522B " + cmd.split("-")[1] + " \u2713", "success");
+    else if (labels[cmd]) toast3(labels[cmd] + " \u5B8C\u6210 \u2713", "success");
   }
   var TEXT_TOOLS = {
     "upper": { name: "\u8F6C\u5927\u5199", fn: function(t) {
@@ -5459,7 +6407,8 @@
     flow: { icon: "\u{1F500}", label: "\u6D41\u7A0B\u56FE" },
     mind: { icon: "\u{1F9E0}", label: "\u601D\u7EF4\u5BFC\u56FE" },
     note: { icon: "\u{1F4CB}", label: "\u601D\u7EF4\u7B14\u8BB0" },
-    sticky: { icon: "\u{1F5D2}\uFE0F", label: "\u4FBF\u5229\u8D34" }
+    sticky: { icon: "\u{1F5D2}\uFE0F", label: "\u4FBF\u5229\u8D34" },
+    pdf: { icon: "\u{1F4D5}", label: "PDF \u6587\u6863" }
   };
   var VISUAL_MODULES = { flow: "InkpadFlow", mind: "InkpadMind", note: "InkpadNote" };
   function docIcon(d) {
@@ -5479,7 +6428,12 @@
     rectangularSelection: true,
     foldGutter: true,
     gutters: ["CodeMirror-foldgutter", "CodeMirror-linenumbers"],
-    foldOptions: { widget: "\u22EF" },
+    foldOptions: {
+      widget: function(from) {
+        if (from.elementCount != null) return "\u22EF " + from.elementCount + " \u9879";
+        return "\u22EF";
+      }
+    },
     highlightSelectionMatches: { showToken: /[\w$\u4e00-\u9fff]+/, annotateScrollbar: false },
     extraKeys: {
       "Ctrl-Shift-F": formatCurrent,
@@ -5530,13 +6484,6 @@
     if (gutter === "CodeMirror-linenumbers") {
       cm2.setSelection({ line, ch: 0 }, { line, ch: cm2.getLine(line).length });
     }
-  });
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: "loose",
-    theme: "neutral",
-    flowchart: { htmlLabels: true, curve: "basis" },
-    fontFamily: "inherit"
   });
 
   // src-app/10-status-preview.js
@@ -5619,9 +6566,9 @@
       els.htmlOut.style.display = "none";
       els.mdOut.style.display = "";
     }
-    scheduleRender();
+    scheduleRender2();
   }
-  function scheduleRender() {
+  function scheduleRender2() {
     clearTimeout(state.renderTimer);
     state.renderTimer = setTimeout(function() {
       var d = activeDoc();
@@ -5644,17 +6591,37 @@
     }
     els.previewEmpty.style.display = "none";
     var seq = ++state.mermaidSeq;
-    mermaid.render("mmd-" + seq, code).then(function(res) {
-      if (seq !== state.mermaidSeq) return;
-      els.mermaidOut.innerHTML = res.svg;
-      prepareSvg();
-    }).catch(function(err) {
+    function doRender() {
+      mermaid.render("mmd-" + seq, code).then(function(res) {
+        if (seq !== state.mermaidSeq) return;
+        els.mermaidOut.innerHTML = res.svg;
+        prepareSvg();
+      }).catch(function(err) {
+        if (seq !== state.mermaidSeq) return;
+        var div = document.createElement("div");
+        div.className = "mermaid-error";
+        div.textContent = "\u56FE\u8868\u8BED\u6CD5\u9519\u8BEF\uFF1A\n" + (err && err.message ? err.message : String(err));
+        els.previewPane.querySelector("#preview-body").appendChild(div);
+      });
+    }
+    function showErr(msg) {
       if (seq !== state.mermaidSeq) return;
       var div = document.createElement("div");
       div.className = "mermaid-error";
-      div.textContent = "\u56FE\u8868\u8BED\u6CD5\u9519\u8BEF\uFF1A\n" + (err && err.message ? err.message : String(err));
+      div.textContent = String(msg);
       els.previewPane.querySelector("#preview-body").appendChild(div);
-    });
+    }
+    if (typeof mermaid === "undefined") {
+      if (window.__mermaidReady) {
+        window.__mermaidReady(function(err) {
+          err ? showErr("\u56FE\u8868\u6E32\u67D3\u5931\u8D25\uFF1A" + (err.message || err)) : doRender();
+        });
+      } else {
+        showErr("\uFF08\u672A\u52A0\u8F7D mermaid\uFF09");
+      }
+    } else {
+      doRender();
+    }
   }
   function renderHtmlPreview() {
     var d = activeDoc();
@@ -5755,6 +6722,7 @@
   // src-app/16-doc-ops.js
   function saveDiskDoc(d) {
     if (!d || !d.diskPath || !hasApi()) return;
+    if (d.kind === "pdf" || d.kind === "doc") return;
     getApi().write_text_file(d.diskPath, d.content, d.encoding).then(function(ok) {
       if (ok) {
         els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
@@ -5768,7 +6736,7 @@
   function openEncModal() {
     var d = activeDoc();
     if (!d || d.kind && d.kind !== "text") {
-      toast("\u8BF7\u5148\u6253\u5F00\u6587\u672C\u6587\u6863", "error");
+      toast3("\u8BF7\u5148\u6253\u5F00\u6587\u672C\u6587\u6863", "error");
       return;
     }
     $("enc-current").textContent = d.diskPath ? "\u78C1\u76D8\u6587\u4EF6 \xB7 " + (d.encoding || "UTF-8") : "\u672C\u5730\u6587\u6863\uFF08\u672A\u5173\u8054\u78C1\u76D8\u6587\u4EF6\uFF09";
@@ -5788,7 +6756,7 @@
   }
   function openCompareWindow() {
     if (!hasApi()) {
-      toast("\u6587\u4EF6\u6BD4\u8F83\u9700\u5728\u684C\u9762\u7248\u4E2D\u4F7F\u7528", "error");
+      toast3("\u6587\u4EF6\u6BD4\u8F83\u9700\u5728\u684C\u9762\u7248\u4E2D\u4F7F\u7528", "error");
       return;
     }
     var d = activeDoc();
@@ -5798,10 +6766,10 @@
       aName = (d.title || "\u5F53\u524D\u6587\u6863") + "\uFF08\u5F53\u524D\u6587\u6863\uFF09";
     }
     getApi().open_compare_window(aText, aName, "", "\u6587\u4EF6 B").then(function(ok) {
-      if (ok) toast("\u6BD4\u8F83\u7A97\u53E3\u5DF2\u6253\u5F00\uFF0C\u53EF\u76F4\u63A5\u7C98\u8D34\u5185\u5BB9\u5BF9\u6BD4", "success");
-      else toast("\u65B0\u7A97\u53E3\u6253\u5F00\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5", "error");
+      if (ok) toast3("\u6BD4\u8F83\u7A97\u53E3\u5DF2\u6253\u5F00\uFF0C\u53EF\u76F4\u63A5\u7C98\u8D34\u5185\u5BB9\u5BF9\u6BD4", "success");
+      else toast3("\u65B0\u7A97\u53E3\u6253\u5F00\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5", "error");
     }).catch(function() {
-      toast("\u65B0\u7A97\u53E3\u6253\u5F00\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5", "error");
+      toast3("\u65B0\u7A97\u53E3\u6253\u5F00\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5", "error");
     });
   }
   function setLang(lang, skipAutoFormat) {
@@ -5813,9 +6781,9 @@
       if (raw.trim()) {
         try {
           cm.setValue(JSON.stringify(JSON.parse(raw.trim()), null, 2));
-          toast("\u5DF2\u81EA\u52A8\u683C\u5F0F\u5316 JSON \u2713", "success");
+          toast3("\u5DF2\u81EA\u52A8\u683C\u5F0F\u5316 JSON \u2713", "success");
         } catch (e) {
-          toast("\u5185\u5BB9\u4E0D\u662F\u5408\u6CD5 JSON\uFF0C\u5DF2\u5207\u6362\u8BED\u8A00\uFF08\u672A\u683C\u5F0F\u5316\uFF09", "error");
+          toast3("\u5185\u5BB9\u4E0D\u662F\u5408\u6CD5 JSON\uFF0C\u5DF2\u5207\u6362\u8BED\u8A00\uFF08\u672A\u683C\u5F0F\u5316\uFF09", "error");
         }
       }
     }
@@ -5858,14 +6826,22 @@
   function exportDoc() {
     var d = activeDoc();
     if (!d) return;
+    if (d.kind === "pdf") {
+      toast3("PDF \u6587\u6863\u4E3A\u53EA\u8BFB\uFF0C\u5982\u9700\u5BFC\u51FA\u6587\u672C\u8BF7\u4F7F\u7528\u300C\u63D0\u53D6\u4E3A\u6587\u672C\u300D", "info");
+      return;
+    }
+    if (d.kind === "doc") {
+      toast3("Word \u6587\u6863\u4E3A\u53EA\u8BFB\uFF0C\u5982\u9700\u5BFC\u51FA\u6587\u672C\u8BF7\u4F7F\u7528\u300C\u590D\u5236\u5185\u5BB9\u300D\u6216\u300C\u5BFC\u5165\u300D", "info");
+      return;
+    }
     if (d.kind === "rich") {
       var md = window.InkpadBlocks ? window.InkpadBlocks.toMarkdown() : d.content;
       var rname = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ".md";
       if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
         window.pywebview.api.save_file(rname, md).then(function(saved) {
-          if (saved) toast("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
+          if (saved) toast3("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
         }).catch(function() {
-          toast("\u5BFC\u51FA\u5931\u8D25", "error");
+          toast3("\u5BFC\u51FA\u5931\u8D25", "error");
         });
       } else {
         var rblob = new Blob([md], { type: "text/markdown;charset=utf-8" });
@@ -5874,7 +6850,7 @@
         ra.download = rname;
         ra.click();
         URL.revokeObjectURL(ra.href);
-        toast("\u5DF2\u5BFC\u51FA " + rname, "success");
+        toast3("\u5DF2\u5BFC\u51FA " + rname, "success");
       }
       return;
     }
@@ -5887,9 +6863,9 @@
     var content = isVisualDoc ? d.content : cm.getValue();
     if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
       window.pywebview.api.save_file(name, content).then(function(saved) {
-        if (saved) toast("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
+        if (saved) toast3("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
       }).catch(function() {
-        toast("\u5BFC\u51FA\u5931\u8D25", "error");
+        toast3("\u5BFC\u51FA\u5931\u8D25", "error");
       });
       return;
     }
@@ -5899,15 +6875,42 @@
     a.download = name;
     a.click();
     URL.revokeObjectURL(a.href);
-    toast("\u5DF2\u5BFC\u51FA " + name, "success");
+    toast3("\u5DF2\u5BFC\u51FA " + name, "success");
   }
   function importFile(file) {
+    var ext = (file.name.match(/\.([^.]+)$/) || [])[1] || "";
+    if (ext.toLowerCase() === "pdf") {
+      var pr = new FileReader();
+      pr.onload = function() {
+        if (!pr.result) {
+          toast3("PDF \u8BFB\u53D6\u5931\u8D25", "error");
+          return;
+        }
+        openPdfFromData(pr.result, file.name);
+        toast3("\u5DF2\u6253\u5F00 PDF\uFF1A" + file.name, "success");
+      };
+      pr.readAsArrayBuffer(file);
+      return;
+    }
+    if (ext.toLowerCase() === "docx" || ext.toLowerCase() === "doc") {
+      var dr = new FileReader();
+      dr.onload = function() {
+        if (!dr.result) {
+          toast3("Word \u6587\u6863\u8BFB\u53D6\u5931\u8D25", "error");
+          return;
+        }
+        openDocFromData(dr.result, file.name);
+        toast3("\u5DF2\u6253\u5F00 Word \u6587\u6863\uFF1A" + file.name, "success");
+      };
+      dr.readAsArrayBuffer(file);
+      return;
+    }
     var reader = new FileReader();
     reader.onload = function() {
       var content = String(reader.result || "");
       var name = file.name.replace(/\.[^.]+$/, "");
-      var ext = (file.name.match(/\.([^.]+)$/) || [])[1] || "";
-      if (ext.toLowerCase() === "json" && isRichDocContent(content)) {
+      var ext2 = (file.name.match(/\.([^.]+)$/) || [])[1] || "";
+      if (ext2.toLowerCase() === "json" && isRichDocContent(content)) {
         var d2 = {
           id: uid(),
           title: name,
@@ -5919,7 +6922,7 @@
         state.docs.push(d2);
         persist();
         openDoc(d2.id);
-        toast("\u5DF2\u5BFC\u5165\u5BCC\u6587\u6863\uFF1A" + file.name, "success");
+        toast3("\u5DF2\u5BFC\u5165\u5BCC\u6587\u6863\uFF1A" + file.name, "success");
         return;
       }
       var langMap = {
@@ -5951,19 +6954,19 @@
         log: "plaintext",
         xhtml: "html"
       };
-      var d = newDoc(langMap[ext.toLowerCase()] || "plaintext", name, content);
-      toast("\u5DF2\u5BFC\u5165\u300C" + file.name + "\u300D", "success");
+      var d = newDoc(langMap[ext2.toLowerCase()] || "plaintext", name, content);
+      toast3("\u5DF2\u5BFC\u5165\u300C" + file.name + "\u300D", "success");
       if (d.lang === "html") state.previewOn = true;
       openDoc(d.id);
     };
     reader.readAsText(file);
   }
-  var toastTimer = null;
-  function toast(msg, type) {
+  var toastTimer3 = null;
+  function toast3(msg, type) {
     els.toast.textContent = msg;
     els.toast.className = "show" + (type ? " " + type : "");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function() {
+    clearTimeout(toastTimer3);
+    toastTimer3 = setTimeout(function() {
       els.toast.className = "";
     }, 2600);
   }
@@ -5993,6 +6996,7 @@
     };
     if (d.kind) copy.kind = d.kind;
     if (d.encoding) copy.encoding = d.encoding;
+    if (d.diskPath) copy.diskPath = d.diskPath;
     state.docs.push(copy);
     persist();
     return copy;
@@ -6000,7 +7004,11 @@
   function exportDocById(id) {
     var d = findDoc(id);
     if (!d) {
-      toast("\u6587\u6863\u4E0D\u5B58\u5728", "error");
+      toast3("\u6587\u6863\u4E0D\u5B58\u5728", "error");
+      return;
+    }
+    if (d.kind === "pdf") {
+      toast3("PDF \u6587\u6863\u4E3A\u53EA\u8BFB\uFF0C\u8BF7\u5728\u67E5\u770B\u5668\u4E2D\u300C\u63D0\u53D6\u4E3A\u6587\u672C\u300D\u540E\u518D\u5BFC\u51FA", "info");
       return;
     }
     if (d.kind === "rich") {
@@ -6008,9 +7016,9 @@
       var rname = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ".md";
       if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
         window.pywebview.api.save_file(rname, md).then(function(saved) {
-          if (saved) toast("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
+          if (saved) toast3("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
         }).catch(function() {
-          toast("\u5BFC\u51FA\u5931\u8D25", "error");
+          toast3("\u5BFC\u51FA\u5931\u8D25", "error");
         });
       } else {
         var rblob = new Blob([md], { type: "text/markdown;charset=utf-8" });
@@ -6019,7 +7027,7 @@
         ra.download = rname;
         ra.click();
         URL.revokeObjectURL(ra.href);
-        toast("\u5DF2\u5BFC\u51FA " + rname, "success");
+        toast3("\u5DF2\u5BFC\u51FA " + rname, "success");
       }
       return;
     }
@@ -6029,9 +7037,9 @@
     var content = d.content || "";
     if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
       window.pywebview.api.save_file(name, content).then(function(saved) {
-        if (saved) toast("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
+        if (saved) toast3("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
       }).catch(function() {
-        toast("\u5BFC\u51FA\u5931\u8D25", "error");
+        toast3("\u5BFC\u51FA\u5931\u8D25", "error");
       });
     } else {
       var blob = new Blob([content], { type: "text/plain;charset=utf-8" });
@@ -6040,7 +7048,7 @@
       a.download = name;
       a.click();
       URL.revokeObjectURL(a.href);
-      toast("\u5DF2\u5BFC\u51FA " + name, "success");
+      toast3("\u5DF2\u5BFC\u51FA " + name, "success");
     }
   }
   function toggleFavorite(id) {
@@ -6151,18 +7159,18 @@
     }
     var n = Number(days);
     if (isNaN(n) || n < 1) {
-      toast("\u8BF7\u8F93\u5165\u6709\u6548\u7684\u5929\u6570\uFF08\u22651\uFF09", "error");
+      toast3("\u8BF7\u8F93\u5165\u6709\u6548\u7684\u5929\u6570\uFF08\u22651\uFF09", "error");
       return;
     }
     state.tagMeta[tag] = { expiresAt: Date.now() + n * 864e5 };
     persist();
-    toast("\u6807\u7B7E #" + tag + " \u5C06\u4E8E " + n + " \u5929\u540E\u8FC7\u671F", "success");
+    toast3("\u6807\u7B7E #" + tag + " \u5C06\u4E8E " + n + " \u5929\u540E\u8FC7\u671F", "success");
   }
   function clearTagExpiry(tag) {
     if (state.tagMeta[tag]) {
       delete state.tagMeta[tag];
       persist();
-      toast("\u5DF2\u6E05\u9664\u6807\u7B7E #" + tag + " \u7684\u8FC7\u671F\u65F6\u95F4", "success");
+      toast3("\u5DF2\u6E05\u9664\u6807\u7B7E #" + tag + " \u7684\u8FC7\u671F\u65F6\u95F4", "success");
     }
   }
   function cleanupExpiredTags() {
@@ -6188,7 +7196,7 @@
     });
     if (changed) {
       persist();
-      toast("\u5DF2\u81EA\u52A8\u6E05\u7406\u8FC7\u671F\u6807\u7B7E\uFF1A#" + expired.join(" #"), "success");
+      toast3("\u5DF2\u81EA\u52A8\u6E05\u7406\u8FC7\u671F\u6807\u7B7E\uFF1A#" + expired.join(" #"), "success");
     } else {
       persist();
     }
@@ -6236,19 +7244,19 @@
   }
   function revealInFolder(d) {
     if (!hasApi()) {
-      toast("\u6B64\u529F\u80FD\u9700\u5728\u684C\u9762\u7248\u4E2D\u4F7F\u7528", "error");
+      toast3("\u6B64\u529F\u80FD\u9700\u5728\u684C\u9762\u7248\u4E2D\u4F7F\u7528", "error");
       return;
     }
     var t = revealTarget(d || activeDoc());
     if (!t.path) {
-      toast(t.error, "error");
+      toast3(t.error, "error");
       return;
     }
     getApi().show_in_folder(t.path).then(function(res) {
-      if (res && res.error) toast(res.error, "error");
-      else toast("\u5DF2\u5728\u6587\u4EF6\u7BA1\u7406\u5668\u4E2D\u6253\u5F00", "success");
+      if (res && res.error) toast3(res.error, "error");
+      else toast3("\u5DF2\u5728\u6587\u4EF6\u7BA1\u7406\u5668\u4E2D\u6253\u5F00", "success");
     }).catch(function() {
-      toast("\u6253\u5F00\u6587\u4EF6\u5939\u5931\u8D25", "error");
+      toast3("\u6253\u5F00\u6587\u4EF6\u5939\u5931\u8D25", "error");
     });
   }
 
@@ -6434,7 +7442,7 @@
     if (!els.btnRichOutline) return;
     els.btnRichOutline.addEventListener("click", function() {
       if (!activeDoc() || activeDoc().kind !== "rich") {
-        toast("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u5BCC\u6587\u6863", "warn");
+        toast3("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A\u5BCC\u6587\u6863", "warn");
         return;
       }
       richOutlineVisible(!richOutline.visible);
@@ -6744,7 +7752,7 @@
     persist();
     bus.emit("docs:changed");
   }
-  function bindEvents() {
+  function bindEvents2() {
     if (_bound) return;
     _bound = true;
     var fold = document.getElementById("bl-fold");
@@ -6811,7 +7819,7 @@
   function renderBacklinks(d) {
     ensureWikiOverlay();
     bindWikiClick();
-    bindEvents();
+    bindEvents2();
     _currentId = d ? d.id : null;
     render(d);
   }
@@ -6827,7 +7835,9 @@
       rich: "\u5BCC\u6587\u6863",
       flow: "\u6D41\u7A0B\u56FE",
       mind: "\u601D\u7EF4\u5BFC\u56FE",
-      note: "\u601D\u7EF4\u7B14\u8BB0"
+      note: "\u601D\u7EF4\u7B14\u8BB0",
+      pdf: "PDF \u6587\u6863",
+      doc: "Word \u6587\u6863"
     }[kind] || "\u7EAF\u6587\u672C";
     var langName = {
       plaintext: "\u7EAF\u6587\u672C",
@@ -6948,9 +7958,10 @@
     els.editorPane.style.display = kind === "text" ? "flex" : "none";
     els.visualPane.style.display = kind === "flow" || kind === "mind" || kind === "note" ? "flex" : "none";
     els.richPane.style.display = kind === "rich" ? "flex" : "none";
-    [els.langSelect, els.toolsWrap, els.toolsWrap2, els.btnFormatXml, els.btnFind, els.btnEncoding, els.btnCompare, els.btnTogglePreview].forEach(function(el) {
+    [els.langSelect, els.toolsWrap, els.toolsWrap2, els.btnFormatXml, els.btnFind, els.btnEncoding, els.btnCompare, els.btnTogglePreview, els.btnDocMap].forEach(function(el) {
       el.style.display = kind === "text" ? "" : "none";
     });
+    updateDocMapUI(kind);
     if (els.btnRichOutline) {
       els.btnRichOutline.style.display = kind === "rich" ? "" : "none";
     }
@@ -7026,6 +8037,26 @@
       }
       return;
     }
+    if (kind === "pdf") {
+      els.previewPane.style.display = "none";
+      els.breadcrumb.textContent = "\u{1F4D5}";
+      els.statLang.textContent = "PDF \u6587\u6863";
+      els.statCursor.textContent = "";
+      renderList();
+      openPdfFile(d.diskPath, (d.title || "") + ".pdf");
+      return;
+    }
+    if (kind === "doc") {
+      els.previewPane.style.display = "none";
+      els.breadcrumb.textContent = "\u{1F4D8}";
+      els.statLang.textContent = "Word \u6587\u6863";
+      els.statCursor.textContent = "";
+      renderList();
+      var _dm = (d.diskPath || "").match(/\.([^.]+)$/);
+      var _ext = (_dm && _dm[1] ? _dm[1] : "docx").toLowerCase();
+      openDocFile(d.diskPath, (d.title || "") + "." + _ext);
+      return;
+    }
     if (kind !== "text") {
       els.previewPane.style.display = "none";
       openVisual(d, kind);
@@ -7047,7 +8078,7 @@
     refreshTextDocFromDisk(d);
   }
   function refreshTextDocFromDisk(d) {
-    if (!d || d.kind === "rich" || !d.diskPath) return;
+    if (!d || d.kind === "rich" || d.kind === "pdf" || d.kind === "doc" || !d.diskPath) return;
     if (!hasApi()) {
       window.addEventListener("pywebviewready", function h() {
         window.removeEventListener("pywebviewready", h);
@@ -7073,9 +8104,9 @@
         updatePreviewVisibility();
         updateStatus();
         renderList();
-        toast("\u68C0\u6D4B\u5230\u78C1\u76D8\u5185\u5BB9\u5DF2\u66F4\u65B0\uFF0C\u5DF2\u52A0\u8F7D\u6700\u65B0\u7248\u672C", "info");
+        toast3("\u68C0\u6D4B\u5230\u78C1\u76D8\u5185\u5BB9\u5DF2\u66F4\u65B0\uFF0C\u5DF2\u52A0\u8F7D\u6700\u65B0\u7248\u672C", "info");
       } else if (isCurrent) {
-        toast("\u78C1\u76D8\u5185\u5BB9\u5DF2\u53D8\u5316\uFF0C\u4F46\u5F53\u524D\u5B58\u5728\u672A\u4FDD\u5B58\u4FEE\u6539\uFF0C\u5DF2\u4FDD\u7559\u672C\u5730\u5185\u5BB9", "warn");
+        toast3("\u78C1\u76D8\u5185\u5BB9\u5DF2\u53D8\u5316\uFF0C\u4F46\u5F53\u524D\u5B58\u5728\u672A\u4FDD\u5B58\u4FEE\u6539\uFF0C\u5DF2\u4FDD\u7559\u672C\u5730\u5185\u5BB9", "warn");
       } else {
         d.content = diskContent;
         d.encoding = res.encoding || d.encoding || "UTF-8";
@@ -7120,7 +8151,7 @@
       };
       if (norm(diskContent) === norm(cur)) return;
       if (norm(cur) !== norm(prev)) {
-        toast("\u78C1\u76D8\u5185\u5BB9\u5DF2\u53D8\u5316\uFF0C\u4F46\u5F53\u524D\u5B58\u5728\u672A\u4FDD\u5B58\u4FEE\u6539\uFF0C\u5DF2\u4FDD\u7559\u672C\u5730\u5185\u5BB9", "warn");
+        toast3("\u78C1\u76D8\u5185\u5BB9\u5DF2\u53D8\u5316\uFF0C\u4F46\u5F53\u524D\u5B58\u5728\u672A\u4FDD\u5B58\u4FEE\u6539\uFF0C\u5DF2\u4FDD\u7559\u672C\u5730\u5185\u5BB9", "warn");
         return;
       }
       d.content = diskContent;
@@ -7129,7 +8160,7 @@
       persist();
       window.InkpadBlocks.open(els.richCanvas, d);
       renderList();
-      toast("\u68C0\u6D4B\u5230\u78C1\u76D8\u5185\u5BB9\u5DF2\u66F4\u65B0\uFF0C\u5DF2\u52A0\u8F7D\u6700\u65B0\u7248\u672C", "info");
+      toast3("\u68C0\u6D4B\u5230\u78C1\u76D8\u5185\u5BB9\u5DF2\u66F4\u65B0\uFF0C\u5DF2\u52A0\u8F7D\u6700\u65B0\u7248\u672C", "info");
     }).catch(function() {
     });
   }
@@ -7219,7 +8250,7 @@
   function translateSelection() {
     var text = buildQuery(cm.getSelection());
     if (!text) {
-      toast("\u8BF7\u5148\u9009\u4E2D\u8981\u7FFB\u8BD1\u7684\u5185\u5BB9", "error");
+      toast3("\u8BF7\u5148\u9009\u4E2D\u8981\u7FFB\u8BD1\u7684\u5185\u5BB9", "error");
       return;
     }
     var src = detectLang(text);
@@ -7227,7 +8258,7 @@
     var orig = $("translate-orig");
     var result = $("translate-result");
     if (!orig || !result) {
-      toast("\u7FFB\u8BD1\u7A97\u53E3\u4E0D\u5B58\u5728", "error");
+      toast3("\u7FFB\u8BD1\u7A97\u53E3\u4E0D\u5B58\u5728", "error");
       return;
     }
     orig.textContent = text;
@@ -7238,13 +8269,13 @@
     callTranslate(text, target).then(function(r) {
       if (r && r.error) {
         result.textContent = "\u7FFB\u8BD1\u5931\u8D25\uFF1A" + r.error;
-        toast("\u7FFB\u8BD1\u5931\u8D25", "error");
+        toast3("\u7FFB\u8BD1\u5931\u8D25", "error");
         return;
       }
       result.textContent = r && r.text ? r.text : "\uFF08\u65E0\u7ED3\u679C\uFF09";
     }).catch(function(e) {
       result.textContent = "\u7FFB\u8BD1\u5931\u8D25\uFF1A" + String(e && e.message || e);
-      toast("\u7FFB\u8BD1\u5931\u8D25", "error");
+      toast3("\u7FFB\u8BD1\u5931\u8D25", "error");
     });
   }
   function closeTranslateModal() {
@@ -7256,13 +8287,13 @@
   $("translate-copy").addEventListener("click", function() {
     var t = $("translate-result").textContent;
     if (!t || t === "\u7FFB\u8BD1\u4E2D\u2026") {
-      toast("\u6682\u65E0\u8BD1\u6587\u53EF\u590D\u5236", "error");
+      toast3("\u6682\u65E0\u8BD1\u6587\u53EF\u590D\u5236", "error");
       return;
     }
     copyToClipboard(t).then(function() {
-      toast("\u8BD1\u6587\u5DF2\u590D\u5236", "success");
+      toast3("\u8BD1\u6587\u5DF2\u590D\u5236", "success");
     }).catch(function() {
-      toast("\u590D\u5236\u5931\u8D25", "error");
+      toast3("\u590D\u5236\u5931\u8D25", "error");
     });
   });
   $("translate-modal").addEventListener("click", function(e) {
@@ -7277,7 +8308,7 @@
     cm.on("change", function() {
       syncFromEditor();
       updateStatus();
-      scheduleRender();
+      scheduleRender2();
       clearJSONErrorHighlight();
       scheduleFoldDataUris();
     });
@@ -7387,7 +8418,7 @@
   $("btn-delete").addEventListener("click", function() {
     var d = activeDoc();
     if (!d) {
-      toast("\u6CA1\u6709\u53EF\u5220\u9664\u7684\u6587\u6863", "error");
+      toast3("\u6CA1\u6709\u53EF\u5220\u9664\u7684\u6587\u6863", "error");
       return;
     }
     openDocDelConfirm(d.id);
@@ -7402,7 +8433,7 @@
   });
   $("btn-insert-sample").addEventListener("click", function() {
     cm.setValue(SAMPLE_DIAGRAM + "\n\n" + SAMPLE_MINDMAP);
-    scheduleRender();
+    scheduleRender2();
   });
   var pb = document.getElementById("preview-body");
   pb.addEventListener("mousedown", function(e) {
@@ -7663,7 +8694,7 @@
       }
     }
     if (!d) {
-      toast("\u6587\u6863\u4E0D\u5B58\u5728\u6216\u5DF2\u88AB\u79FB\u9664", "error");
+      toast3("\u6587\u6863\u4E0D\u5B58\u5728\u6216\u5DF2\u88AB\u79FB\u9664", "error");
       return;
     }
     switch (dcmd) {
@@ -7672,14 +8703,14 @@
         break;
       case "copy-title":
         copyToClipboard(d.title || "\u65E0\u6807\u9898").then(function() {
-          toast("\u5DF2\u590D\u5236\u6807\u9898", "success");
+          toast3("\u5DF2\u590D\u5236\u6807\u9898", "success");
         });
         break;
       case "copy-path":
         if (d.diskPath) copyToClipboard(d.diskPath).then(function() {
-          toast("\u5DF2\u590D\u5236\u8DEF\u5F84", "success");
+          toast3("\u5DF2\u590D\u5236\u8DEF\u5F84", "success");
         });
-        else toast("\u8BE5\u6587\u6863\u6CA1\u6709\u78C1\u76D8\u8DEF\u5F84", "error");
+        else toast3("\u8BE5\u6587\u6863\u6CA1\u6709\u78C1\u76D8\u8DEF\u5F84", "error");
         break;
       case "del":
         openDocDelConfirm(d.id);
@@ -7934,6 +8965,105 @@
   document.addEventListener("keydown", function(e) {
     if (e.key === "Escape" && els.imageModal.style.display === "flex") closeImageModal();
   });
+  els.pdfClose.addEventListener("click", closePdfModal);
+  els.pdfPrev.addEventListener("click", pdfPrev);
+  els.pdfNext.addEventListener("click", pdfNext);
+  els.pdfZoomIn.addEventListener("click", pdfZoomIn);
+  els.pdfZoomOut.addEventListener("click", pdfZoomOut);
+  els.pdfZoomReset.addEventListener("click", pdfZoomReset);
+  els.pdfFit.addEventListener("click", pdfFitWidth);
+  els.pdfModal.addEventListener("click", function(e) {
+    if (e.target === els.pdfModal) closePdfModal();
+  });
+  els.pdfStage.addEventListener("wheel", function(e) {
+    if (els.pdfModal.style.display !== "flex") return;
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    if (e.deltaY < 0) pdfZoomIn();
+    else pdfZoomOut();
+  }, { passive: false });
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape" && els.pdfModal.style.display === "flex") closePdfModal();
+  });
+  els.pdfExtract.addEventListener("click", function() {
+    if (!window.pdfjsLib) {
+      toast3("PDF \u89E3\u6790\u5668\u672A\u5C31\u7EEA", "error");
+      return;
+    }
+    extractPdfText().then(function(text) {
+      if (!text || !text.trim()) {
+        toast3("\u672A\u63D0\u53D6\u5230\u6587\u672C\uFF08\u53EF\u80FD\u662F\u626B\u63CF\u7248 PDF\uFF09", "error");
+        return;
+      }
+      closePdfModal();
+      var name = (els.pdfName.textContent || "PDF \u6587\u6863").replace(/\.pdf$/i, "");
+      newDoc("markdown", name + "\uFF08\u63D0\u53D6\uFF09", text);
+      toast3("\u5DF2\u63D0\u53D6\u4E3A Markdown \u6587\u6863\uFF0C\u53EF\u7EE7\u7EED\u7F16\u8F91", "success");
+    }).catch(function() {
+      toast3("\u63D0\u53D6\u5931\u8D25", "error");
+    });
+  });
+  els.pdfCopy.addEventListener("click", function() {
+    if (!window.pdfjsLib) {
+      toast3("PDF \u89E3\u6790\u5668\u672A\u5C31\u7EEA", "error");
+      return;
+    }
+    extractPdfText().then(function(text) {
+      if (!text || !text.trim()) {
+        toast3("\u672A\u63D0\u53D6\u5230\u6587\u672C\uFF08\u53EF\u80FD\u662F\u626B\u63CF\u7248 PDF\uFF09", "error");
+        return;
+      }
+      return copyToClipboard(text).then(function(ok) {
+        if (ok) toast3("\u5DF2\u590D\u5236\u5168\u6587 " + text.length + " \u5B57\u5230\u526A\u8D34\u677F", "success");
+        else toast3("\u590D\u5236\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u9009\u62E9\u6587\u5B57\u590D\u5236", "error");
+      });
+    }).catch(function() {
+      toast3("\u63D0\u53D6\u5931\u8D25", "error");
+    });
+  });
+  els.docClose.addEventListener("click", closeDocModal);
+  els.docModal.addEventListener("click", function(e) {
+    if (e.target === els.docModal) closeDocModal();
+  });
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape" && els.docModal.style.display === "flex") closeDocModal();
+  });
+  function docContentViewReady() {
+    var b = document.getElementById("doc-body");
+    return !!(b && b.querySelector(".doc-content"));
+  }
+  els.docImportRich.addEventListener("click", function() {
+    if (!window.mammoth && !docContentViewReady()) {
+      toast3("\u6587\u6863\u89E3\u6790\u5668\u672A\u5C31\u7EEA", "error");
+      return;
+    }
+    importDocAsRich();
+  });
+  els.docImportText.addEventListener("click", function() {
+    if (!window.mammoth && !docContentViewReady()) {
+      toast3("\u6587\u6863\u89E3\u6790\u5668\u672A\u5C31\u7EEA", "error");
+      return;
+    }
+    importDocAsText();
+  });
+  els.docCopy.addEventListener("click", function() {
+    if (!window.mammoth && !docContentViewReady()) {
+      toast3("\u6587\u6863\u89E3\u6790\u5668\u672A\u5C31\u7EEA", "error");
+      return;
+    }
+    extractDocText().then(function(text) {
+      if (!text || !text.trim()) {
+        toast3("\u672A\u63D0\u53D6\u5230\u6587\u672C\uFF08\u6587\u6863\u4E3A\u7A7A\u6216\u5C1A\u672A\u52A0\u8F7D\u5B8C\u6210\uFF09", "error");
+        return;
+      }
+      return copyToClipboard(text).then(function(ok) {
+        if (ok) toast3("\u5DF2\u590D\u5236\u5168\u6587 " + text.length + " \u5B57\u5230\u526A\u8D34\u677F", "success");
+        else toast3("\u590D\u5236\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u9009\u62E9\u6587\u5B57\u590D\u5236", "error");
+      });
+    }).catch(function() {
+      toast3("\u63D0\u53D6\u5931\u8D25", "error");
+    });
+  });
   function hasClipboardText(cd) {
     if (!cd || !cd.getData) return false;
     try {
@@ -7980,13 +9110,13 @@
   $("enc-reload").addEventListener("click", function() {
     var d = activeDoc();
     if (!d || !d.diskPath) {
-      toast("\u4EC5\u78C1\u76D8\u6587\u4EF6\u53EF\u91CD\u65B0\u8BFB\u53D6", "error");
+      toast3("\u4EC5\u78C1\u76D8\u6587\u4EF6\u53EF\u91CD\u65B0\u8BFB\u53D6", "error");
       return;
     }
     var enc = $("enc-select").value;
     getApi().read_text_file(d.diskPath, enc).then(function(res) {
       if (!res || res.error) {
-        toast("\u8BFB\u53D6\u5931\u8D25\uFF1A" + (res && res.error || ""), "error");
+        toast3("\u8BFB\u53D6\u5931\u8D25\uFF1A" + (res && res.error || ""), "error");
         return;
       }
       d.content = res.content;
@@ -7995,25 +9125,25 @@
       cm.clearHistory();
       syncFromEditor();
       $("enc-current").textContent = "\u78C1\u76D8\u6587\u4EF6 \xB7 " + (res.encoding || enc);
-      toast("\u5DF2\u6309 " + (res.encoding || enc) + " \u91CD\u65B0\u8BFB\u53D6 \u2713", "success");
+      toast3("\u5DF2\u6309 " + (res.encoding || enc) + " \u91CD\u65B0\u8BFB\u53D6 \u2713", "success");
     }).catch(function() {
-      toast("\u91CD\u65B0\u8BFB\u53D6\u5931\u8D25", "error");
+      toast3("\u91CD\u65B0\u8BFB\u53D6\u5931\u8D25", "error");
     });
   });
   $("enc-saveas").addEventListener("click", function() {
     var d = activeDoc();
     if (!d) return;
     if (!hasApi()) {
-      toast("\u53E6\u5B58\u9700\u5728\u684C\u9762\u7248\u4E2D\u4F7F\u7528", "error");
+      toast3("\u53E6\u5B58\u9700\u5728\u684C\u9762\u7248\u4E2D\u4F7F\u7528", "error");
       return;
     }
     var ext = LANGS[d.lang] ? LANGS[d.lang].ext : ".txt";
     var name = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ext;
     var enc = $("enc-select").value;
     getApi().save_file_encoded(name, cm.getValue(), enc).then(function(p) {
-      if (p) toast("\u5DF2\u6309 " + enc + " \u53E6\u5B58\u4E3A \u2713", "success");
+      if (p) toast3("\u5DF2\u6309 " + enc + " \u53E6\u5B58\u4E3A \u2713", "success");
     }).catch(function() {
-      toast("\u53E6\u5B58\u5931\u8D25", "error");
+      toast3("\u53E6\u5B58\u5931\u8D25", "error");
     });
   });
   $("btn-compare").addEventListener("click", openCompareWindow);
@@ -8036,8 +9166,9 @@
     dirOf,
     resolveImgSrc,
     guessMime: _guessMimeFromPath,
-    toast,
-    richChanged
+    toast: toast3,
+    richChanged,
+    getRichDir: getCachedRichDir
   };
   function initCraftSidebar() {
     var refreshOnFocus = function() {
@@ -8093,7 +9224,7 @@
     }
     var wsBtn = document.getElementById("btn-workspace");
     if (wsBtn) wsBtn.addEventListener("click", function() {
-      toast("L.Note \u5DE5\u4F5C\u53F0", "success");
+      toast3("L.Note \u5DE5\u4F5C\u53F0", "success");
     });
     function markNavActive(id) {
       ["nav-recent", "nav-my-space", "nav-wiki", "nav-favorites", "nav-trash", "nav-sticky", "tab-docs", "tab-files"].forEach(function(n) {
@@ -8111,7 +9242,7 @@
       closeDocMenu();
       if (state.batchMode) toggleBatchMode(false);
       renderList();
-      toast("\u5DF2\u5207\u6362\u5230\u300C\u6700\u8FD1\u300D", "success");
+      toast3("\u5DF2\u5207\u6362\u5230\u300C\u6700\u8FD1\u300D", "success");
     });
     var navMySpace = document.getElementById("nav-my-space");
     if (navMySpace) navMySpace.addEventListener("click", function() {
@@ -8121,7 +9252,7 @@
       closeDocMenu();
       if (state.batchMode) toggleBatchMode(false);
       renderList();
-      toast("\u5DF2\u5207\u6362\u5230\u300C\u6211\u7684\u7A7A\u95F4\u300D", "success");
+      toast3("\u5DF2\u5207\u6362\u5230\u300C\u6211\u7684\u7A7A\u95F4\u300D", "success");
     });
     var navWiki = document.getElementById("nav-wiki");
     if (navWiki) navWiki.addEventListener("click", function() {
@@ -8131,7 +9262,7 @@
       closeDocMenu();
       if (state.batchMode) toggleBatchMode(false);
       renderList();
-      toast("\u5DF2\u5207\u6362\u5230\u300C\u77E5\u8BC6\u5E93\u300D", "success");
+      toast3("\u5DF2\u5207\u6362\u5230\u300C\u77E5\u8BC6\u5E93\u300D", "success");
     });
     var navFavorites = document.getElementById("nav-favorites");
     if (navFavorites) navFavorites.addEventListener("click", function() {
@@ -8141,7 +9272,7 @@
       closeDocMenu();
       if (state.batchMode) toggleBatchMode(false);
       renderList();
-      toast("\u5DF2\u5207\u6362\u5230\u300C\u6536\u85CF\u300D", "success");
+      toast3("\u5DF2\u5207\u6362\u5230\u300C\u6536\u85CF\u300D", "success");
     });
     var navTrash = document.getElementById("nav-trash");
     if (navTrash) navTrash.addEventListener("click", function() {
@@ -8151,7 +9282,7 @@
       closeDocMenu();
       if (state.batchMode) toggleBatchMode(false);
       renderList();
-      toast("\u5DF2\u5207\u6362\u5230\u300C\u56DE\u6536\u7AD9\u300D", "success");
+      toast3("\u5DF2\u5207\u6362\u5230\u300C\u56DE\u6536\u7AD9\u300D", "success");
     });
     var navSticky = document.getElementById("nav-sticky");
     if (navSticky) navSticky.addEventListener("click", function() {
@@ -8161,7 +9292,7 @@
       closeDocMenu();
       if (state.batchMode) toggleBatchMode(false);
       renderList();
-      toast("\u5DF2\u5207\u6362\u5230\u300C\u4FBF\u5229\u8D34\u300D", "success");
+      toast3("\u5DF2\u5207\u6362\u5230\u300C\u4FBF\u5229\u8D34\u300D", "success");
     });
     if (els.tagHead) els.tagHead.addEventListener("click", function() {
       var s = els.tagSection;
@@ -8173,7 +9304,7 @@
     if (btnNewSticky) btnNewSticky.addEventListener("click", function() {
       var d = newSticky();
       renderList();
-      if (d) toast("\u5DF2\u65B0\u5EFA\u4FBF\u5229\u8D34", "success");
+      if (d) toast3("\u5DF2\u65B0\u5EFA\u4FBF\u5229\u8D34", "success");
     });
     if (els.tagEditModal) {
       if (document.getElementById("tag-edit-close")) document.getElementById("tag-edit-close").addEventListener("click", closeTagEditModal);
@@ -8258,7 +9389,7 @@
         if (els.stickyReminderTitle) els.stickyReminderTitle.textContent = (hit.title || "\u65E0\u6807\u9898") + " \xB7 " + fmtStamp(Date.now());
         if (els.stickyReminderContent) els.stickyReminderContent.textContent = hit.content || "\uFF08\u65E0\u5185\u5BB9\uFF09";
         if (els.stickyReminderModal) els.stickyReminderModal.style.display = "flex";
-        toast("\u63D0\u9192\uFF1A" + (hit.title || "\u4FBF\u5229\u8D34"), "success");
+        toast3("\u63D0\u9192\uFF1A" + (hit.title || "\u4FBF\u5229\u8D34"), "success");
       }
     }
     checkReminders();
@@ -8412,7 +9543,7 @@
       els.batchDel.addEventListener("click", function() {
         var ids = getBatchSelectedIds();
         if (ids.length === 0) {
-          toast("\u8BF7\u5148\u9009\u62E9\u8981\u5220\u9664\u7684\u6587\u6863", "error");
+          toast3("\u8BF7\u5148\u9009\u62E9\u8981\u5220\u9664\u7684\u6587\u6863", "error");
           return;
         }
         var inTrash = state.docFilter === "trash";
@@ -8443,7 +9574,7 @@
       var c = state.docFilter === "trash" ? batchDestroy(ids) : batchDelete(ids);
       if (els.docBatchDelModal) els.docBatchDelModal.style.display = "none";
       if (c > 0 && state.batchMode) toggleBatchMode(false);
-      toast(state.docFilter === "trash" ? "\u6279\u91CF\u5F7B\u5E95\u5220\u9664\u5B8C\u6210\uFF1A\u5171 " + c + " \u9879" : "\u6279\u91CF\u5220\u9664\u5B8C\u6210\uFF1A\u5171 " + c + " \u9879", "success");
+      toast3(state.docFilter === "trash" ? "\u6279\u91CF\u5F7B\u5E95\u5220\u9664\u5B8C\u6210\uFF1A\u5171 " + c + " \u9879" : "\u6279\u91CF\u5220\u9664\u5B8C\u6210\uFF1A\u5171 " + c + " \u9879", "success");
     });
     if (els.batchExport) {
       els.batchExport.addEventListener("click", function() {
@@ -8463,11 +9594,11 @@
       var val = els.docRenameInput ? els.docRenameInput.value : "";
       val = (val || "").trim();
       if (!val) {
-        toast("\u6587\u6863\u540D\u4E0D\u80FD\u4E3A\u7A7A", "error");
+        toast3("\u6587\u6863\u540D\u4E0D\u80FD\u4E3A\u7A7A", "error");
         return;
       }
       if (renameDoc(renameDocId, val)) {
-        toast("\u91CD\u547D\u540D\u6210\u529F", "success");
+        toast3("\u91CD\u547D\u540D\u6210\u529F", "success");
       }
       closeRename();
     }
@@ -8492,6 +9623,10 @@
         deleteDoc(id);
       }
     });
+  }
+  try {
+    openPendingExternal();
+  } catch (e) {
   }
   initEvents();
   syncSortButton();

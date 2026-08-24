@@ -5,12 +5,12 @@ import { els, state } from './01-core.js';
 import { activeDoc } from './05-store.js';
 import { refreshDocFromDisk } from './07-doc-open.js';
 import { richChanged } from './09-rich-save.js';
-import { dirOf, resolveImgSrc } from './13-api-path.js';
+import { dirOf, resolveImgSrc, getCachedRichDir } from './13-api-path.js';
 import { openSingleModal } from './15-insert.js';
 import { _guessMimeFromPath } from './15-insert.js';
 import { toast, renameDoc, newSticky, matchReminder, fmtStamp, revealInFolder } from './16-doc-ops.js';
 import { initEvents } from './17-events.js';
-import { initApp } from './18-bootstrap.js';
+import { initApp, openPendingExternal } from './18-bootstrap.js';
 import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchDestroy, batchExport, renameDocId, closeDocMenu, pendingDelId, renderList, renderSideSub, openTagEditModal, closeTagEditModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, stickyEditSave, syncSortButton, toggleSortGroup } from './06-doc-list.js';
 
   // 暴露给块编辑器（block-editor.js）使用的辅助函数
@@ -19,7 +19,8 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
     resolveImgSrc: resolveImgSrc,
     guessMime: _guessMimeFromPath,
     toast: toast,
-    richChanged: richChanged
+    richChanged: richChanged,
+    getRichDir: getCachedRichDir
   };
 
   /* ---------------- v0.20.32 Craft 风格：搜索框 ---------------- */
@@ -478,6 +479,11 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
    *   1. initEvents()  —— 17-events：绑定 cm 与 DOM 事件
    *   2. initApp()     —— 18-bootstrap：弹窗绑定 + loadDocs + renderList + openDoc
    *   3. initCraftSidebar() —— 本模块：Craft 侧栏 UI */
+  // 兜底：在 initEvents/initApp 之前也调度一次「打开外部传入文件」。
+  // 即使后续初始化异常中断，右键「打开方式」传入的文档也能被打开
+  //（openPendingExternal 内部防重入，查询到外部文件时会跳过默认文档）。
+  try { openPendingExternal(); } catch (e) {}
+
   initEvents();
   syncSortButton();   // 读取文档排序开关状态（默认关闭），供 initApp 内 renderList 使用
   initApp();

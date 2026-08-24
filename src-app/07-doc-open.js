@@ -12,11 +12,14 @@ import { updatePreviewVisibility, updateStatus } from './10-status-preview.js';
 import { dirOf, getApi, hasApi } from './13-api-path.js';
 import { saveDiskDoc, toast } from './16-doc-ops.js';
 import { renderBacklinks } from './21-backlinks.js';
+import { openPdfFile } from './23-pdf.js';
+import { openDocFile } from './24-doc.js';
+import { updateDocMapUI } from './25-doc-map.js';
   /* ---------------- 渲染：编辑区 ---------------- */
   // v0.20.35：原型信息面板（属性 + 动态大纲）更新
   function updateInfoPanel(d, kind) {
     var fmtName = { text: '纯文本', markdown: 'Markdown', rich: '富文档',
-      flow: '流程图', mind: '思维导图', note: '思维笔记' }[kind] || '纯文本';
+      flow: '流程图', mind: '思维导图', note: '思维笔记', pdf: 'PDF 文档', doc: 'Word 文档' }[kind] || '纯文本';
     var langName = { plaintext: '纯文本', markdown: 'Markdown', json: 'JSON', xml: 'XML',
       html: 'HTML', javascript: 'JavaScript', python: 'Python', css: 'CSS', sql: 'SQL',
       yaml: 'YAML', shell: 'Shell', clike: 'C/Java', mermaid: 'Mermaid' }[d.lang] || '纯文本';
@@ -147,9 +150,11 @@ import { renderBacklinks } from './21-backlinks.js';
     els.visualPane.style.display = (kind === 'flow' || kind === 'mind' || kind === 'note') ? 'flex' : 'none';
     els.richPane.style.display = kind === 'rich' ? 'flex' : 'none';
     // 文本类工具仅对文本文档可见
-    [els.langSelect, els.toolsWrap, els.toolsWrap2, els.btnFormatXml, els.btnFind, els.btnEncoding, els.btnCompare, els.btnTogglePreview].forEach(function (el) {
+    [els.langSelect, els.toolsWrap, els.toolsWrap2, els.btnFormatXml, els.btnFind, els.btnEncoding, els.btnCompare, els.btnTogglePreview, els.btnDocMap].forEach(function (el) {
       el.style.display = kind === 'text' ? '' : 'none';
     });
+    // 文档地图（右侧小地图）：非文本文档强制隐藏，并同步当前文档类型
+    updateDocMapUI(kind);
 
     // 富文档专用：📑 大纲按钮只在富文档显示
     if (els.btnRichOutline) {
@@ -222,6 +227,28 @@ import { renderBacklinks } from './21-backlinks.js';
       return;
     }
 
+    if (kind === 'pdf') {
+      els.previewPane.style.display = 'none';
+      els.breadcrumb.textContent = '📕';
+      els.statLang.textContent = 'PDF 文档';
+      els.statCursor.textContent = '';
+      renderList();
+      openPdfFile(d.diskPath, (d.title || '') + '.pdf');
+      return;
+    }
+
+    if (kind === 'doc') {
+      els.previewPane.style.display = 'none';
+      els.breadcrumb.textContent = '📘';
+      els.statLang.textContent = 'Word 文档';
+      els.statCursor.textContent = '';
+      renderList();
+      var _dm = (d.diskPath || '').match(/\.([^.]+)$/);
+      var _ext = (_dm && _dm[1] ? _dm[1] : 'docx').toLowerCase();
+      openDocFile(d.diskPath, (d.title || '') + '.' + _ext);
+      return;
+    }
+
     if (kind !== 'text') {
       els.previewPane.style.display = 'none';
       openVisual(d, kind);
@@ -253,7 +280,7 @@ import { renderBacklinks } from './21-backlinks.js';
   // - 磁盘更新但用户已开始输入 → 保留本地未保存内容并提示
   // - 已切走其它文档 → 仅静默更新内存 + 持久化
   function refreshTextDocFromDisk(d) {
-    if (!d || d.kind === 'rich' || !d.diskPath) return;
+    if (!d || d.kind === 'rich' || d.kind === 'pdf' || d.kind === 'doc' || !d.diskPath) return;
     // pywebviewready 尚未触发（启动自动打开文档时常见）：挂起等待就绪后重试，
     // 否则磁盘刷新会因 hasApi()=false 被静默跳过，导致启动时仍显示旧内容
     if (!hasApi()) {

@@ -6,9 +6,13 @@ Inkpad 桌面版入口
 """
 import os
 import sys
+import time
 import threading
 import base64
 import json
+import struct
+import re
+import html as _html
 
 import webview
 
@@ -18,14 +22,374 @@ pending_compare = None
 # 供图片查看器窗口读取的待查看图片
 pending_image = None
 
+# 供主编辑器窗口读取的「打开方式」传入的非图片文件
+pending_open_file = None
+
 # 版本号（与 js/app.js 页脚保持一致）
-APP_VERSION = "0.21.4"
+APP_VERSION = "0.21.5"
 
 
 def resource_path(rel: str) -> str:
     """兼容开发运行与 PyInstaller 打包后的资源路径。"""
     base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, rel)
+
+
+def _debug_log(msg: str):
+    """写入调试日志（%LOCALAPPDATA%/L.Note/debug.log），用于排查「打开方式」传参问题。"""
+    try:
+        log_dir = os.path.join(
+            os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "L.Note"
+        )
+        os.makedirs(log_dir, exist_ok=True)
+        with open(os.path.join(log_dir, "debug.log"), "a", encoding="utf-8") as f:
+            f.write(time.strftime("%Y-%m-%d %H:%M:%S") + "  " + msg + "\n")
+    except Exception:
+        pass
+
+
+def _parse_clx_pieces(clx: bytes, wd: bytes):
+    """解析 CLX（Prc/Pcdt 块）中的 piece table，返回文本片段列表。
+
+    PCD 的 fc 最高位（0x40000000）表示压缩 ANSI（cp1252）piece，
+    否则为 UTF-16LE（fc 为字节偏移）。
+    """
+    out = []
+    pos = 0
+    n = len(clx)
+    while pos < n:
+        tag = clx[pos]
+        if tag == 0x01:  # Prc：跳过属性
+            lcb = struct.unpack_from("<I", clx, pos + 1)[0]
+            pos += 5 + lcb
+        elif tag == 0x02:  # Pcdt：piece table
+            lcb = struct.unpack_from("<I", clx, pos + 1)[0]
+            pcdt = clx[pos + 5: pos + 5 + lcb]
+            plen = len(pcdt)
+            if plen < 4:
+                break
+            ncp = (plen - 4) // 12
+            if ncp <= 0:
+                break
+            cps = struct.unpack_from("<%dI" % (ncp + 1), pcdt, 0)
+            for i in range(ncp):
+                pcd_off = 4 * (ncp + 1) + i * 8
+                fc = struct.unpack_from("<I", pcdt, pcd_off)[0]
+                nchars = cps[i + 1] - cps[i]
+                if nchars <= 0:
+                    continue
+                if fc & 0x40000000:
+                    fpos = (fc & 0x3FFFFFFF) // 2
+                    raw = wd[fpos: fpos + nchars]
+                    piece = raw.decode("cp1252", errors="surrogateescape")
+                    out.append(_fix_mojibake(piece))
+                else:
+                    fpos = fc & 0x3FFFFFFF
+                    raw = wd[fpos: fpos + nchars * 2]
+                    out.append(raw.decode("utf-16-le", errors="replace"))
+            break
+        else:
+            break
+    return out
+
+
+def _decode_text_loose(data: bytes) -> str:
+    """按常见编码尝试解码文本，全部失败时用替换字符兜底。"""
+    for enc in ("utf-8", "utf-16", "gbk", "cp1252"):
+        try:
+            return data.decode(enc)
+        except Exception:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
+def _fix_mojibake(text: str) -> str:
+    """还原被 CP1252 误解码的 UTF-8/GBK 文本（mojibake）。
+
+    规则：文本重新按 CP1252 编码回字节（surrogateescape 无损还原 cp1252
+    未定义字节），再依次尝试按 UTF-8 / GBK 解码；仅当结果含中日韩字符且
+    与原文本不同才采用，避免误伤正常 cp1252 文本。无法还原的残留代理
+    字符转为 U+FFFD，保证输出可安全序列化。
+    """
+    if not text:
+        return text
+    try:
+        raw = text.encode("cp1252", errors="surrogateescape")
+    except Exception:
+        return text
+    for enc in ("utf-8", "gbk"):
+        try:
+            fixed = raw.decode(enc)
+        except Exception:
+            continue
+        if fixed != text and re.search(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]", fixed):
+            return fixed
+    if re.search(r"[\udc80-\udcff]", text):
+        return re.sub(r"[\udc80-\udcff]", "\ufffd", text)
+    return text
+
+
+def _extract_rtf_text(data: bytes) -> str:
+    """简易 RTF 文本提取：剥离控制字与分组，支持 \\uN、\\'xx 转义。
+
+    覆盖 Word/WPS 导出的常见 RTF；不支持的属性控制字一律忽略。
+    """
+    s = data.decode("latin-1", errors="replace")
+    out = []
+    i, n = 0, len(s)
+    while i < n:
+        c = s[i]
+        if c == "\\":
+            i += 1
+            if i < n and s[i] in "{}":
+                out.append(s[i])
+                i += 1
+                continue
+            if i < n and s[i] == "'":
+                try:
+                    out.append(chr(int(s[i + 1:i + 3], 16)))
+                    i += 3
+                except Exception:
+                    i += 1
+                continue
+            j = i
+            while j < n and s[j].isalpha():
+                j += 1
+            word = s[i:j]
+            k = j
+            neg = False
+            if k < n and s[k] == "-":
+                neg = True
+                k += 1
+            d = k
+            while d < n and s[d].isdigit():
+                d += 1
+            param = s[k:d]
+            i2 = d
+            if word != "u" and i2 < n and s[i2] == " ":
+                i2 += 1
+            if word == "u" and param:
+                v = int(("-" if neg else "") + param)
+                if v < 0:
+                    v += 0x10000
+                out.append(chr(v))
+                if i2 < n and s[i2] not in "\\{}":
+                    i2 += 1
+                i = i2
+            elif word in ("par", "line", "cr"):
+                out.append("\n")
+                i = i2
+            elif word == "tab":
+                out.append("\t")
+                i = i2
+            elif word in ("emspace", "enspace", "qmspace"):
+                out.append(" ")
+                i = i2
+            else:
+                i = i2
+        elif c in "{}":
+            i += 1
+        elif c in "\r\n":
+            out.append("\n")
+            i += 1
+        else:
+            out.append(c)
+            i += 1
+    lines = "".join(out).split("\n")
+    return "\n".join(ln.strip() for ln in lines).strip("\n")
+
+
+def _extract_zip_doc_text(path_or_data) -> str:
+    """ZIP 容器：可能是 .docx/.odt 改名，读 document.xml 提取文本。
+
+    参数可以是文件路径或已读入的字节（用于 UTF-8 化二进制还原后的解析）。
+    """
+    import io
+    import zipfile
+    if isinstance(path_or_data, (bytes, bytearray)):
+        zf = zipfile.ZipFile(io.BytesIO(bytes(path_or_data)))
+    else:
+        zf = zipfile.ZipFile(path_or_data)
+    with zf as z:
+        name = None
+        for cand in ("word/document.xml", "content.xml"):
+            if cand in z.namelist():
+                name = cand
+                break
+        if not name:
+            raise ValueError("是 ZIP/OOXML 文档，但缺少正文流（word/document.xml）")
+        xml = z.read(name).decode("utf-8", errors="replace")
+    xml = re.sub(r"<(w:p|text:p)[ >]", "\n", xml)
+    xml = re.sub(r"<[^>]+>", "", xml)
+    return _html.unescape(xml).strip()
+
+
+def _strip_html_text(s: str) -> str:
+    """剥离 HTML 标签与脚本，保留段落换行。"""
+    s = re.sub(r"(?is)<(head|script|style)[^>]*>.*?</\1>", " ", s)
+    s = re.sub(r"(?i)<br\s*/?>", "\n", s)
+    s = re.sub(r"(?i)</(p|div|tr)[^>]*>", "\n", s)
+    s = re.sub(r"<[^>]+>", " ", s)
+    s = re.sub(r"[ \t\u00a0]+", " ", s)
+    s = re.sub(r"\n\s*\n+", "\n\n", s)
+    return _html.unescape(s).strip()
+
+
+def _extract_html_text(data: bytes) -> str:
+    """HTML 伪装的 .doc：按页面声明编码解码后剥离标签，保留段落换行。"""
+    head = data[:4096].lower()
+    if b"charset=gb2312" in head or b"charset=gbk" in head or b"charset=gb18030" in head:
+        s = data.decode("gb18030", errors="replace")
+    else:
+        s = data.decode("utf-8", errors="replace")
+    return _strip_html_text(s)
+
+
+def _find_html_body(data: bytes) -> int:
+    """全文件扫描 HTML 正文起点；HTML 标记可能位于文件深处，返回 -1 表示未找到。"""
+    lower = data.lower()
+    pos = -1
+    for marker in (b"<!doctype html", b"<html", b"<head", b"<body", b"<meta"):
+        idx = lower.find(marker)
+        if idx >= 0 and (pos < 0 or idx < pos):
+            pos = idx
+    return pos
+
+
+def _looks_like_real_html(text: str) -> bool:
+    """粗略判断 HTML 剥离结果是否像真实文档内容（拦截误判）。"""
+    if not text:
+        return False
+    bad = sum(1 for ch in text if ord(ch) < 32 and ch not in "\n\r\t")
+    if bad > max(8, len(text) * 0.05):
+        return False
+    if text.count("\ufffd") > max(8, len(text) * 0.1):
+        return False
+    return True
+
+
+def _post_process_doc_text(text: str) -> str:
+    """对已提取的文档文本统一后处理：还原 mojibake、若含 HTML 则剥离标签。"""
+    if not text:
+        return text
+    text = _fix_mojibake(text)
+    if re.search(r"(?i)<!doctype\s+html|<html[\s>]|<head[\s>]|<body[\s>]", text):
+        text = _strip_html_text(text)
+    return text.strip()
+
+
+def _extract_ole_doc_text(path_or_data) -> str:
+    """用 olefile 从旧版 .doc（Word 97-2003 OLE2 复合文档）提取纯文本。
+
+    WordDocument 流 FIB（fibRgLw）中：ccpText 在偏移 96，fcClx 在 120，lcbClx 在 124；
+    CLX 位于表流（1Table/0Table）的 fcClx 处。
+    参数可以是文件路径或已读入的字节（用于 UTF-8 化二进制还原后的解析）。
+    """
+    import io
+    import olefile
+
+    if isinstance(path_or_data, (bytes, bytearray)):
+        ole = olefile.OleFileIO(io.BytesIO(bytes(path_or_data)))
+    else:
+        ole = olefile.OleFileIO(path_or_data)
+    try:
+        if not ole.exists("WordDocument"):
+            raise ValueError("不是有效的 .doc 文件（缺少 WordDocument 流）")
+        wd = ole.openstream("WordDocument").read()
+        if len(wd) < 128:
+            raise ValueError("不是有效的 .doc 文件（WordDocument 流过短）")
+        ccp_text = struct.unpack_from("<I", wd, 96)[0]
+        if ccp_text <= 0:
+            return ""
+        fc_clx, lcb_clx = struct.unpack_from("<II", wd, 120)
+        if ole.exists("1Table"):
+            table_name = "1Table"
+        elif ole.exists("0Table"):
+            table_name = "0Table"
+        else:
+            raise ValueError("不是有效的 .doc 文件（缺少表流）")
+        table = ole.openstream(table_name).read()
+        clx = table[fc_clx: fc_clx + lcb_clx]
+        text = "".join(_parse_clx_pieces(clx, wd))
+        return text[:ccp_text]
+    finally:
+        ole.close()
+
+
+def _try_restore_utf8_wrapped_bytes(data: bytes):
+    """检测"UTF-8 化二进制"并还原真实字节。
+
+    某些环境保存 .doc 时会把二进制当作 latin-1/cp1252 文本读出，再整体以
+    UTF-8 编码写入，典型特征：OLE2 头 D0 CF 11 E0 A1 B1 1A E1 变成
+    C3 90 C3 8F 11 C3 A0 C2 A1 C2 B1 1A C3 A1。此时文件整体是合法 UTF-8，
+    解码后用 latin-1 回编（0x00-0xFF 全部无损）即可还原原始二进制。
+
+    仅当还原字节匹配已知格式签名（OLE2/RTF/ZIP/HTML）才返回，避免误伤
+    正常 UTF-8 纯文本（中文文本无法以 latin-1 回编，天然被排除）。
+    """
+    try:
+        text = data.decode("utf-8")
+    except Exception:
+        return None
+    try:
+        raw = text.encode("latin-1")
+    except Exception:
+        return None
+    if len(raw) < 8:
+        return None
+    if raw[:8] == b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1":
+        return raw
+    stripped = raw.lstrip(b"\xef\xbb\xbf\x00 \t\r\n")
+    if (
+        stripped[:5].upper() == b"{\\RTF"
+        or raw[:4] == b"PK\x03\x04"
+        or stripped[:4] == b"PK\x03\x04"
+    ):
+        return raw
+    if _find_html_body(raw) >= 0:
+        return raw
+    return None
+
+
+def _extract_doc_core(data: bytes) -> str:
+    """文档解析核心：data 为原始或已还原的真实字节。"""
+    head = data[:8]
+    if head == b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1":
+        try:
+            return _post_process_doc_text(_extract_ole_doc_text(data))
+        except Exception:
+            pass  # 伪 OLE2（签名匹配但结构损坏）：降级走 HTML/文本兜底
+    stripped = data.lstrip(b"\xef\xbb\xbf\x00 \t\r\n")
+    if stripped[:5].upper() == b"{\\RTF":
+        return _extract_rtf_text(data)
+    if data[:4] == b"PK\x03\x04" or stripped[:4] == b"PK\x03\x04":
+        return _extract_zip_doc_text(data)
+    idx = _find_html_body(data)
+    if idx >= 0:
+        text = _extract_html_text(data[idx:])
+        if _looks_like_real_html(text):
+            return text
+    txt = _fix_mojibake(_decode_text_loose(data))
+    control = sum(1 for ch in txt if ord(ch) < 9 or 13 < ord(ch) < 32)
+    if txt and control > max(8, len(txt) * 0.05):
+        raise ValueError("无法识别的文档格式（已尝试 OLE2/RTF/HTML/ZIP/文本解析）")
+    return txt.strip()
+
+
+def _extract_doc_text(path: str) -> str:
+    """从 .doc 提取纯文本：自动识别 OLE2 / RTF / ZIP(OOXML) / HTML / 纯文本。
+
+    旧版 .doc 在 Windows 生态中常见伪装格式（RTF/HTML/文本），Word 能打开，
+    因此除了 OLE2 复合文档还做多格式兜底，保证尽量展示内容。
+    另处理"UTF-8 化二进制"：二进制被当作 latin-1 文本保存后整体再以
+    UTF-8 编码（文件头形如 C3 90 C3 8F ...），需先还原字节再解析。
+    """
+    with open(path, "rb") as f:
+        data = f.read()
+    restored = _try_restore_utf8_wrapped_bytes(data)
+    if restored is not None:
+        data = restored
+    return _extract_doc_core(data)
 
 
 class CmpApi:
@@ -57,7 +421,7 @@ class CmpApi:
 
 
 class ImvApi:
-    """图片查看器窗口的 API：取回主窗口传入的图片数据（src + 名称）。"""
+    """图片查看/编辑窗口的 API：取回图片数据，并提供覆盖保存与另存为。"""
 
     def __init__(self):
         self._window = None
@@ -66,7 +430,75 @@ class ImvApi:
         self._window = window
 
     def get_image(self):
-        return pending_image
+        """返回待查看/编辑的图片。单图编辑模式下从磁盘读取并转 data URI。"""
+        p = pending_image or {}
+        src = p.get("src") or ""
+        path = p.get("path") or ""
+        name = p.get("name") or "图片"
+        if not src and path and os.path.isfile(path):
+            mime = _guess_mime(path)
+            try:
+                with open(path, "rb") as f:
+                    raw = f.read()
+                src = "data:%s;base64,%s" % (mime, base64.b64encode(raw).decode("ascii"))
+            except Exception:
+                src = ""
+        return {
+            "src": src,
+            "name": name,
+            "path": path,
+            "mime": _guess_mime(path) if path else "",
+        }
+
+    def save_image_file(self, path: str, content_b64: str):
+        """把编辑结果（base64，含 data: 前缀会被自动忽略）覆盖写回磁盘文件。"""
+        if not path:
+            return {"error": "目标路径为空"}
+        try:
+            raw = base64.b64decode(content_b64.split(",", 1)[-1])
+            with open(path, "wb") as f:
+                f.write(raw)
+            return {"ok": True, "path": path}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def close_window(self):
+        """关闭图片编辑窗口。"""
+        if self._window:
+            self._window.destroy()
+        return {"ok": True}
+
+    def resize_window(self, width: int, height: int):
+        """调整窗口尺寸。"""
+        if self._window:
+            self._window.resize(int(width), int(height))
+        return {"ok": True}
+
+    def save_image_as(self, content_b64: str, filename: str):
+        """弹出「另存为」保存编辑结果。返回保存路径或 None。"""
+        if not self._window:
+            return {"error": "窗口未就绪"}
+        ext = os.path.splitext(filename or "")[1].lower() or ".png"
+        file_types = (
+            "图片 (*%s)" % ext,
+            "所有文件 (*.*)",
+        )
+        result = self._window.create_file_dialog(
+            webview.SAVE_DIALOG,
+            save_filename=filename or "image.png",
+            file_types=file_types,
+        )
+        if isinstance(result, (list, tuple)):
+            result = result[0] if result else None
+        if not result:
+            return None
+        try:
+            raw = base64.b64decode(content_b64.split(",", 1)[-1])
+            with open(result, "wb") as f:
+                f.write(raw)
+            return result
+        except Exception as e:
+            return {"error": str(e)}
 
 
 def _read_text_file(path: str, encoding=None):
@@ -93,6 +525,20 @@ class InkpadApi:
 
     def set_window(self, window):
         self._window = window
+
+    def get_pending_open_file(self):
+        """返回右键「打开方式」传入、待主编辑器打开的非图片文件。
+
+        返回 {"path": 绝对路径, "name": 文件名}；无传入文件时返回 None。
+        前端在启动完成后调用，用于自动打开用户选中的文档。
+        """
+        _debug_log("[api] get_pending_open_file -> " + repr(pending_open_file))
+        return pending_open_file
+
+    def debug_log(self, msg):
+        """供前端写入调试日志，排查「打开方式」自动打开链路。"""
+        _debug_log("[js] " + str(msg))
+        return True
 
     def save_file(self, filename: str, content: str, file_types=None):
         """弹出原生「另存为」对话框，保存文本文件。返回保存路径或 None。
@@ -456,9 +902,24 @@ class InkpadApi:
         """读取文本文件并探测编码。返回 {content, encoding, size}。"""
         return _read_text_file(path, encoding)
 
+    def read_doc_text(self, path: str):
+        """用 olefile 读取旧版 .doc（Word 97-2003）的纯文本。
+
+        返回 {"text": 提取文本} 或 {"error": 原因}。
+        """
+        if not os.path.isfile(path):
+            return {"error": "文件不存在: " + str(path)}
+        try:
+            return {"text": _extract_doc_text(path)}
+        except Exception as e:
+            return {"error": str(e)}
+
     def write_text_file(self, path: str, content: str, encoding: str = "utf-8"):
         """以指定编码写回磁盘文件。自动创建父目录。返回 True。"""
         import os
+        # PDF / Word 只读保护：拒绝任何对 .pdf/.doc/.docx 路径的文本写入（返回 False，不抛错）
+        if path.lower().endswith((".pdf", ".doc", ".docx")):
+            return False
         parent = os.path.dirname(path)
         if parent:
             os.makedirs(parent, exist_ok=True)
@@ -652,7 +1113,70 @@ def _do_translate(text: str, target: str) -> dict:
     return {"error": "翻译失败：" + str(last)}
 
 
+def _is_image_arg(path: str) -> bool:
+    """判断命令行参数是否指向一张受支持的图片。"""
+    if not path:
+        return False
+    return os.path.splitext(path)[1].lower() in _MIME_MAP and os.path.isfile(path)
+
+
+def _is_openable_file(path: str) -> bool:
+    """判断命令行参数是否指向一个可打开的普通文件（非图片）。
+
+    右键「打开方式」传非图片文档（txt/md/json 等）时使用，
+    由主编辑器在前端自动打开该文件。
+    """
+    if not path:
+        return False
+    return os.path.isfile(path) and not _is_image_arg(path)
+
+
+def _launch_image_editor(path: str):
+    """单图编辑模式：命令行传入图片路径（右键「打开方式」）时，直接打开图片编辑窗口。"""
+    global pending_image
+    pending_image = {
+        "path": os.path.abspath(path),
+        "name": os.path.basename(path),
+        "src": "",
+    }
+    imv_api = ImvApi()
+    win = webview.create_window(
+        "L.Note 图片编辑",
+        resource_path("image_viewer.html"),
+        js_api=imv_api,
+        width=1100,
+        height=800,
+        min_size=(560, 480),
+    )
+    imv_api.set_window(win)
+    webview.start(private_mode=False)
+
+
 def main():
+    _debug_log("[main] start, argv = " + repr(sys.argv))
+    # 右键「打开方式」传图片路径 → 进入单图编辑模式，不加载主编辑器
+    for arg in sys.argv[1:]:
+        if _is_image_arg(arg):
+            _debug_log("[main] image arg -> image editor: " + repr(arg))
+            _launch_image_editor(arg)
+            return
+
+    # 右键「打开方式」传非图片文档 → 记录到 pending_open_file，
+    # 主编辑器加载完成后由前端自动打开该文件（不打开默认文档）
+    global pending_open_file
+    for arg in sys.argv[1:]:
+        if _is_openable_file(arg):
+            pending_open_file = {
+                "path": os.path.abspath(arg),
+                "name": os.path.basename(arg),
+            }
+            _debug_log("[main] pending_open_file = " + repr(pending_open_file))
+            break
+        else:
+            _debug_log("[main] arg not openable: " + repr(arg))
+    if pending_open_file is None:
+        _debug_log("[main] no pending open file")
+
     api = InkpadApi()
     index = resource_path("index.html")
     window = webview.create_window(

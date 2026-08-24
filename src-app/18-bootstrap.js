@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { FR_STORAGE, frState, FR_HL_HARD_CAP, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_BATCH, FR_BACK_MAX, initApp, cleanupRichOrphans };
+export { FR_STORAGE, frState, FR_HL_HARD_CAP, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_BATCH, FR_BACK_MAX, initApp, cleanupRichOrphans, openPendingExternal };
 /* [esm] 导入依赖模块绑定 */
 import { bus, state } from './01-core.js';
 import { bindRichOutline } from './02-rich-outline.js';
@@ -9,8 +9,10 @@ import { renderList } from './06-doc-list.js';
 import { openDoc } from './07-doc-open.js';
 import { bindCodeModal, bindTsModal } from './11-format-tools.js';
 import { getApi, hasApi } from './13-api-path.js';
+import { openDiskFile } from './14-filetree-image.js';
 import { toast } from './16-doc-ops.js';
 import { bindFindReplaceModal } from './19-find-replace.js';
+import { initDocMap } from './25-doc-map.js';
   /* ---------------- 启动 ---------------- */
   // 查找替换面板状态（必须在调用前初始化，否则 var 提升为 undefined 会让
   // bindFindReplaceModal 内 frLoad/syncFrStateToUi 直接抛错中断，所有按钮失效）
@@ -55,14 +57,26 @@ import { bindFindReplaceModal } from './19-find-replace.js';
    * 模块求值顺序的不确定性（此前在模块求值期执行，可能早于
    * CodeMirror 初始化，导致 openDoc 内 cm 未就绪）。 */
   function initApp() {
-    bindTsModal();
-    bindCodeModal();
-    bindFindReplaceModal();
-    loadDocs();
-    // Phase 2：文档列表数据变更（增删改/保存）统一走 docs:changed 事件驱动刷新
-    bus.on('docs:changed', renderList);
-    renderList();
-    openDoc(state.activeId);
+    dbgLog('initApp enter');
+    // 右键「打开方式」→ L.Note 启动时：主编辑器加载完成后，
+    // 自动打开外部传入的非图片文件（图片已由 main.py 分流到图片编辑器）。
+    // 必须最先调度：后续初始化异常不能阻断自动打开。openPendingExternal
+    // 会异步查询外部文件——有则直接打开它并跳过默认文档（避免「默认文档
+    // 先显示再被切换」的闪烁与重复渲染，卡顿也随之减少）；无则按原逻辑
+    // 打开上次/默认文档。因此这里不再同步 openDoc。
+    openPendingExternal();
+    try {
+      bindTsModal();
+      bindCodeModal();
+      bindFindReplaceModal();
+      loadDocs();
+      // Phase 2：文档列表数据变更（增删改/保存）统一走 docs:changed 事件驱动刷新
+      bus.on('docs:changed', renderList);
+      renderList();
+    } catch (e) {
+      dbgLog('initApp main error: ' + (e && e.message));
+      console.warn('[inkpad] initApp main init error, continue', e);
+    }
 
     // 【v0.18 新增】富文档大纲（飞书式侧栏）：按钮 + splitter + IntersectionObserver
     bindRichOutline();
@@ -73,6 +87,58 @@ import { bindFindReplaceModal } from './19-find-replace.js';
 
     // 【v0.18.4 新增】富文档 bubble menu：选中文本后浮出横条菜单
     bindRichBubble();
+
+    // 【v0.20.x 新增】文档地图（右侧小地图）：恢复开关状态并绑定渲染/跳转事件
+    try { initDocMap(); } catch (e) {
+      dbgLog('initDocMap error: ' + (e && e.message));
+      console.warn('[inkpad] initDocMap error', e);
+    }
+  }
+
+  function dbgLog(m) {
+    try {
+      if (getApi() && getApi().debug_log) getApi().debug_log(String(m));
+    } catch (e) { /* ignore */ }
+  }
+
+  var pendingOpenBusy = false;
+  function openPendingExternal() {
+    if (pendingOpenBusy) return;
+    dbgLog('openPendingExternal enter, hasApi=' + hasApi());
+    if (!hasApi()) {
+      window.addEventListener('pywebviewready', function h() {
+        window.removeEventListener('pywebviewready', h);
+        dbgLog('pywebviewready fired -> retry');
+        openPendingExternal();
+      }, { once: true });
+      return;
+    }
+    pendingOpenBusy = true;
+    openInitialDoc();
+  }
+
+  // 启动首个文档的决策入口：异步查询右键「打开方式」传入的外部文件，
+  // 有则直接打开它（跳过默认文档，避免「默认文档先显示再被切换」的闪烁）；
+  // 无则按原逻辑打开上次/默认文档。查询是跨进程 IPC，返回时机天然晚于
+  // 同步初始化（loadDocs / renderList），因此无需 setTimeout 延迟。
+  function openInitialDoc() {
+    getApi().get_pending_open_file().then(function (pf) {
+      dbgLog('get_pending_open_file -> ' + JSON.stringify(pf));
+      var p = pf && pf.path ? pf.path : null;
+      var name = (pf && pf.name) || (p ? p.split(/[\\/]/).pop() || '文件' : '');
+      // 图片由单独的图片编辑窗口处理（main.py 已分流），此处只打开文档
+      if (p && !/\.(png|jpe?g|gif|webp|bmp|svg|ico)$/i.test(name)) {
+        dbgLog('skip default doc, open external: ' + p);
+        openDiskFile(p, name);
+      } else {
+        dbgLog('open default doc, activeId=' + state.activeId);
+        openDoc(state.activeId);
+      }
+    }).catch(function (e) {
+      dbgLog('openPendingExternal failed: ' + (e && e.message));
+      console.warn('[inkpad] open pending file failed', e);
+      openDoc(state.activeId);
+    });
   }
 
   function cleanupRichOrphans() {

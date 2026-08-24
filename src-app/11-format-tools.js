@@ -839,11 +839,11 @@ import { setLang, toast } from './16-doc-ops.js';
     if (cm.getSelection()) cm.indentSelection('smart');
     else cm.operation(function () { for (var i = 0; i < cm.lineCount(); i++) cm.indentLine(i, 'smart'); });
   }
-  function foldAllDocs() { cm.foldAll(); }
-  function unfoldAllDocs() { cm.unfoldAll(); }
+  function foldAllDocs() { cm.execCommand('foldAll'); }
+  function unfoldAllDocs() { cm.execCommand('unfoldAll'); }
   function foldToLevel(level) {
     cm.operation(function () {
-      cm.unfoldAll();
+      cm.execCommand('unfoldAll');
       var total = cm.lineCount(), opens = [];
       for (var i = 0; i < total; i++) {
         var txt = cm.getLine(i), ind = indentOf(txt);
@@ -858,7 +858,7 @@ import { setLang, toast } from './16-doc-ops.js';
           if (ji <= ind) break;
         }
         if (hasDeeper && depth <= level) {
-          try { cm.foldCode({ line: i, ch: 0 }, { rangeFinder: CodeMirror.indentRangeFinder }, 'fold'); } catch (e) {}
+          try { cm.foldCode({ line: i, ch: 0 }, { rangeFinder: CodeMirror.fold.auto }, 'fold'); } catch (e) {}
         }
         opens.push(ind);
       }
