@@ -166,18 +166,18 @@
     <div class="logo">L.</div>
     <h1>L.Note</h1>
     <p class="tagline">本地 Notion 风文本编辑器 —— 语法高亮 · Markdown 预览 · Mermaid 图表 · JSON/XML 工具</p>
-    <div class="badge">免费 · 免安装 · 纯本地运行 · 无需联网 · <b>v0.21.4</b></div>
+    <div class="badge">免费 · 免安装 · 纯本地运行 · 无需联网 · <b>v0.21.5</b></div>
   </header>
 
   <div class="dl-card">
-    <a class="dl-btn" href="https://github.com/stutasliu/LNote/releases/download/v0.21.4/L.Note-v0.21.4-win64.exe" download>
+    <a class="dl-btn" href="https://github.com/stutasliu/LNote/releases/download/v0.21.5/L.Note-v0.21.5-win64.exe" download>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-      下载 L.Note v0.21.4（Windows）
+      下载 L.Note v0.21.5（Windows）
     </a>
     <div class="dl-meta">
       便携版 · 约 15 MB · Windows 10/11（x64）· <a href="https://github.com/stutasliu/LNote/releases" target="_blank" rel="noopener" style="color:var(--accent-2)">GitHub Releases 备用入口</a><br>
       SHA256（可复制核对）：<br>
-      <code class="hash">ae2102e62eb14548e125c3811ac97d10aebd99e4e893bd2504e60d8095a1da5c</code>
+      <code class="hash">a61421ed913127e87cd271e9b8b122d44292dec27e3a1bfeb45c65a413e12111</code>
     </div>
   </div>
 
@@ -282,7 +282,7 @@
       <div class="panel">
         <h3>安装与运行</h3>
         <ul>
-          <li>双击 <b>L.Note-v0.21.4-win64.exe</b>，免安装直接运行</li>
+          <li>双击 <b>L.Note-v0.21.5-win64.exe</b>，免安装直接运行</li>
           <li>依赖 Edge WebView2 运行时（Win11 自带，Win10 一般已预装）</li>
           <li>数据保存在本机浏览器存储，卸载/换机前请先导出备份</li>
         </ul>
@@ -292,7 +292,7 @@
         <ul>
           <li>复制上方 SHA256 值</li>
           <li>在 exe 所在目录执行：</li>
-          <li><b>certutil -hashfile L.Note-v0.21.4-win64.exe SHA256</b></li>
+          <li><b>certutil -hashfile L.Note-v0.21.5-win64.exe SHA256</b></li>
           <li>比对输出哈希是否一致</li>
         </ul>
       </div>
@@ -301,6 +301,18 @@
 
   <section>
     <h2>更新日志</h2>
+    <div class="changelog">
+      <div class="v">v0.21.5</div>
+      <ul>
+        <li>新增 PDF 查看器：文件树双击 /「打开方式」直接打开 .pdf，pdf.js 懒加载渲染、翻页缩放、文本复制、提取为文本</li>
+        <li>新增 Word 文档查看与导入：.docx / .doc 模态查看、一键导入富文档 / Markdown</li>
+        <li>新增文档地图（小地图）：编辑器右侧 130px 代码小地图，视口同步、点击拖拽跳转</li>
+        <li>图片查看器升级为图片编辑器：旋转翻转、裁剪、尺寸调整、滤镜、撤销/保存</li>
+        <li>新增文件关联注册脚本 register-file-assoc.ps1（仅写 HKCU，无需管理员）</li>
+        <li>新增 JSON 结构折叠（json-brace / json-auto）；块编辑器图片增强（更换图片、失败重试）</li>
+        <li>启动性能优化：Mermaid / PDF.js / mammoth 拆分为懒加载包，启动大幅提速</li>
+      </ul>
+    </div>
     <div class="changelog">
       <div class="v">v0.21.4</div>
       <ul>
