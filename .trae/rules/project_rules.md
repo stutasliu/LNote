@@ -24,23 +24,36 @@
 
 ### 4. 更新 GitHub Pages 网页（https://stutasliu.github.io/LNote/）
 
-网页源为 `site/` 目录（在 master 分支上跟踪），发布分支为 `gh-pages`。需要更新的文件：
+网页源为 `site/` 目录（在 master 分支上跟踪），发布分支为 `gh-pages`。
+**关键：Pages 配置为 `branch=gh-pages, path=/`（从根目录构建）——发布文件必须放在 gh-pages 分支「根目录」，`site/` 子目录不会上线！** 只把 `site/` 检出到 gh-pages 会导致线上仍是旧版（真实教训：v0.21.7 曾因此线上停留在 v0.21.5）。需要更新的文件：
 
 - `site/download.html`：版本号、下载链接（GitHub Releases）、校验和命令（`certutil -hashfile`）
-- `site/index.html`：版本号 / 功能亮点（如涉及）
+- `site/index.html`：master 的 `site/` 不含 index.html；gh-pages 根目录的 `index.html` 是 `download.html` 的副本，发布时用 `Copy-Item download.html index.html` 生成
 - `site/blink-guide.html`：顶部 badge 版本号
 - `site/RELEASE-NOTES.md`：发布说明（版本标题、下载文件名、本版亮点、历史版本说明）
 - `site/SHA256SUMS.txt`：用 `certutil -hashfile dist\L.Note.exe SHA256` 计算新 exe 的校验和并替换
+- `site/screenshots/`：仅当截图有更新才需要动；未改截图时根目录截图保持不变即可
 
-提交 master 并完成第 1 步推送后，将 `site/` 同步到 `gh-pages` 分支并推送 GitHub：
+提交 master 并完成第 1 步推送后，将 `site/` 内容移到 gh-pages **根目录**并推送 GitHub：
 
 ```bash
 git checkout gh-pages
-git checkout master -- site/
+git rm -r -q .                                   # 清空根目录旧发布文件
+git checkout master -- site/                     # 检出 vX.Y.Z 的 site/ 内容
+git checkout master -- .gitignore                # gh-pages 无 .gitignore，必须恢复以防 git add 误加
+git mv site/download.html download.html
+git mv site/blink-guide.html blink-guide.html
+git mv site/RELEASE-NOTES.md RELEASE-NOTES.md
+git mv site/SHA256SUMS.txt SHA256SUMS.txt
+git mv site/screenshots screenshots              # 仅在截图有更新时执行
+Copy-Item download.html index.html
+git add -A
 git commit -m "chore(site): 更新发布页面 vX.Y.Z"
 git push github gh-pages
 git checkout master
 ```
+
+发布后验证：用 `Invoke-WebRequest "https://stutasliu.github.io/LNote/?cb=<时间戳>"`（带缓存绕过参数）核对页面出现 `vX.Y.Z`；若仍旧，先确认 `GET /pages/builds/latest` 的 `status=built` 且 commit 为刚推送的哈希，再等 CDN 缓存过期（约数分钟）后重试，勿在构建完成前反复断言。
 
 ## 构建与验证（每次改动代码后）
 
