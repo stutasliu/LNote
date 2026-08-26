@@ -35,6 +35,7 @@
     visualCanvas: $("visual-canvas"),
     richPane: $("rich-pane"),
     richCanvas: $("rich-canvas"),
+    abToolbar: $("abToolbar"),
     // 富文档大纲（飞书式左侧 TOC）
     richOutline: $("rich-outline"),
     outlineList: $("outline-list"),
@@ -46,6 +47,8 @@
     btnCloseOutline: $("btn-close-outline"),
     // 文档地图（右侧小地图）
     docMap: $("doc-map"),
+    docMapScroll: $("doc-map-scroll"),
+    docMapContent: $("doc-map-content"),
     docMapCanvas: $("doc-map-canvas"),
     docMapViewport: $("doc-map-viewport"),
     btnDocMap: $("btn-doc-map"),
@@ -3346,10 +3349,15 @@
 
   // src-app/25-doc-map.js
   var DOCMAP_KEY = "inkpad.docmap.v1";
+  var DOCMAP_BASE_GAP = 6;
+  var DOCMAP_MAX_GAP = 12;
+  var DOCMAP_FONT_MAX = 7;
+  var DOCMAP_MIN_GAP = 4;
   var currentKind = null;
   var dragging = false;
   var rafId = null;
   var vpRaf = null;
+  var lastMapSyncTs = 0;
   function cssVar(name, fallback) {
     try {
       var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -3393,69 +3401,92 @@
       scheduleViewport();
     }
   }
+  function contentHeight() {
+    var n = docLineCount();
+    if (n <= 0) return 0;
+    return n * lineSpacing();
+  }
   function draw() {
     rafId = null;
     var canvas = els.docMapCanvas;
     if (!canvas || !state.docMapOn || currentKind !== "text") return;
-    var container = els.docMap;
-    var cssW = container.clientWidth;
-    var cssH = container.clientHeight;
-    if (cssW <= 0 || cssH <= 0) return;
+    var content = els.docMapContent;
+    var scroll = els.docMapScroll;
+    if (!content || !scroll) return;
+    var cssW = content.clientWidth;
+    if (cssW <= 0) return;
+    var lineCount = docLineCount();
+    if (lineCount <= 0) {
+      updateContentSize(0);
+      return;
+    }
+    var gap = lineSpacing();
+    var contentH = contentHeight();
+    if (contentH <= 0) {
+      updateContentSize(0);
+      return;
+    }
+    updateContentSize(contentH);
     var dpr = window.devicePixelRatio || 1;
+    var panelH = scroll.clientHeight;
+    if (panelH <= 0) panelH = 600;
+    var scrollTop = scroll.scrollTop;
     var pxW = Math.round(cssW * dpr);
-    var pxH = Math.round(cssH * dpr);
+    var pxH = Math.round(panelH * dpr);
     if (canvas.width !== pxW) canvas.width = pxW;
     if (canvas.height !== pxH) canvas.height = pxH;
+    canvas.style.top = scrollTop + "px";
+    canvas.style.height = panelH + "px";
     var ctx = canvas.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, cssW, cssH);
+    ctx.clearRect(0, 0, cssW, panelH);
     if (!cm) return;
-    var lineCount = docLineCount();
-    if (lineCount <= 0) return;
-    var gap = lineSpacing();
-    var range = visibleLineRange();
-    var visTop = range[0], visBot = range[1];
-    var barW = cssW - 8;
-    var step = Math.max(1, Math.ceil(lineCount / Math.max(1, cssH * 2)));
-    var maxLen = 1;
-    var i, t, len;
-    for (i = 0; i < lineCount; i += step) {
-      if (i >= visTop && i <= visBot) continue;
-      t = cm.getLine(i);
-      if (t && t.length > maxLen) maxLen = t.length;
-    }
-    if (maxLen < 1) maxLen = 1;
-    ctx.fillStyle = cssVar("--text-faint", "#A8A29E");
-    ctx.globalAlpha = 0.55;
-    var barH = Math.max(1, gap * 0.7);
-    for (i = 0; i < lineCount; i += step) {
-      if (i >= visTop && i <= visBot) continue;
-      t = cm.getLine(i);
-      len = t ? t.length : 0;
-      var w = Math.max(2, barW * Math.min(1, len / maxLen));
-      ctx.fillRect((cssW - w) / 2, i * gap + (gap - barH) / 2, w, barH);
-    }
-    var fontPx = Math.max(2.5, gap * 0.85);
+    var fontPx = Math.min(DOCMAP_FONT_MAX, Math.max(3, gap * 0.7));
+    ctx.fillStyle = cssVar("--text", "#171E23");
     ctx.font = fontPx + 'px Consolas, "Microsoft YaHei", monospace';
     ctx.textBaseline = "top";
-    ctx.globalAlpha = 0.8;
-    var maxChars = Math.max(4, Math.floor(cssW / (fontPx * 0.82)));
-    var ty = visTop * gap + (gap - fontPx) / 2;
-    for (i = visTop; i <= visBot; i++) {
+    ctx.globalAlpha = 0.85;
+    var maxChars = Math.max(8, Math.floor((cssW - 4) / (fontPx * 0.72)));
+    var firstLine = Math.max(0, Math.floor(scrollTop / gap));
+    var lastLine = Math.min(lineCount - 1, Math.ceil((scrollTop + panelH) / gap));
+    var i, t, y;
+    for (i = firstLine; i <= lastLine; i++) {
       t = cm.getLine(i);
-      if (!t) continue;
+      if (!t || t.length === 0) continue;
       if (t.length > maxChars) t = t.slice(0, maxChars);
-      ctx.fillText(t, 2, ty + (i - visTop) * gap);
+      y = Math.round(i * gap - scrollTop);
+      if (y > panelH) break;
+      ctx.fillText(t, 2, y);
     }
     ctx.globalAlpha = 1;
+  }
+  function updateContentSize(contentH) {
+    if (!els.docMapContent) return;
+    els.docMapContent.style.height = contentH + "px";
   }
   function docLineCount() {
     return cm ? cm.lineCount() : 0;
   }
+  function editorVisibleLineCount() {
+    var r = visibleLineRange();
+    var c = r[1] - r[0] + 1;
+    return c > 0 ? c : 0;
+  }
   function lineSpacing() {
     var n = docLineCount();
-    if (n <= 0 || !els.docMap) return 3;
-    return Math.max(3, Math.min(6, els.docMap.clientHeight / n));
+    if (n <= 0 || !els.docMap) return DOCMAP_BASE_GAP;
+    var panelH = els.docMapScroll ? els.docMapScroll.clientHeight : 600;
+    if (panelH <= 0) panelH = 600;
+    var vis = editorVisibleLineCount();
+    if (vis <= 0) vis = Math.max(10, Math.round(panelH / 18));
+    var ratioGap = panelH / (vis * 1.5);
+    var gap;
+    if (n * ratioGap <= panelH) {
+      gap = Math.min(DOCMAP_MAX_GAP, Math.max(DOCMAP_MIN_GAP, panelH / n));
+    } else {
+      gap = Math.max(DOCMAP_MIN_GAP, Math.min(DOCMAP_MAX_GAP, ratioGap));
+    }
+    return gap;
   }
   function visibleLineRange() {
     if (!cm) return [0, -1];
@@ -3474,27 +3505,43 @@
   function updateViewport() {
     vpRaf = null;
     var vp = els.docMapViewport;
-    var container = els.docMap;
-    if (!vp || !container || !state.docMapOn || currentKind !== "text" || !cm) {
+    var content = els.docMapContent;
+    if (!vp || !content || !state.docMapOn || currentKind !== "text" || !cm) {
       if (vp) vp.style.display = "none";
-      return;
-    }
-    if (container.clientHeight <= 0) {
-      vp.style.display = "none";
       return;
     }
     var range = visibleLineRange();
     var visTop = range[0], visBot = range[1];
-    if (visBot < visTop) {
+    var gap = lineSpacing();
+    if (visBot < visTop || gap <= 0) {
       vp.style.display = "none";
       return;
     }
-    var gap = lineSpacing();
     var top = visTop * gap;
     var h = Math.max(8, (visBot - visTop + 1) * gap);
     vp.style.display = "";
     vp.style.top = top + "px";
     vp.style.height = h + "px";
+    syncMapScroll(top, h);
+  }
+  function setMapScrollTop(v) {
+    var scroll = els.docMapScroll;
+    if (!scroll) return;
+    if (Math.abs(scroll.scrollTop - v) <= 1) return;
+    lastMapSyncTs = window.performance && performance.now ? performance.now() : Date.now();
+    scroll.scrollTop = v;
+  }
+  function syncMapScroll(visTopPx, visHPx) {
+    if (!els.docMapScroll) return;
+    var scroll = els.docMapScroll;
+    var maxScroll = scroll.scrollHeight - scroll.clientHeight;
+    if (maxScroll <= 0) {
+      setMapScrollTop(0);
+      return;
+    }
+    var target = visTopPx - (scroll.clientHeight - visHPx) / 2;
+    target = Math.max(0, Math.min(maxScroll, target));
+    setMapScrollTop(target);
   }
   function scheduleViewport() {
     if (vpRaf) return;
@@ -3505,16 +3552,21 @@
   }
   function jumpTo(e) {
     if (!state.docMapOn || currentKind !== "text" || !cm) return;
-    var container = els.docMap;
-    var rect = container.getBoundingClientRect();
+    var scroll = els.docMapScroll;
+    if (!scroll) return;
+    var rect = scroll.getBoundingClientRect();
     if (rect.height <= 0) return;
-    var ratio = (e.clientY - rect.top) / rect.height;
-    ratio = Math.max(0, Math.min(1, ratio));
+    var y = e.clientY - rect.top + scroll.scrollTop;
+    var gap = lineSpacing();
+    if (gap <= 0) return;
+    var clickedLine = Math.floor(y / gap);
     var info = cm.getScrollInfo();
+    var lineCount = docLineCount();
+    var targetTop = clickedLine / Math.max(1, lineCount) * info.height - info.clientHeight / 2;
     var maxTop = Math.max(0, info.height - info.clientHeight);
-    var targetTop = ratio * info.height - info.clientHeight / 2;
     targetTop = Math.max(0, Math.min(maxTop, targetTop));
     cm.scrollTo(null, targetTop);
+    scheduleRender();
   }
   function onMouseDown(e) {
     if (e.button !== 0) return;
@@ -3531,6 +3583,22 @@
   }
   function onMouseLeave() {
     dragging = false;
+  }
+  function onMapScroll() {
+    var now = window.performance && performance.now ? performance.now() : Date.now();
+    if (now - lastMapSyncTs < 60) return;
+    if (!cm || !state.docMapOn || currentKind !== "text") return;
+    var scroll = els.docMapScroll;
+    if (!scroll) return;
+    var gap = lineSpacing();
+    if (gap <= 0) return;
+    var clickedLine = Math.floor(scroll.scrollTop / gap);
+    var info = cm.getScrollInfo();
+    var lineCount = docLineCount();
+    var targetTop = clickedLine / Math.max(1, lineCount) * info.height - info.clientHeight / 2;
+    var maxTop = Math.max(0, info.height - info.clientHeight);
+    targetTop = Math.max(0, Math.min(maxTop, targetTop));
+    cm.scrollTo(null, targetTop);
   }
   function handleScroll() {
     updateViewport();
@@ -3553,6 +3621,7 @@
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
     window.addEventListener("resize", handleResize);
+    if (els.docMapScroll) els.docMapScroll.addEventListener("scroll", onMapScroll);
     if (cm) {
       cm.on("scroll", handleScroll);
       cm.on("changes", handleChanges);
@@ -7994,6 +8063,9 @@
     updateDocMapUI(kind);
     if (els.btnRichOutline) {
       els.btnRichOutline.style.display = kind === "rich" ? "" : "none";
+    }
+    if (els.abToolbar) {
+      els.abToolbar.style.display = kind === "rich" ? "" : "none";
     }
     if (kind !== "rich") {
       if (richOutline.visible) richOutlineVisible(false);

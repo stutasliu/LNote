@@ -18,3 +18,9 @@ __pycache__/
 
 # Local History for Visual Studio Code
 .history/
+
+# 临时诊断 / 测试产物（不入库）
+_test/
+.edge-cdp-profile/
+tests/e2e/_*
+

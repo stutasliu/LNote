@@ -160,6 +160,10 @@ import { updateDocMapUI } from './25-doc-map.js';
     if (els.btnRichOutline) {
       els.btnRichOutline.style.display = kind === 'rich' ? '' : 'none';
     }
+    // 富文档专用：顶部格式工具栏（B/I/U/删除线/代码/引用/列表/表格）只在富文档显示
+    if (els.abToolbar) {
+      els.abToolbar.style.display = kind === 'rich' ? '' : 'none';
+    }
     // 离开富文档时强制收起大纲（避免其它模式的 layout 残留边栏）
     if (kind !== 'rich') {
       if (richOutline.visible) richOutlineVisible(false);

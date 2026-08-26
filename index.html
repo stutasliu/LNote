@@ -154,7 +154,7 @@
       </div>
 
       <!-- 中：格式化工具栏（飞书紧凑分组风格） -->
-      <div class="ab-toolbar" id="abToolbar">
+      <div class="ab-toolbar" id="abToolbar" style="display:none">
         <div class="ab-tool-group">
           <button class="icon-btn ab-tb" title="加粗"><svg viewBox="0 0 24 24" class="ico"><path d="M6 4h7a4 4 0 0 1 0 8H6V4zm0 8h8a4 4 0 0 1 0 8H6v-8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg></button>
           <button class="icon-btn ab-tb" title="斜体"><svg viewBox="0 0 24 24" class="ico"><line x1="19" y1="4" x2="10" y2="4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="14" y1="20" x2="5" y2="20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="15" y1="4" x2="9" y2="20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
@@ -408,8 +408,12 @@
 
       <!-- ===== 文档地图（右侧小地图，代码全景缩略） ===== -->
       <aside id="doc-map" aria-label="文档地图" style="display:none">
-        <canvas id="doc-map-canvas"></canvas>
-        <div id="doc-map-viewport"></div>
+        <div id="doc-map-scroll">
+          <div id="doc-map-content">
+            <canvas id="doc-map-canvas"></canvas>
+            <div id="doc-map-viewport"></div>
+          </div>
+        </div>
       </aside>
 
       <!-- ===== 原型：文档信息面板（默认折叠） ===== -->

@@ -26,7 +26,7 @@ pending_image = None
 pending_open_file = None
 
 # 版本号（与 js/app.js 页脚保持一致）
-APP_VERSION = "0.21.6"
+APP_VERSION = "0.21.7"
 
 
 def resource_path(rel: str) -> str:

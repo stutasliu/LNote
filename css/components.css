@@ -1949,6 +1949,7 @@
 
 /* ---- App Bar 标题组（飞书风格 v3） ---- */
 #appbar {
+  position: relative;
   gap: 0;
   padding: 0 12px;
   height: 48px;
@@ -2022,10 +2023,14 @@
 
 /* 格式化工具栏 */
 .ab-toolbar {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 0;
-  margin: 0 auto;
   background: #F7F8FA;
   border-radius: 8px;
   padding: 3px 4px;
@@ -2068,6 +2073,8 @@
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
+  /* 始终吸附到顶栏最右端，不受中间格式工具栏显隐影响 */
+  margin-left: auto;
 }
 .ab-action-group {
   display: flex;
@@ -2159,7 +2166,7 @@
    ============================================================ */
 #doc-map {
   flex: 0 0 auto;
-  width: 130px; min-width: 130px;
+  width: 180px; min-width: 180px;
   border-left: 1px solid var(--border-light);
   background: var(--surface);
   position: relative;
@@ -2168,10 +2175,29 @@
   height: 100%;
   min-height: 0;
 }
+#doc-map-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+#doc-map-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+#doc-map-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-light, rgba(0,0,0,.15));
+  border-radius: 3px;
+}
+#doc-map-content {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+}
 #doc-map-canvas {
   position: absolute;
   top: 0; left: 0;
-  width: 100%; height: 100%;
+  width: 100%;
   display: block;
   cursor: pointer;
 }
