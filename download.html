@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>L.Note - 本地 Notion 风文本编辑器 · 下载</title>
+<link rel="icon" type="image/png" href="resource/app_32.png">
 <meta name="description" content="L.Note（Inkpad）是一款本地运行的 Notion 风文本编辑器：语法高亮、Markdown 实时预览、Mermaid 图表、JSON/XML 格式化。免费、纯本地、免安装。">
 <style>
   :root {
@@ -30,12 +31,12 @@
   header { padding: 72px 0 40px; text-align: center; }
   .logo {
     width: 84px; height: 84px; margin: 0 auto 22px;
-    border-radius: 22px;
-    background: linear-gradient(135deg, #3370ff, #7b4dff);
+    border-radius: 18px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 34px; font-weight: 700; color: #fff;
     box-shadow: 0 12px 40px rgba(51,112,255,.35);
+    overflow: hidden;
   }
+  .logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
   h1 { font-size: 40px; font-weight: 700; letter-spacing: .5px; }
   .tagline { color: var(--muted); font-size: 16px; margin-top: 12px; }
   .badge {
@@ -163,7 +164,7 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="logo">L.</div>
+    <div class="logo"><img src="resource/app_512.png" alt="L.Note"></div>
     <h1>L.Note</h1>
     <p class="tagline">本地 Notion 风文本编辑器 —— 语法高亮 · Markdown 预览 · Mermaid 图表 · JSON/XML 工具</p>
     <div class="badge">免费 · 免安装 · 纯本地运行 · 无需联网 · <b>v0.21.7</b></div>
