@@ -10,6 +10,7 @@ import { openSingleModal } from './15-insert.js';
 import { _guessMimeFromPath } from './15-insert.js';
 import { toast, renameDoc, newSticky, matchReminder, fmtStamp, revealInFolder } from './16-doc-ops.js';
 import { initEvents } from './17-events.js';
+import { initSettings, openSettingsModal } from './26-settings.js';
 import { initApp, openPendingExternal } from './18-bootstrap.js';
 import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchDestroy, batchExport, renameDocId, closeDocMenu, pendingDelId, renderList, renderSideSub, openTagEditModal, closeTagEditModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, stickyEditSave, syncSortButton, toggleSortGroup } from './06-doc-list.js';
 
@@ -359,6 +360,7 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
           var target = map[ab] && document.getElementById(map[ab]);
           if (target) target.click();
           else if (ab === 'reveal') revealInFolder();
+          else if (ab === 'settings') openSettingsModal();
         });
       });
       document.addEventListener('click', function (e) {
@@ -478,7 +480,8 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
    * 初始化、各模块函数/常量已绑定），按序执行：
    *   1. initEvents()  —— 17-events：绑定 cm 与 DOM 事件
    *   2. initApp()     —— 18-bootstrap：弹窗绑定 + loadDocs + renderList + openDoc
-   *   3. initCraftSidebar() —— 本模块：Craft 侧栏 UI */
+   *   3. initCraftSidebar() —— 本模块：Craft 侧栏 UI
+   *   4. initSettings() —— 26-settings：设置弹窗绑定 + 应用持久化选项/快捷键 */
   // 兜底：在 initEvents/initApp 之前也调度一次「打开外部传入文件」。
   // 即使后续初始化异常中断，右键「打开方式」传入的文档也能被打开
   //（openPendingExternal 内部防重入，查询到外部文件时会跳过默认文档）。
@@ -488,3 +491,4 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
   syncSortButton();   // 读取文档排序开关状态（默认关闭），供 initApp 内 renderList 使用
   initApp();
   initCraftSidebar();
+  initSettings();

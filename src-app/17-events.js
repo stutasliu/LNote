@@ -1,7 +1,8 @@
 /* [esm] 导出本模块顶层绑定 */
-export { initEvents, toolMenu, convertMenu, pb, splitDrag, MIN_PANE, sideDrag, SIDE_MIN, SIDE_MAX, syncSideWidth, ttMenu, ctxMenu, docCtxMenu, docCtxId, ctxDebug, __ctxLast, paintCtxDebug, isPlainEditorTarget, openCtxMenu, openDocCtxMenu, closeCtxMenu, handleCtxCmd, handleDocCtxCmd, initCtxMenu, fontSize, applyFontSize, hasClipboardText };
+export { initEvents, toolMenu, convertMenu, pb, splitDrag, MIN_PANE, sideDrag, SIDE_MIN, SIDE_MAX, syncSideWidth, ttMenu, ctxMenu, docCtxMenu, docCtxId, ctxDebug, __ctxLast, paintCtxDebug, isPlainEditorTarget, openCtxMenu, openDocCtxMenu, closeCtxMenu, handleCtxCmd, handleDocCtxCmd, initCtxMenu, hasClipboardText };
 /* [esm] 导入依赖模块绑定 */
 import { $, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, els, state } from './01-core.js';
+import { handleGlobalKeydown } from './26-settings.js';
 import { cm } from './04-editor-init.js';
 import { activeDoc, saveCursorPos } from './05-store.js';
 import { closeDocDelConfirm, deleteDoc, openDocDelConfirm, pendingDelId, openTagEditModal } from './06-doc-list.js';
@@ -117,17 +118,9 @@ import { translateSelection } from './22-translate.js';
   // 💾 保存 / 另存为
   els.btnSave.addEventListener('click', function () { saveDoc(false); });
   els.btnSaveAs.addEventListener('click', function () { saveDoc(true); });
-  // 全局 Ctrl/Cmd+S：无论焦点在哪都能保存，并阻止浏览器默认"保存网页"
+  // 全局快捷键（保存 / 新建等）—— 由 26-settings.js 的 handleGlobalKeydown 统一分发
   window.addEventListener('keydown', function (e) {
-    if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
-      e.preventDefault();
-      saveDoc(false);
-    }
-    // Ctrl/Cmd+N：直接新建纯文本文档（阻止浏览器默认"新建窗口"）
-    if ((e.ctrlKey || e.metaKey) && (e.key === 'n' || e.key === 'N')) {
-      e.preventDefault();
-      newDoc('plaintext');
-    }
+    handleGlobalKeydown(e);
   });
   $('btn-delete').addEventListener('click', function () {
     var d = activeDoc();
@@ -764,18 +757,3 @@ import { translateSelection } from './22-translate.js';
 
   // ⇄ 文件比较（独立窗口）
   $('btn-compare').addEventListener('click', openCompareWindow);
-
-  // Ctrl+滚轮缩放编辑器字体（持久化）
-  var fontSize = parseInt(localStorage.getItem('inkpad.fontsize'), 10) || 14;
-  function applyFontSize(px) {
-    cm.getWrapperElement().style.fontSize = px + 'px';
-    cm.refresh();
-    localStorage.setItem('inkpad.fontsize', String(px));
-  }
-  applyFontSize(fontSize);
-  cm.getWrapperElement().addEventListener('wheel', function (e) {
-    if (!e.ctrlKey) return;
-    e.preventDefault();
-    fontSize = Math.min(26, Math.max(10, fontSize + (e.deltaY < 0 ? 1 : -1)));
-    applyFontSize(fontSize);
-  }, { passive: false });

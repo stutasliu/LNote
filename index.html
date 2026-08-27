@@ -209,6 +209,8 @@
             <button class="menu-item" data-ab="reveal">打开所在文件夹</button>
             <div class="menu-divider"></div>
             <button class="menu-item" data-ab="delete">删除文档</button>
+            <div class="menu-divider"></div>
+            <button class="menu-item" data-ab="settings">设置</button>
           </div>
         </div>
         <button class="ab-save-btn" id="btn-save" title="保存到磁盘（Ctrl+S）">
@@ -556,6 +558,55 @@
         <button class="tool-btn primary" id="enc-reload" title="磁盘文件按目标编码重新读取（乱码修复）">↻ 按此编码重新读取</button>
         <button class="tool-btn primary" id="enc-saveas" title="当前内容以目标编码另存为文件">💾 另存为此编码…</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- 设置弹窗 -->
+<div id="settings-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card modal-card-sm">
+    <div class="modal-head">
+      <span class="modal-title">设置</span>
+      <button class="icon-btn" id="settings-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="settings-tabs">
+        <button class="settings-tab active" data-settings-tab="general">通用</button>
+        <button class="settings-tab" data-settings-tab="keys">快捷键</button>
+      </div>
+      <div id="settings-pane-general" class="settings-pane">
+        <div class="ts-row">
+          <span class="ts-label">编辑器字体大小</span>
+          <input type="range" id="settings-fontsize" min="10" max="26" step="1" class="settings-range">
+          <span id="settings-fontsize-val" class="settings-val">14px</span>
+        </div>
+        <div class="ts-row">
+          <span class="ts-label">行号显示</span>
+          <select id="settings-linenum" class="tool-select">
+            <option value="1">显示</option>
+            <option value="0">隐藏</option>
+          </select>
+        </div>
+        <div class="ts-row">
+          <span class="ts-label">自动换行</span>
+          <select id="settings-wrap" class="tool-select">
+            <option value="1">开启</option>
+            <option value="0">关闭</option>
+          </select>
+        </div>
+        <div class="ts-row">
+          <span class="ts-label">提示</span>
+          <span class="clip-hint">字号也可用 Ctrl + 鼠标滚轮快速调节</span>
+        </div>
+      </div>
+      <div id="settings-pane-keys" class="settings-pane" style="display:none">
+        <div class="settings-keys-hint">点击右侧快捷键可重新录制组合键 · 按 Esc 取消修改</div>
+        <div id="settings-keys-list"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="tool-btn" id="settings-reset">恢复默认设置</button>
+      <button class="tool-btn primary" id="settings-done">完成</button>
     </div>
   </div>
 </div>

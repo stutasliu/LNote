@@ -8278,6 +8278,365 @@
     els.btnInsertImage.style.display = d && (d.lang === "markdown" || d.lang === "html") ? "" : "none";
   }
 
+  // src-app/26-settings.js
+  var SETTINGS_KEY = "inkpad.settings.v1";
+  var DEFAULT_SETTINGS = {
+    fontSize: 14,
+    lineWrapping: true,
+    lineNumbers: true,
+    shortcuts: {
+      save: "Ctrl-S",
+      newDoc: "Ctrl-N",
+      newRich: "Ctrl-Shift-N",
+      newFlow: "Ctrl-Alt-N",
+      newMind: "Ctrl-Alt-M",
+      newNote: "Ctrl-Shift-M",
+      newSticky: "Ctrl-Alt-S",
+      find: "Ctrl-F",
+      replace: "Ctrl-H",
+      findNext: "F3",
+      findPrev: "Shift-F3",
+      format: "Ctrl-Shift-F",
+      toggleComment: "Ctrl-/",
+      foldAll: "Ctrl-Alt-F",
+      unfoldAll: "Ctrl-Alt-Shift-F",
+      selectNextOccurrence: "Ctrl-Alt-Down",
+      mergeLines: "Ctrl-Shift-J"
+    }
+  };
+  var SHORTCUT_LIST = [
+    { id: "save", label: "\u4FDD\u5B58\u6587\u6863", scope: "global" },
+    { id: "newDoc", label: "\u65B0\u5EFA\u6587\u6863", scope: "global" },
+    { id: "newRich", label: "\u65B0\u5EFA\u5BCC\u6587\u6863", scope: "global" },
+    { id: "newFlow", label: "\u65B0\u5EFA\u6D41\u7A0B\u56FE", scope: "global" },
+    { id: "newMind", label: "\u65B0\u5EFA\u601D\u7EF4\u5BFC\u56FE", scope: "global" },
+    { id: "newNote", label: "\u65B0\u5EFA\u601D\u7EF4\u7B14\u8BB0", scope: "global" },
+    { id: "newSticky", label: "\u65B0\u5EFA\u4FBF\u5229\u8D34", scope: "global" },
+    { id: "find", label: "\u67E5\u627E", scope: "editor" },
+    { id: "replace", label: "\u66FF\u6362", scope: "editor" },
+    { id: "findNext", label: "\u67E5\u627E\u4E0B\u4E00\u4E2A", scope: "editor" },
+    { id: "findPrev", label: "\u67E5\u627E\u4E0A\u4E00\u4E2A", scope: "editor" },
+    { id: "format", label: "\u683C\u5F0F\u5316\u6587\u6863", scope: "editor" },
+    { id: "toggleComment", label: "\u6CE8\u91CA / \u53D6\u6D88\u6CE8\u91CA", scope: "editor" },
+    { id: "foldAll", label: "\u5168\u90E8\u6298\u53E0", scope: "editor" },
+    { id: "unfoldAll", label: "\u5168\u90E8\u5C55\u5F00", scope: "editor" },
+    { id: "selectNextOccurrence", label: "\u9009\u4E2D\u4E0B\u4E00\u5904\u5339\u914D", scope: "editor" },
+    { id: "mergeLines", label: "\u5408\u5E76\u884C", scope: "editor" }
+  ];
+  var settingsState = null;
+  function loadSettings() {
+    var base = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    try {
+      var saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") || {};
+      if (typeof saved.fontSize === "number") base.fontSize = saved.fontSize;
+      if (typeof saved.lineWrapping === "boolean") base.lineWrapping = saved.lineWrapping;
+      if (typeof saved.lineNumbers === "boolean") base.lineNumbers = saved.lineNumbers;
+      if (saved.shortcuts) {
+        Object.keys(base.shortcuts).forEach(function(k) {
+          var v = saved.shortcuts[k];
+          if (typeof v === "string" && v) base.shortcuts[k] = v;
+        });
+      }
+    } catch (e) {
+    }
+    if (!localStorage.getItem(SETTINGS_KEY)) {
+      var oldFs = parseInt(localStorage.getItem("inkpad.fontsize"), 10);
+      if (oldFs) base.fontSize = oldFs;
+    }
+    settingsState = base;
+  }
+  function saveSettings() {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settingsState));
+    } catch (e) {
+    }
+  }
+  function currentCombo(id) {
+    return settingsState && settingsState.shortcuts && settingsState.shortcuts[id] ? settingsState.shortcuts[id] : DEFAULT_SETTINGS.shortcuts[id] || "";
+  }
+  function fmtCombo(combo) {
+    return (combo || "").replace(/-/g, "+");
+  }
+  function parseCombo(combo) {
+    var parts = (combo || "").split("-");
+    var key = parts.pop() || "";
+    return {
+      ctrl: parts.indexOf("Ctrl") >= 0,
+      shift: parts.indexOf("Shift") >= 0,
+      alt: parts.indexOf("Alt") >= 0,
+      meta: parts.indexOf("Cmd") >= 0,
+      key
+    };
+  }
+  function comboKeyForCompare(combo) {
+    return (combo || "").replace("Cmd-", "Ctrl-");
+  }
+  function canonicalKey(k) {
+    if (!k) return "";
+    var m = { "ArrowUp": "Up", "ArrowDown": "Down", "ArrowLeft": "Left", "ArrowRight": "Right", " ": "Space", "Escape": "Esc" };
+    var v = m[k] || k;
+    return v.length === 1 ? v.toUpperCase() : v;
+  }
+  function matchesCombo(e, combo) {
+    var p = parseCombo(combo);
+    if (!p.key) return false;
+    var evtPrimary = e.ctrlKey || e.metaKey;
+    if ((p.ctrl || p.meta) !== evtPrimary) return false;
+    if (!!e.shiftKey !== !!p.shift) return false;
+    if (!!e.altKey !== !!p.alt) return false;
+    return canonicalKey(e.key).toLowerCase() === p.key.toLowerCase();
+  }
+  function buildCmExtraKeys() {
+    var s = settingsState ? settingsState.shortcuts : DEFAULT_SETTINGS.shortcuts;
+    var keys = {
+      "Tab": handleTabKey,
+      "Shift-Tab": function(cm2) {
+        cm2.execCommand("indentLess");
+      }
+    };
+    var actionMap = {
+      find: function() {
+        openFindModal(false);
+      },
+      replace: function() {
+        openFindModal(true);
+      },
+      findNext: function() {
+        frFindNext(false);
+      },
+      findPrev: function() {
+        frFindNext(true);
+      },
+      format: formatCurrent,
+      toggleComment: "toggleComment",
+      foldAll: "foldAll",
+      unfoldAll: "unfoldAll",
+      selectNextOccurrence: "selectNextOccurrence",
+      mergeLines: function() {
+        execEditorCmd("merge");
+      }
+    };
+    Object.keys(actionMap).forEach(function(id) {
+      var combo = s[id];
+      if (!combo) return;
+      keys[combo] = actionMap[id];
+      var hasCtrl = combo.indexOf("Ctrl") >= 0;
+      var hasCmd = combo.indexOf("Cmd") >= 0;
+      if (hasCtrl && !hasCmd) {
+        keys[combo.replace("Ctrl-", "Cmd-")] = actionMap[id];
+      } else if (hasCmd && !hasCtrl) {
+        keys[combo.replace("Cmd-", "Ctrl-")] = actionMap[id];
+      }
+    });
+    return keys;
+  }
+  function handleGlobalKeydown(e) {
+    if (e.defaultPrevented) return false;
+    if (matchesCombo(e, currentCombo("save"))) {
+      e.preventDefault();
+      saveDoc(false);
+      return true;
+    }
+    if (matchesCombo(e, currentCombo("newDoc"))) {
+      e.preventDefault();
+      newDoc("plaintext");
+      return true;
+    }
+    if (matchesCombo(e, currentCombo("newRich"))) {
+      e.preventDefault();
+      newRichDoc();
+      return true;
+    }
+    if (matchesCombo(e, currentCombo("newFlow"))) {
+      e.preventDefault();
+      newVisualDoc("flow");
+      return true;
+    }
+    if (matchesCombo(e, currentCombo("newMind"))) {
+      e.preventDefault();
+      newVisualDoc("mind");
+      return true;
+    }
+    if (matchesCombo(e, currentCombo("newNote"))) {
+      e.preventDefault();
+      newVisualDoc("note");
+      return true;
+    }
+    if (matchesCombo(e, currentCombo("newSticky"))) {
+      e.preventDefault();
+      var d = newSticky();
+      renderList();
+      if (d) toast3("\u5DF2\u65B0\u5EFA\u4FBF\u5229\u8D34", "success");
+      return true;
+    }
+    return false;
+  }
+  loadSettings();
+  var settingsRecordingId = null;
+  var settingsRecordingBtn = null;
+  function syncSettingsControls() {
+    $("settings-fontsize").value = settingsState.fontSize;
+    $("settings-fontsize-val").textContent = settingsState.fontSize + "px";
+    $("settings-linenum").value = settingsState.lineNumbers ? "1" : "0";
+    $("settings-wrap").value = settingsState.lineWrapping ? "1" : "0";
+  }
+  function switchSettingsTab(name) {
+    Array.prototype.forEach.call(document.querySelectorAll(".settings-tab"), function(t) {
+      t.classList.toggle("active", t.getAttribute("data-settings-tab") === name);
+    });
+    $("settings-pane-general").style.display = name === "general" ? "" : "none";
+    $("settings-pane-keys").style.display = name === "keys" ? "" : "none";
+    if (name === "keys") renderShortcutList();
+  }
+  function renderShortcutList() {
+    var box = $("settings-keys-list");
+    box.innerHTML = "";
+    SHORTCUT_LIST.forEach(function(item) {
+      var row = document.createElement("div");
+      row.className = "sk-row";
+      var lab = document.createElement("span");
+      lab.className = "sk-label";
+      lab.textContent = item.label;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "sk-combo";
+      btn.textContent = fmtCombo(currentCombo(item.id));
+      btn.title = "\u70B9\u51FB\u540E\u6309\u4E0B\u65B0\u7EC4\u5408\u952E\u8FDB\u884C\u5F55\u5236";
+      btn.addEventListener("click", function() {
+        startSettingsRecording(item.id, btn);
+      });
+      row.appendChild(lab);
+      row.appendChild(btn);
+      box.appendChild(row);
+    });
+  }
+  function startSettingsRecording(id, btn) {
+    stopSettingsRecording();
+    settingsRecordingId = id;
+    settingsRecordingBtn = btn;
+    btn.classList.add("recording");
+    btn.textContent = "\u8BF7\u6309\u952E\u2026";
+    btn.blur();
+    window.addEventListener("keydown", onSettingsRecordKeydown, true);
+  }
+  function stopSettingsRecording() {
+    window.removeEventListener("keydown", onSettingsRecordKeydown, true);
+    settingsRecordingId = null;
+    if (settingsRecordingBtn) {
+      settingsRecordingBtn.classList.remove("recording");
+      settingsRecordingBtn = null;
+    }
+  }
+  function onSettingsRecordKeydown(e) {
+    if (!settingsRecordingId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) return;
+    var ck = canonicalKey(e.key);
+    if (!ck) return;
+    if (ck === "Esc") {
+      stopSettingsRecording();
+      toast3("\u5DF2\u53D6\u6D88\u4FEE\u6539", "info");
+      return;
+    }
+    var mods = [];
+    if (e.ctrlKey) mods.push("Ctrl");
+    if (e.altKey) mods.push("Alt");
+    if (e.shiftKey) mods.push("Shift");
+    if (e.metaKey) mods.push("Cmd");
+    if (mods.length === 0 && ck.length === 1) {
+      toast3("\u8BF7\u81F3\u5C11\u542B\u4E00\u4E2A\u4FEE\u9970\u952E\uFF08Ctrl / Alt / Shift / Cmd\uFF09", "error");
+      return;
+    }
+    var combo = mods.concat([ck]).join("-");
+    var conflict = null;
+    Object.keys(DEFAULT_SETTINGS.shortcuts).forEach(function(k) {
+      if (k === settingsRecordingId) return;
+      if (comboKeyForCompare(currentCombo(k)) === comboKeyForCompare(combo)) conflict = k;
+    });
+    if (conflict) {
+      var dupLabel = "";
+      SHORTCUT_LIST.forEach(function(it) {
+        if (it.id === conflict) dupLabel = it.label;
+      });
+      stopSettingsRecording();
+      toast3("\u5FEB\u6377\u952E " + fmtCombo(combo) + " \u5DF2\u88AB\u300C" + dupLabel + "\u300D\u5360\u7528", "error");
+      renderShortcutList();
+      return;
+    }
+    settingsState.shortcuts[settingsRecordingId] = combo;
+    saveSettings();
+    cm.setOption("extraKeys", buildCmExtraKeys());
+    stopSettingsRecording();
+    renderShortcutList();
+    toast3("\u5FEB\u6377\u952E\u5DF2\u66F4\u65B0", "success");
+  }
+  function openSettingsModal() {
+    syncSettingsControls();
+    renderShortcutList();
+    openSingleModal("settings-modal");
+  }
+  function closeSettingsModal() {
+    stopSettingsRecording();
+    $("settings-modal").style.display = "none";
+  }
+  var fontSize = settingsState.fontSize;
+  function applyFontSize(px) {
+    settingsState.fontSize = px;
+    fontSize = px;
+    cm.getWrapperElement().style.fontSize = px + "px";
+    cm.refresh();
+    saveSettings();
+  }
+  function initSettings() {
+    $("settings-close").addEventListener("click", closeSettingsModal);
+    $("settings-done").addEventListener("click", closeSettingsModal);
+    $("settings-modal").addEventListener("click", function(e) {
+      if (e.target === $("settings-modal")) closeSettingsModal();
+    });
+    $("settings-reset").addEventListener("click", function() {
+      settingsState = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+      saveSettings();
+      cm.setOption("lineNumbers", settingsState.lineNumbers);
+      cm.setOption("lineWrapping", settingsState.lineWrapping);
+      cm.setOption("extraKeys", buildCmExtraKeys());
+      applyFontSize(settingsState.fontSize);
+      syncSettingsControls();
+      renderShortcutList();
+      toast3("\u5DF2\u6062\u590D\u9ED8\u8BA4\u8BBE\u7F6E", "success");
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".settings-tab"), function(t) {
+      t.addEventListener("click", function() {
+        switchSettingsTab(t.getAttribute("data-settings-tab"));
+      });
+    });
+    $("settings-fontsize").addEventListener("input", function() {
+      var px = parseInt(this.value, 10) || 14;
+      applyFontSize(px);
+      $("settings-fontsize-val").textContent = px + "px";
+    });
+    $("settings-linenum").addEventListener("change", function() {
+      settingsState.lineNumbers = this.value === "1";
+      saveSettings();
+      cm.setOption("lineNumbers", settingsState.lineNumbers);
+    });
+    $("settings-wrap").addEventListener("change", function() {
+      settingsState.lineWrapping = this.value === "1";
+      saveSettings();
+      cm.setOption("lineWrapping", settingsState.lineWrapping);
+    });
+    cm.setOption("lineNumbers", settingsState.lineNumbers);
+    cm.setOption("lineWrapping", settingsState.lineWrapping);
+    cm.setOption("extraKeys", buildCmExtraKeys());
+    applyFontSize(settingsState.fontSize);
+    cm.getWrapperElement().addEventListener("wheel", function(e) {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      fontSize = Math.min(26, Math.max(10, fontSize + (e.deltaY < 0 ? 1 : -1)));
+      applyFontSize(fontSize);
+    }, { passive: false });
+  }
+
   // src-app/22-translate.js
   function detectLang(text) {
     var t = String(text == null ? "" : text);
@@ -8508,14 +8867,7 @@
     saveDoc(true);
   });
   window.addEventListener("keydown", function(e) {
-    if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
-      e.preventDefault();
-      saveDoc(false);
-    }
-    if ((e.ctrlKey || e.metaKey) && (e.key === "n" || e.key === "N")) {
-      e.preventDefault();
-      newDoc("plaintext");
-    }
+    handleGlobalKeydown(e);
   });
   $("btn-delete").addEventListener("click", function() {
     var d = activeDoc();
@@ -9249,19 +9601,6 @@
     });
   });
   $("btn-compare").addEventListener("click", openCompareWindow);
-  var fontSize = parseInt(localStorage.getItem("inkpad.fontsize"), 10) || 14;
-  function applyFontSize(px) {
-    cm.getWrapperElement().style.fontSize = px + "px";
-    cm.refresh();
-    localStorage.setItem("inkpad.fontsize", String(px));
-  }
-  applyFontSize(fontSize);
-  cm.getWrapperElement().addEventListener("wheel", function(e) {
-    if (!e.ctrlKey) return;
-    e.preventDefault();
-    fontSize = Math.min(26, Math.max(10, fontSize + (e.deltaY < 0 ? 1 : -1)));
-    applyFontSize(fontSize);
-  }, { passive: false });
 
   // src-app/20-craft-init.js
   window.InkpadApp = {
@@ -9603,6 +9942,7 @@
           var target = map[ab] && document.getElementById(map[ab]);
           if (target) target.click();
           else if (ab === "reveal") revealInFolder();
+          else if (ab === "settings") openSettingsModal();
         });
       });
       document.addEventListener("click", function(e) {
@@ -9734,4 +10074,5 @@
   syncSortButton();
   initApp();
   initCraftSidebar();
+  initSettings();
 })();
