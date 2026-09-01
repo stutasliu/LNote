@@ -458,6 +458,124 @@
 .flow-edge .edge-line { stroke: #8a94a6; stroke-width: 1.5; }
 .flow-edge.selected .edge-line { stroke: var(--accent); stroke-width: 2.4; }
 .flow-edge .edge-text { font-size: 12px; fill: var(--text-secondary); font-family: var(--font-ui); }
+.flow-edge .edge-port {
+  fill: #ffffff;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  cursor: grab;
+  pointer-events: all;
+}
+.flow-edge .edge-port.to { fill: var(--accent); }
+.flow-node .flow-port {
+  fill: #ffffff;
+  stroke: #7b8ff5;
+  stroke-width: 1.5;
+  cursor: crosshair;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s;
+}
+.flow-node:hover .flow-port,
+.flow-node.selected .flow-port { opacity: 1; pointer-events: all; }
+.flow-link-preview {
+  stroke: #7b8ff5;
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+.flow-box-select {
+  fill: rgba(123, 143, 245, 0.12);
+  stroke: #7b8ff5;
+  stroke-width: 1.2;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+.flow-lane-body { fill: rgba(106, 132, 182, 0.07); stroke: #c6cddb; stroke-width: 1; }
+.flow-lane-header { fill: rgba(106, 132, 182, 0.16); stroke: #c6cddb; stroke-width: 1; cursor: grab; }
+.flow-lane-title {
+  font-size: 13px;
+  font-weight: 600;
+  fill: #5a6b8c;
+  font-family: var(--font-ui);
+  pointer-events: auto;
+  cursor: text;
+}
+.flow-lane.selected .flow-lane-body,
+.flow-lane.selected .flow-lane-header { stroke: var(--accent); stroke-width: 1.5; }
+.flow-lane-resize { fill: var(--accent); opacity: .3; cursor: ns-resize; }
+.flow-lane-resize:hover { opacity: .65; }
+.flow-lane.lane-v .flow-lane-resize { cursor: ew-resize; }
+.flow-lane.lane-v .flow-lane-title { font-size: 14px; }
+
+/* 选中高亮轮廓（样式为 inline 属性后，由轮廓元素承载高亮色） */
+.flow-node .node-outline { fill: none; stroke: var(--accent); stroke-width: 2.2; pointer-events: none; }
+.flow-node.link-from .node-outline { stroke: #0f7b0f; }
+.flow-edge .edge-outline { fill: none; stroke: var(--accent); stroke-width: 3; pointer-events: none; }
+.flow-lane .lane-outline { fill: none; stroke: var(--accent); stroke-width: 1.5; pointer-events: none; }
+
+/* 样式设置浮层面板（右上角按钮弹出，ProcessOn 风格按钮化） */
+.flow-style-bar {
+  display: none;
+  position: fixed;
+  top: 56px;
+  right: 12px;
+  z-index: 999;
+  width: 380px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  user-select: none;
+}
+.fsb-sec { display: none; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.fsb-empty {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  padding: 10px 6px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: #fafafa;
+  text-align: center;
+}
+.fsb-lbl { color: var(--text-secondary); white-space: nowrap; }
+.fsb-sep { width: 1px; height: 18px; background: var(--border); margin: 0 2px; }
+.fsb-pal { display: inline-flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+.fsb-swatch {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: transform .08s;
+}
+.fsb-swatch:hover { transform: scale(1.18); }
+.fsb-swatch.active { box-shadow: 0 0 0 2px var(--accent); }
+.fsb-seg { display: inline-flex; gap: 2px; }
+.fsb-btn {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.fsb-btn:hover { background: var(--hover); }
+.fsb-btn.active { background: var(--primary-container); color: var(--on-primary-container); border-color: var(--primary); }
+.fsb-toggle { font-weight: 600; }
+.fsb-radius-wrap { display: inline-flex; align-items: center; gap: 6px; }
+.fsb-range { width: 72px; accent-color: var(--accent); }
+.fsb-range-sm { width: 72px; }
 
 /* 思维导图 */
 .mind-wrap {
@@ -2106,6 +2224,50 @@
 .ab-rbtn.active {
   background: #E8F3FF;
   color: #3370FF;
+}
+
+/* 样式设置按钮：自定义 hover 提示（浮层 + 小箭头） */
+#btn-style-panel {
+  position: relative;
+}
+#btn-style-panel::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 9px;
+  background: rgba(31, 35, 41, 0.92);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s, visibility 0.15s;
+  z-index: 1000;
+}
+#btn-style-panel::before {
+  content: '';
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-bottom-color: rgba(31, 35, 41, 0.92);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s, visibility 0.15s;
+  z-index: 1000;
+}
+#btn-style-panel.tip-show::after,
+#btn-style-panel.tip-show::before {
+  opacity: 1;
+  visibility: visible;
 }
 
 /* 保存按钮（飞书风格：主色实心 + 图标 + 文字） */

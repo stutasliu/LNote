@@ -419,6 +419,17 @@ import { translateSelection } from './22-translate.js';
         var docItem = e.target && e.target.closest ? e.target.closest('.doc-item') : null;
         if (!docItem) return; // 侧边栏非文档项 → 不弹菜单
       }
+      // v0.21.9 可视化区拦截：流程图/思维导图/思维笔记画布内右键不弹纯文本菜单
+      var visualPane = document.getElementById('visual-pane');
+      if (e && visualPane && visualPane.contains(e.target)) {
+        if (e.preventDefault) e.preventDefault();
+        if (e.stopPropagation) e.stopPropagation();
+        __ctxLast.opened = false;
+        __ctxLast.match = 'visual';
+        __ctxLast.src = e ? e.type : 'key';
+        paintCtxDebug();
+        return;
+      }
       if (e && e.preventDefault) e.preventDefault();
       if (e && e.stopPropagation) e.stopPropagation();
       var x = (e && typeof e.clientX === 'number') ? e.clientX : (window.innerWidth / 2);

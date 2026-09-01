@@ -88,6 +88,7 @@
     fileInput: $("file-input"),
     btnTogglePreview: $("btn-toggle-preview"),
     btnPreviewTop: $("btn-preview-top"),
+    btnStylePanel: $("btn-style-panel"),
     btnInsertImage: $("btn-insert-image"),
     btnExpandSidebar: $("btn-toggle-sidebar2"),
     btnSave: $("btn-save"),
@@ -8064,6 +8065,10 @@
     if (els.btnRichOutline) {
       els.btnRichOutline.style.display = kind === "rich" ? "" : "none";
     }
+    if (els.btnStylePanel) {
+      els.btnStylePanel.style.display = kind === "flow" ? "" : "none";
+      els.btnStylePanel.classList.remove("active");
+    }
     if (els.abToolbar) {
       els.abToolbar.style.display = kind === "rich" ? "" : "none";
     }
@@ -9194,6 +9199,16 @@
         var docItem = e.target && e.target.closest ? e.target.closest(".doc-item") : null;
         if (!docItem) return;
       }
+      var visualPane = document.getElementById("visual-pane");
+      if (e && visualPane && visualPane.contains(e.target)) {
+        if (e.preventDefault) e.preventDefault();
+        if (e.stopPropagation) e.stopPropagation();
+        __ctxLast.opened = false;
+        __ctxLast.match = "visual";
+        __ctxLast.src = e ? e.type : "key";
+        paintCtxDebug();
+        return;
+      }
       if (e && e.preventDefault) e.preventDefault();
       if (e && e.stopPropagation) e.stopPropagation();
       var x = e && typeof e.clientX === "number" ? e.clientX : window.innerWidth / 2;
@@ -9872,6 +9887,36 @@
       infoBtn.addEventListener("click", function() {
         infoPanel.classList.toggle("collapsed");
         syncInfoBtnState();
+      });
+    }
+    var styleBtn = document.getElementById("btn-style-panel");
+    if (styleBtn) {
+      styleBtn.addEventListener("click", function() {
+        if (!state.currentVisual || !state.currentVisual.module || !state.currentVisual.module.toggleStylePanel) return;
+        var open = state.currentVisual.module.toggleStylePanel();
+        styleBtn.classList.toggle("active", open);
+      });
+      styleBtn.addEventListener("mouseenter", function() {
+        styleBtn.classList.add("tip-show");
+      });
+      styleBtn.addEventListener("mouseleave", function() {
+        styleBtn.classList.remove("tip-show");
+      });
+      document.addEventListener("mouseover", function(e) {
+        if (styleBtn.classList.contains("tip-show") && e.target !== styleBtn && !styleBtn.contains(e.target)) {
+          styleBtn.classList.remove("tip-show");
+        }
+      });
+      document.addEventListener("mousedown", function(e) {
+        if (!styleBtn.classList.contains("active")) return;
+        if (e.target.closest && e.target.closest(".flow-style-bar")) return;
+        if (e.target === styleBtn || styleBtn.contains(e.target)) return;
+        if (e.target.closest && e.target.closest(".flow-node, .flow-edge, .flow-lane")) return;
+        var mod = state.currentVisual && state.currentVisual.module;
+        if (mod && mod.setStylePanelOpen) {
+          mod.setStylePanelOpen(false);
+          styleBtn.classList.remove("active");
+        }
       });
     }
     var qaMap = {

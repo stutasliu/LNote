@@ -288,6 +288,38 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
       });
     }
 
+    // v0.20.36：流程图样式设置面板开关（右上角，仅流程图显示）
+    var styleBtn = document.getElementById('btn-style-panel');
+    if (styleBtn) {
+      styleBtn.addEventListener('click', function () {
+        if (!state.currentVisual || !state.currentVisual.module || !state.currentVisual.module.toggleStylePanel) return;
+        var open = state.currentVisual.module.toggleStylePanel();
+        styleBtn.classList.toggle('active', open);
+      });
+      styleBtn.addEventListener('mouseenter', function () {
+        styleBtn.classList.add('tip-show');
+      });
+      styleBtn.addEventListener('mouseleave', function () {
+        styleBtn.classList.remove('tip-show');
+      });
+      document.addEventListener('mouseover', function (e) {
+        if (styleBtn.classList.contains('tip-show') && e.target !== styleBtn && !styleBtn.contains(e.target)) {
+          styleBtn.classList.remove('tip-show');
+        }
+      });
+      document.addEventListener('mousedown', function (e) {
+        if (!styleBtn.classList.contains('active')) return;
+        if (e.target.closest && e.target.closest('.flow-style-bar')) return;
+        if (e.target === styleBtn || styleBtn.contains(e.target)) return;
+        if (e.target.closest && e.target.closest('.flow-node, .flow-edge, .flow-lane')) return;
+        var mod = state.currentVisual && state.currentVisual.module;
+        if (mod && mod.setStylePanelOpen) {
+          mod.setStylePanelOpen(false);
+          styleBtn.classList.remove('active');
+        }
+      });
+    }
+
     // v0.20.35：信息面板快捷操作 → 复用「更多」菜单映射
     var qaMap = {
       json: 'btn-tools', xml: 'btn-format-xml', convert: 'btn-convert',
