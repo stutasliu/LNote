@@ -167,18 +167,18 @@
     <div class="logo"><img src="resource/app_512.png" alt="L.Note"></div>
     <h1>L.Note</h1>
     <p class="tagline">本地 Notion 风文本编辑器 —— 语法高亮 · Markdown 预览 · Mermaid 图表 · JSON/XML 工具</p>
-    <div class="badge">免费 · 免安装 · 纯本地运行 · 无需联网 · <b>v0.21.8</b></div>
+    <div class="badge">免费 · 免安装 · 纯本地运行 · 无需联网 · <b>v0.21.9</b></div>
   </header>
 
   <div class="dl-card">
-    <a class="dl-btn" href="https://github.com/stutasliu/LNote/releases/download/v0.21.8/L.Note-v0.21.8-win64.exe" download>
+    <a class="dl-btn" href="https://github.com/stutasliu/LNote/releases/download/v0.21.9/L.Note-v0.21.9-win64.exe" download>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-      下载 L.Note v0.21.8（Windows）
+      下载 L.Note v0.21.9（Windows）
     </a>
     <div class="dl-meta">
       便携版 · 约 17 MB · Windows 10/11（x64）· <a href="https://github.com/stutasliu/LNote/releases" target="_blank" rel="noopener" style="color:var(--accent-2)">GitHub Releases 备用入口</a><br>
       SHA256（可复制核对）：<br>
-      <code class="hash">1DCD46C9D67A7EC58325C8CD6BDC17CCF8B5DA7FD4642839F744DD4CEFB21B6F</code>
+      <code class="hash">69C4787864E16A20A35949FA2FB814D1520D93B1A8C0833BE8644AA352FEEB87</code>
     </div>
   </div>
 
@@ -283,7 +283,7 @@
       <div class="panel">
         <h3>安装与运行</h3>
         <ul>
-          <li>双击 <b>L.Note-v0.21.8-win64.exe</b>，免安装直接运行</li>
+          <li>双击 <b>L.Note-v0.21.9-win64.exe</b>，免安装直接运行</li>
           <li>依赖 Edge WebView2 运行时（Win11 自带，Win10 一般已预装）</li>
           <li>数据保存在本机浏览器存储，卸载/换机前请先导出备份</li>
         </ul>
@@ -293,7 +293,7 @@
         <ul>
           <li>复制上方 SHA256 值</li>
           <li>在 exe 所在目录执行：</li>
-          <li><b>certutil -hashfile L.Note-v0.21.8-win64.exe SHA256</b></li>
+          <li><b>certutil -hashfile L.Note-v0.21.9-win64.exe SHA256</b></li>
           <li>比对输出哈希是否一致</li>
         </ul>
       </div>
@@ -302,6 +302,16 @@
 
   <section>
     <h2>更新日志</h2>
+    <div class="changelog">
+      <div class="v">v0.21.9</div>
+      <ul>
+        <li>新增流程图泳道（泳池）：水平 / 纵向 / 双泳道 / 分割线，泳道可拖动移动、点击重命名、右键删除，节点自动归位</li>
+        <li>新增流程图交互增强：框选多选、拖拽连线、端点重连、连线形状（直线/曲线/折线 + 正交绕障）、Ctrl+Z 撤销</li>
+        <li>新增流程图样式设置面板：节点 / 连线 / 泳道样式（23 色色板、线宽、线型、圆角、字号、箭头等），实时预览并持久化</li>
+        <li>修复样式设置面板无法关闭、颜色设置不生效的问题</li>
+        <li>新增顶栏按钮 hover 提示气泡</li>
+      </ul>
+    </div>
     <div class="changelog">
       <div class="v">v0.21.8</div>
       <ul>
