@@ -2,6 +2,22 @@
 
 本项目所有值得记录的变更均会收录在此文件中。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [v0.21.10] - 2026-09-01
+
+### 新增
+
+- **「关于 L.Note」弹窗**：顶栏「更多」菜单新增「关于 L.Note」入口，弹出关于弹窗，包含三部分能力：
+  - **显示版本号**：打开弹窗时从后端读取当前版本号（`get_version` API），浏览器环境回退到本地常量。
+  - **检查更新**：点击「检查更新」通过 Python 后端联网查询最新版本（`check_update` API，优先 GitHub Releases API，失败自动回退 Gitee API），实时显示「已是最新版本 / 发现新版本 / 无法连接更新服务器」状态；发现新版本时同步弹出轻提示。
+  - **更新日志链接**：「更新日志」「项目主页」按钮调用系统默认浏览器打开 GitHub 发布页 / 仓库主页（`open_external` API），避免 WebView 内嵌 iframe 的兼容性问题。
+- 后端新增 `_version_greater()` 版本比较函数：支持 `v0.21.9` / `0.21.9` 两种格式，按 (major, minor, patch) 三元组比较。
+
+### 测试
+
+- 前端构建通过（`node tools/build-app.js` + `npx vite build`，dist-web 同步更新）；Python 语法检查通过；PyInstaller 打包成功（`dist\L.Note.exe`）。
+- 单元测试通过（`npx vitest run tests/unit`，87 项）。
+- `_version_greater` 版本比较 8 组用例（含 `v` 前缀、跨段比较、空串）与 `check_update` 三种场景 mock 测试（GitHub 成功 / Gitee 回退 / 全部失败）均通过。
+
 ## [v0.21.9] - 2026-09-01
 
 ### 新增

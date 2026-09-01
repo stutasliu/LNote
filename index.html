@@ -214,6 +214,7 @@
             <button class="menu-item" data-ab="delete">删除文档</button>
             <div class="menu-divider"></div>
             <button class="menu-item" data-ab="settings">设置</button>
+            <button class="menu-item" data-ab="about">关于 L.Note</button>
           </div>
         </div>
         <button class="ab-save-btn" id="btn-save" title="保存到磁盘（Ctrl+S）">
@@ -610,6 +611,35 @@
     <div class="modal-foot">
       <button class="tool-btn" id="settings-reset">恢复默认设置</button>
       <button class="tool-btn primary" id="settings-done">完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- 关于弹窗 -->
+<div id="about-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card modal-card-sm">
+    <div class="modal-head">
+      <span class="modal-title">关于 L.Note</span>
+      <button class="icon-btn" id="about-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="about-hero">
+        <div class="about-logo">📝</div>
+        <div class="about-name">L.Note</div>
+        <div class="about-version" id="about-version">版本 --</div>
+        <div class="about-desc">轻量级本地笔记与文档编辑工具</div>
+      </div>
+      <div class="about-update">
+        <div class="about-update-status" id="about-status">点击「检查更新」获取最新版本信息</div>
+        <button class="tool-btn primary" id="about-check">检查更新</button>
+      </div>
+      <div class="about-links">
+        <button class="tool-btn" id="about-changelog">更新日志</button>
+        <button class="tool-btn" id="about-home">项目主页</button>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="tool-btn primary" id="about-done">完成</button>
     </div>
   </div>
 </div>

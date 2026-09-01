@@ -11,6 +11,7 @@ import { _guessMimeFromPath } from './15-insert.js';
 import { toast, renameDoc, newSticky, matchReminder, fmtStamp, revealInFolder } from './16-doc-ops.js';
 import { initEvents } from './17-events.js';
 import { initSettings, openSettingsModal } from './26-settings.js';
+import { initAbout, openAboutModal } from './27-about.js';
 import { initApp, openPendingExternal } from './18-bootstrap.js';
 import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchDestroy, batchExport, renameDocId, closeDocMenu, pendingDelId, renderList, renderSideSub, openTagEditModal, closeTagEditModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, stickyEditSave, syncSortButton, toggleSortGroup } from './06-doc-list.js';
 
@@ -393,6 +394,7 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
           if (target) target.click();
           else if (ab === 'reveal') revealInFolder();
           else if (ab === 'settings') openSettingsModal();
+          else if (ab === 'about') openAboutModal();
         });
       });
       document.addEventListener('click', function (e) {
@@ -524,3 +526,4 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
   initApp();
   initCraftSidebar();
   initSettings();
+  initAbout();

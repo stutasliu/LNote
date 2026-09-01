@@ -1,6 +1,6 @@
 {
   "name": "l-note",
-  "version": "0.21.9",
+  "version": "0.21.10",
   "private": true,
   "description": "Inkpad(L.Note) 前端构建管线：Vite dev server + 产物打包（src-app 拼接由 tools/build-app.js 负责）",
   "scripts": {

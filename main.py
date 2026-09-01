@@ -26,7 +26,7 @@ pending_image = None
 pending_open_file = None
 
 # 版本号（与 js/app.js 页脚保持一致）
-APP_VERSION = "0.21.9"
+APP_VERSION = "0.21.10"
 
 
 def resource_path(rel: str) -> str:
@@ -976,6 +976,58 @@ class InkpadApi:
         threading.Thread(target=worker, daemon=True).start()
         return {"started": True}
 
+    # ---------- 关于 / 检查更新 ----------
+
+    def get_version(self):
+        """返回当前应用版本号（与前端页脚保持一致）。"""
+        return {"version": APP_VERSION}
+
+    def open_external(self, url: str):
+        """在系统默认浏览器中打开外部链接（更新日志 / 仓库页 / 下载页）。"""
+        import webbrowser
+        try:
+            webbrowser.open(url)
+            return {"ok": True}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def check_update(self):
+        """检查最新版本（需联网）。优先 GitHub Releases API，失败回退 Gitee API。
+
+        返回 {"ok": True, "latest": "vX.Y.Z", "url": 发布页, "source": "github"|"gitee",
+        "current": 当前版本, "update_available": bool}；异常返回 {"error": ...}。"""
+        import urllib.request
+
+        def fetch_latest():
+            sources = (
+                ("github", "https://api.github.com/repos/stutasliu/LNote/releases/latest"),
+                ("gitee", "https://gitee.com/api/v5/repos/x_xiansheng/l.-note/releases/latest"),
+            )
+            fallback_pages = {
+                "github": "https://github.com/stutasliu/LNote/releases",
+                "gitee": "https://gitee.com/x_xiansheng/l.-note/releases",
+            }
+            last = None
+            for name, url in sources:
+                try:
+                    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                    with urllib.request.urlopen(req, timeout=6) as resp:
+                        data = json.loads(resp.read().decode("utf-8", errors="replace"))
+                    tag = str(data.get("tag_name") or "").strip()
+                    if not tag:
+                        raise ValueError("未找到版本号")
+                    page = str(data.get("html_url") or "").strip() or fallback_pages.get(name, url)
+                    return {"ok": True, "latest": tag, "url": page, "source": name}
+                except Exception as e:
+                    last = e
+            return {"error": "无法连接更新服务器：%s" % last}
+
+        result = fetch_latest()
+        if result.get("ok"):
+            result["current"] = APP_VERSION
+            result["update_available"] = _version_greater(result["latest"], APP_VERSION)
+        return result
+
     # ---------- 编码工具 ----------
 
     _UI_ENCS = {
@@ -1067,6 +1119,19 @@ def _looks_chinese(text: str) -> bool:
     cjk = sum(1 for ch in text if "\u4e00" <= ch <= "\u9fff")
     latin = sum(1 for ch in text if ch.isascii() and ch.isalpha())
     return cjk > 0 and cjk >= max(latin, 1)
+
+
+def _version_greater(a: str, b: str) -> bool:
+    """比较两个版本号（支持 "v0.21.9" / "0.21.9" 格式），a > b 返回 True。"""
+    def parts(v: str):
+        digits = re.sub(r"(?i)^v", "", v.strip()).split(".")
+        out = []
+        for d in digits:
+            m = re.match(r"\d+", d or "")
+            out.append(int(m.group()) if m else 0)
+        return out + [0] * (3 - len(out))
+
+    return parts(a) > parts(b)
 
 
 def _do_translate(text: str, target: str) -> dict:

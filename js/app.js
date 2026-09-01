@@ -9617,6 +9617,102 @@
   });
   $("btn-compare").addEventListener("click", openCompareWindow);
 
+  // src-app/27-about.js
+  var APP_VERSION = "0.21.10";
+  var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
+  var APP_HOME_URL = "https://github.com/stutasliu/LNote";
+  function versionGreater(a, b) {
+    function parts(v) {
+      var arr = String(v || "").replace(/^v/i, "").trim().split(".");
+      var out = [];
+      for (var i2 = 0; i2 < 3; i2++) {
+        var m = String(arr[i2] || "").match(/\d+/);
+        out.push(m ? parseInt(m[0], 10) : 0);
+      }
+      return out;
+    }
+    var pa = parts(a), pb2 = parts(b);
+    for (var i = 0; i < 3; i++) {
+      if (pa[i] !== pb2[i]) return pa[i] > pb2[i];
+    }
+    return false;
+  }
+  function setAboutStatus(text, cls) {
+    var el = $("about-status");
+    el.textContent = text;
+    el.className = "about-update-status" + (cls ? " " + cls : "");
+  }
+  function openAboutModal() {
+    var verEl = $("about-version");
+    var api = getApi();
+    if (api && api.get_version) {
+      api.get_version().then(function(r) {
+        if (r && r.version) verEl.textContent = "\u7248\u672C " + r.version;
+      }).catch(function() {
+      });
+    } else {
+      verEl.textContent = "\u7248\u672C " + APP_VERSION;
+    }
+    setAboutStatus("\u70B9\u51FB\u300C\u68C0\u67E5\u66F4\u65B0\u300D\u83B7\u53D6\u6700\u65B0\u7248\u672C\u4FE1\u606F");
+    openSingleModal("about-modal");
+  }
+  function closeAboutModal() {
+    $("about-modal").style.display = "none";
+  }
+  function openExternal(url) {
+    var api = getApi();
+    if (api && api.open_external) {
+      api.open_external(url).catch(function() {
+      });
+    } else {
+      window.open(url, "_blank");
+    }
+  }
+  function checkUpdate() {
+    var btn = $("about-check");
+    btn.disabled = true;
+    setAboutStatus("\u6B63\u5728\u68C0\u67E5\u66F4\u65B0\u2026");
+    var api = getApi();
+    if (api && api.check_update) {
+      api.check_update().then(function(r) {
+        btn.disabled = false;
+        if (r && r.ok) {
+          if (r.update_available) {
+            setAboutStatus("\u53D1\u73B0\u65B0\u7248\u672C " + r.latest + "\uFF08\u5F53\u524D " + r.current + "\uFF09\uFF0C\u53EF\u5728\u66F4\u65B0\u65E5\u5FD7\u4E2D\u67E5\u770B", "warn");
+            toast3("\u53D1\u73B0\u65B0\u7248\u672C " + r.latest, "success");
+          } else {
+            setAboutStatus("\u5DF2\u662F\u6700\u65B0\u7248\u672C " + r.latest, "ok");
+            toast3("\u5DF2\u662F\u6700\u65B0\u7248\u672C", "success");
+          }
+        } else if (r && r.error) {
+          setAboutStatus(r.error, "err");
+        } else {
+          setAboutStatus("\u68C0\u67E5\u66F4\u65B0\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5", "err");
+        }
+      }).catch(function(e) {
+        btn.disabled = false;
+        setAboutStatus("\u68C0\u67E5\u66F4\u65B0\u5931\u8D25\uFF1A" + (e && e.message ? e.message : "\u7F51\u7EDC\u5F02\u5E38"), "err");
+      });
+    } else {
+      btn.disabled = false;
+      setAboutStatus("\u6D4F\u89C8\u5668\u73AF\u5883\u672A\u8FDE\u63A5\u66F4\u65B0\u670D\u52A1\uFF0C\u5F53\u524D\u7248\u672C " + APP_VERSION);
+    }
+  }
+  function initAbout() {
+    $("about-close").addEventListener("click", closeAboutModal);
+    $("about-done").addEventListener("click", closeAboutModal);
+    $("about-modal").addEventListener("click", function(e) {
+      if (e.target === $("about-modal")) closeAboutModal();
+    });
+    $("about-check").addEventListener("click", checkUpdate);
+    $("about-changelog").addEventListener("click", function() {
+      openExternal(APP_RELEASES_URL);
+    });
+    $("about-home").addEventListener("click", function() {
+      openExternal(APP_HOME_URL);
+    });
+  }
+
   // src-app/20-craft-init.js
   window.InkpadApp = {
     dirOf,
@@ -9988,6 +10084,7 @@
           if (target) target.click();
           else if (ab === "reveal") revealInFolder();
           else if (ab === "settings") openSettingsModal();
+          else if (ab === "about") openAboutModal();
         });
       });
       document.addEventListener("click", function(e) {
@@ -10120,4 +10217,5 @@
   initApp();
   initCraftSidebar();
   initSettings();
+  initAbout();
 })();
