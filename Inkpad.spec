@@ -5,11 +5,12 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    # 打包资源（Phase 3）：主窗口用 Vite 产物 dist-web/（合并 CSS + 字体 + 脚本拷贝），
+    # 打包资源（Phase 3）：主窗口加载源根 app.html（编辑器壳，原样打包）；
+    # js/ vendor/ 取自 Vite 产物 dist-web/（由插件从源根拷贝）。
     # 独立窗口页 compare.html / image_viewer.html 未走 Vite，原样从源根打包。
     # 注意：打包前先执行 `npm run build` 生成 dist-web/。
     datas=[
-        ('dist-web/index.html', '.'),
+        ('app.html', '.'),
         ('compare.html', '.'),
         ('image_viewer.html', '.'),
         ('dist-web/assets', 'assets'),

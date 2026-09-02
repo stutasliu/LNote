@@ -37,7 +37,7 @@ _runtime_pending_files = []
 _runtime_frontend_ready = False
 
 # 版本号（与 js/app.js 页脚保持一致）
-APP_VERSION = "0.21.11"
+APP_VERSION = "0.21.12"
 
 
 def resource_path(rel: str) -> str:
@@ -1454,10 +1454,10 @@ def main():
     if not _start_ipc_server(api):
         _debug_log("[main] IPC port owned by another instance, exit")
         return
-    index = resource_path("index.html")
+    main_page = resource_path("app.html")
     window = webview.create_window(
         title="L.Note",
-        url=index,
+        url=main_page,
         js_api=api,
         width=1280,
         height=800,

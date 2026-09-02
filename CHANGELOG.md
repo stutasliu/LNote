@@ -2,6 +2,20 @@
 
 本项目所有值得记录的变更均会收录在此文件中。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## \[v0.21.12] - 2026-09-02
+
+### 修复
+
+- **修复安装后打开软件显示官网下载页而非编辑器的问题**：此前主窗口加载的是根目录 `index.html`（该文件同时是官网下载页发布源），v0.21.11 起 `index.html` 被下载页模板占用，导致安装版 / 便携版打开后窗口内容变成 `https://stutasliu.github.io/LNote/` 的下载页面而非本地编辑器。本次将主窗口入口解耦为独立的 `app.html`（编辑器壳，从历史版本恢复），`main.py` 主窗口改为加载 `app.html`，PyInstaller 打包清单（`Inkpad.spec` / `InkpadDebug.spec`）同步改为打包 `app.html`；官网 `index.html` 下载页保持不动，两者互不干扰。
+
+### 测试
+
+- 前端构建通过（`node tools/build-app.js` + `npx vite build`，dist-web 同步更新）；Python 语法检查通过。
+
+- 单元测试通过（`npx vitest run tests/unit`，87 项）。
+
+- PyInstaller 打包成功（`dist\L.Note.exe`）；用户本地手动打开新 exe 验证：打开后显示编辑器界面而非网站页面。
+
 ## \[v0.21.11] - 2026-09-02
 
 ### 新增

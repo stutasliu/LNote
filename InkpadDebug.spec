@@ -4,7 +4,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('dist-web/index.html', '.'),
+        ('app.html', '.'),
         ('compare.html', '.'),
         ('image_viewer.html', '.'),
         ('dist-web/assets', 'assets'),
