@@ -1,5 +1,5 @@
 ﻿#define MyAppName "L.Note"
-#define MyAppVersion "0.21.12"
+#define MyAppVersion "0.21.13"
 #define MyAppExeName "L.Note.exe"
 #define MyAppAssocProgId "L.Note.Image"
 
@@ -93,4 +93,4 @@ Name: "{autoprograms}\{#MyAppName}\{cm:UninstallApp}"; Filename: "{uninstallexe}
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:RunApp}"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:RunApp}"; WorkingDir: "{app}"; Flags: nowait postinstall

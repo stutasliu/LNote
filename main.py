@@ -37,7 +37,7 @@ _runtime_pending_files = []
 _runtime_frontend_ready = False
 
 # 版本号（与 js/app.js 页脚保持一致）
-APP_VERSION = "0.21.12"
+APP_VERSION = "0.21.13"
 
 
 def resource_path(rel: str) -> str:
@@ -1023,20 +1023,21 @@ class InkpadApi:
             return {"error": str(e)}
 
     def check_update(self):
-        """检查最新版本（需联网）。优先 GitHub Releases API，失败回退 Gitee API。
+        """检查最新版本（需联网）。优先 Gitee Releases API（国内直连且始终发布 Release），
+        失败回退 GitHub Releases API（仅发布过部分 Release，可能返回旧版）。
 
-        返回 {"ok": True, "latest": "vX.Y.Z", "url": 发布页, "source": "github"|"gitee",
+        返回 {"ok": True, "latest": "vX.Y.Z", "url": 发布页, "source": "gitee"|"github",
         "current": 当前版本, "update_available": bool}；异常返回 {"error": ...}。"""
         import urllib.request
 
         def fetch_latest():
             sources = (
-                ("github", "https://api.github.com/repos/stutasliu/LNote/releases/latest"),
                 ("gitee", "https://gitee.com/api/v5/repos/x_xiansheng/l.-note/releases/latest"),
+                ("github", "https://api.github.com/repos/stutasliu/LNote/releases/latest"),
             )
             fallback_pages = {
-                "github": "https://github.com/stutasliu/LNote/releases",
                 "gitee": "https://gitee.com/x_xiansheng/l.-note/releases",
+                "github": "https://github.com/stutasliu/LNote/releases",
             }
             last = None
             for name, url in sources:
@@ -1047,17 +1048,117 @@ class InkpadApi:
                     tag = str(data.get("tag_name") or "").strip()
                     if not tag:
                         raise ValueError("未找到版本号")
+                    # 源数据可能滞后（如 GitHub 只含旧 Release）：低于当前版本的结果不可信，
+                    # 跳过该源继续尝试下一源，避免误报“已是最新”。
+                    if _version_greater(APP_VERSION, tag):
+                        raise ValueError("版本数据滞后（%s）" % tag)
                     page = str(data.get("html_url") or "").strip() or fallback_pages.get(name, url)
                     return {"ok": True, "latest": tag, "url": page, "source": name}
                 except Exception as e:
                     last = e
-            return {"error": "无法连接更新服务器：%s" % last}
+            return {"error": "无法获取有效版本信息：%s" % last}
 
         result = fetch_latest()
         if result.get("ok"):
             result["current"] = APP_VERSION
             result["update_available"] = _version_greater(result["latest"], APP_VERSION)
         return result
+
+    def start_update(self, tag: str = ""):
+        """开始自动更新：下载新版安装包 → 静默安装 → 自动重启到新版本。
+
+        tag 为 check_update 返回的 latest（如 "v0.21.13"），留空则自动先查一次。
+        立即返回 {"started": True, "tag": ...}，下载进度与结果通过
+        window.__inkpadUpdateCb(payload) 回调推送：
+        {"state": "downloading", "percent": 0-100| -1 未知, "received", "total"}
+        → {"state": "ready", "path"} → {"state": "installing"}；
+        任一步失败推 {"ok": False, "error": ...}。"""
+        if not str(tag or "").strip():
+            chk = self.check_update()
+            tag = str((chk or {}).get("latest") or "").strip()
+        tag = str(tag or "").strip()
+        if not tag:
+            return {"error": "未指定要更新的版本号"}
+        if getattr(self, "_updating", False):
+            return {"error": "已有更新任务进行中，请稍候"}
+
+        def push(payload):
+            js = "if (window.__inkpadUpdateCb) window.__inkpadUpdateCb(%s);" % json.dumps(
+                payload, ensure_ascii=False
+            )
+            try:
+                if self._window:
+                    self._window.evaluate_js(js)
+            except Exception:
+                pass
+
+        self._updating = True
+
+        def worker():
+            import urllib.request
+            import tempfile
+            import subprocess
+            try:
+                url = _resolve_update_asset(tag)
+                push({"ok": True, "state": "downloading", "percent": 0, "tag": tag})
+                target = os.path.join(
+                    tempfile.gettempdir(), "L.Note-setup-%s.exe" % tag
+                )
+                partial = target + ".part"
+                for p in (partial, target):
+                    if os.path.exists(p):
+                        try:
+                            os.remove(p)
+                        except Exception:
+                            pass
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=20) as resp:
+                    length = resp.headers.get("Content-Length")
+                    total = int(length) if length and str(length).isdigit() else 0
+                    received = 0
+                    with open(partial, "wb") as f:
+                        while True:
+                            chunk = resp.read(64 * 1024)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            received += len(chunk)
+                            percent = int(received * 100 / total) if total > 0 else -1
+                            push({
+                                "ok": True,
+                                "state": "downloading",
+                                "percent": percent,
+                                "received": received,
+                                "total": total,
+                            })
+                os.replace(partial, target)
+                push({"ok": True, "state": "ready", "path": target})
+                time.sleep(0.8)
+                # 以独立进程启动静默安装器（不等待）。安装器 CloseApplications=force
+                # 会接管正在运行的旧进程，装完后由 [Run] 自动启动新版本（/NORESTART
+                # 关闭 RestartApplications，避免安装器再额外拉起一个旧进程）。
+                flags = 0
+                if sys.platform.startswith("win"):
+                    flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+                subprocess.Popen(
+                    [target, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-"],
+                    close_fds=True,
+                    creationflags=flags,
+                )
+                push({"ok": True, "state": "installing"})
+                time.sleep(1.2)
+                try:
+                    if self._window:
+                        self._window.destroy()
+                except Exception:
+                    pass
+            except Exception as e:
+                push({"ok": False, "error": "更新失败：%s" % e})
+            finally:
+                self._updating = False
+
+        threading.Thread(target=worker, daemon=True).start()
+        return {"started": True, "tag": tag}
 
     # ---------- 编码工具 ----------
 
@@ -1163,6 +1264,37 @@ def _version_greater(a: str, b: str) -> bool:
         return out + [0] * (3 - len(out))
 
     return parts(a) > parts(b)
+
+
+def _resolve_update_asset(tag: str) -> str:
+    """根据版本 tag 解析安装包下载直链。
+
+    优先从 Gitee 该 tag 的 Release 附件中匹配 setup 安装包（文件名形如
+    "L.Note-setup-v0.21.13.exe"），失败时回退为按固定命名规则拼接的直链。
+    """
+    pattern = re.compile(r"(?i)l\.note[_\-\s]*setup.*\.exe$")
+    try:
+        import urllib.parse
+        import urllib.request
+
+        api_url = (
+            "https://gitee.com/api/v5/repos/x_xiansheng/l.-note/releases/tags/%s"
+            % urllib.parse.quote(tag)
+        )
+        req = urllib.request.Request(api_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        for asset in data.get("assets") or []:
+            name = str(asset.get("name") or "")
+            direct = str(asset.get("browser_download_url") or "")
+            if pattern.search(name) and direct:
+                return direct
+    except Exception:
+        pass
+    return (
+        "https://gitee.com/x_xiansheng/l.-note/releases/download/%s/"
+        "L.Note-setup-%s.exe" % (tag, tag)
+    )
 
 
 def _do_translate(text: str, target: str) -> dict:

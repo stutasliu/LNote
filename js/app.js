@@ -9657,7 +9657,7 @@
   $("btn-compare").addEventListener("click", openCompareWindow);
 
   // src-app/27-about.js
-  var APP_VERSION = "0.21.12";
+  var APP_VERSION = "0.21.13";
   var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
   var APP_HOME_URL = "https://stutasliu.github.io/LNote/";
   function versionGreater(a, b) {
@@ -9750,6 +9750,140 @@
     $("about-home").addEventListener("click", function() {
       openExternal(APP_HOME_URL);
     });
+  }
+
+  // src-app/28-update.js
+  var _autoChecked = false;
+  var _pendingTag = "";
+  var _updateBusy = false;
+  function setUpdBadge(on) {
+    var el = $("update-badge");
+    if (el) el.style.display = on ? "block" : "none";
+  }
+  function setUpdStatus(text, cls) {
+    var el = $("update-status");
+    el.textContent = text || "";
+    el.className = "update-status" + (cls ? " " + cls : "");
+  }
+  function closeUpdateModal() {
+    $("update-modal").style.display = "none";
+  }
+  function showUpdateModal(latest, current) {
+    if (!latest) return;
+    $("update-versions").textContent = "\u5F53\u524D\u7248\u672C " + (current || "") + "  \u2192  \u6700\u65B0\u7248\u672C " + latest;
+    $("update-title").textContent = "\u53D1\u73B0\u65B0\u7248\u672C " + latest;
+    setUpdStatus("", "");
+    var actions = $("update-actions");
+    var prog = $("update-progress");
+    if (actions) actions.style.display = "";
+    if (prog) prog.style.display = "none";
+    openSingleModal("update-modal");
+  }
+  function _setUpdProgressView() {
+    var actions = $("update-actions");
+    var prog = $("update-progress");
+    if (actions) actions.style.display = "none";
+    if (prog) prog.style.display = "block";
+  }
+  function _setUpdProgress(percent) {
+    var bar = $("update-progress");
+    var inner = $("update-progress-inner");
+    var txt = $("update-progress-text");
+    var p = Number(percent);
+    if (isNaN(p) || p < 0) {
+      bar.className = "update-progress indet";
+      inner.style.width = "";
+      txt.textContent = "\u6B63\u5728\u4E0B\u8F7D\u66F4\u65B0\u2026";
+    } else {
+      bar.className = "update-progress";
+      inner.style.width = Math.min(100, Math.max(0, p)) + "%";
+      txt.textContent = "\u6B63\u5728\u4E0B\u8F7D\u66F4\u65B0 " + Math.round(p) + "%";
+    }
+  }
+  function _failUpdate(msg) {
+    _updateBusy = false;
+    setUpdStatus(msg, "err");
+    var actions = $("update-actions");
+    var prog = $("update-progress");
+    if (actions) actions.style.display = "";
+    if (prog) prog.style.display = "none";
+    setUpdBadge(true);
+  }
+  function _onUpdateCb(p) {
+    if (!p || typeof p !== "object") return;
+    if (p.ok === false) {
+      _failUpdate(p.error || "\u66F4\u65B0\u5931\u8D25");
+      return;
+    }
+    var s = p.state;
+    if (s === "downloading") {
+      _setUpdProgress(p.percent);
+    } else if (s === "ready") {
+      var txt = $("update-progress-text");
+      if (txt) txt.textContent = "\u4E0B\u8F7D\u5B8C\u6210\uFF0C\u6B63\u5728\u5B89\u88C5\u2026";
+    } else if (s === "installing") {
+      var txt2 = $("update-progress-text");
+      if (txt2) txt2.textContent = "\u6B63\u5728\u5B89\u88C5\uFF0C\u5B89\u88C5\u5B8C\u6210\u540E\u5C06\u81EA\u52A8\u91CD\u542F\u2026";
+    }
+  }
+  function startUpdate() {
+    if (_updateBusy) return;
+    var api = getApi();
+    if (!api || !api.start_update) {
+      toast3("\u5F53\u524D\u73AF\u5883\u4E0D\u652F\u6301\u81EA\u52A8\u66F4\u65B0", "err");
+      return;
+    }
+    var tag = _pendingTag;
+    if (!tag) {
+      toast3("\u7F3A\u5C11\u76EE\u6807\u7248\u672C\u4FE1\u606F\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5", "err");
+      return;
+    }
+    _updateBusy = true;
+    setUpdStatus("", "");
+    _setUpdProgressView();
+    _setUpdProgress(-1);
+    window.__inkpadUpdateCb = _onUpdateCb;
+    api.start_update(tag).then(function(r) {
+      if (!r) return;
+      if (r.error) _failUpdate(r.error);
+      else if (!r.started) _failUpdate("\u66F4\u65B0\u4EFB\u52A1\u672A\u80FD\u542F\u52A8");
+    }).catch(function(e) {
+      _failUpdate("\u66F4\u65B0\u5931\u8D25\uFF1A" + (e && e.message ? e.message : "\u7F51\u7EDC\u5F02\u5E38"));
+    });
+  }
+  function autoCheckUpdate() {
+    if (_autoChecked) return;
+    _autoChecked = true;
+    var api = getApi();
+    if (!api || !api.check_update) return;
+    api.check_update().then(function(r) {
+      if (r && r.ok && r.update_available && r.latest) {
+        _pendingTag = r.latest;
+        setUpdBadge(true);
+        showUpdateModal(r.latest, r.current);
+      }
+    }).catch(function(e) {
+      console.warn("[lnote] \u542F\u52A8\u81EA\u52A8\u66F4\u65B0\u68C0\u67E5\u5931\u8D25\uFF1A" + (e && e.message ? e.message : e));
+    });
+  }
+  function initAutoUpdate() {
+    $("update-close").addEventListener("click", closeUpdateModal);
+    $("update-later").addEventListener("click", closeUpdateModal);
+    $("update-now").addEventListener("click", startUpdate);
+    $("update-modal").addEventListener("click", function(e) {
+      if (e.target === $("update-modal")) closeUpdateModal();
+    });
+    var boot = function() {
+      setTimeout(autoCheckUpdate, 1200);
+    };
+    if (hasApi()) {
+      boot();
+    } else {
+      window.addEventListener("pywebviewready", function h() {
+        window.removeEventListener("pywebviewready", h);
+        boot();
+      }, { once: true });
+    }
   }
 
   // src-app/20-craft-init.js
@@ -10257,5 +10391,6 @@
   initCraftSidebar();
   initSettings();
   initAbout();
+  initAutoUpdate();
   initRuntimeHandoff();
 })();

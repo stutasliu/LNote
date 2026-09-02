@@ -12,6 +12,7 @@ import { toast, renameDoc, newSticky, matchReminder, fmtStamp, revealInFolder } 
 import { initEvents } from './17-events.js';
 import { initSettings, openSettingsModal } from './26-settings.js';
 import { initAbout, openAboutModal } from './27-about.js';
+import { initAutoUpdate } from './28-update.js';
 import { initApp, openPendingExternal, initRuntimeHandoff } from './18-bootstrap.js';
 import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchDestroy, batchExport, renameDocId, closeDocMenu, pendingDelId, renderList, renderSideSub, openTagEditModal, closeTagEditModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, stickyEditSave, syncSortButton, toggleSortGroup } from './06-doc-list.js';
 
@@ -527,6 +528,7 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
   initCraftSidebar();
   initSettings();
   initAbout();
+  initAutoUpdate();
 
   // 全部初始化完成后才向后端宣告就绪（单实例接力）：
   // 安装 window.__inkpadOpenExternalFiles 处理器 + 调用 frontend_ready()，
