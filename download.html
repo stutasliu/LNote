@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>L.Note - 本地 Notion 风文本编辑器 · 下载</title>
-<meta name="description" content="L.Note（Inkpad）是一款本地运行的 Notion 风文本编辑器：语法高亮、Markdown 实时预览、Mermaid 图表、JSON/XML 格式化。免费、纯本地、免安装。">
+<meta name="description" content="L.Note（Inkpad）是一款本地运行的 Notion 风文本编辑器：语法高亮、Markdown 实时预览、Mermaid 图表、JSON/XML 格式化。免费、纯本地运行，提供 Windows 安装版与免安装便携版。">
+<link rel="icon" type="image/png" href="resource/app_32.png">
 <style>
   :root {
     --bg: #0f1117;
@@ -31,11 +32,10 @@
   .logo {
     width: 84px; height: 84px; margin: 0 auto 22px;
     border-radius: 22px;
-    background: linear-gradient(135deg, #3370ff, #7b4dff);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 34px; font-weight: 700; color: #fff;
+    overflow: hidden;
     box-shadow: 0 12px 40px rgba(51,112,255,.35);
   }
+  .logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
   h1 { font-size: 40px; font-weight: 700; letter-spacing: .5px; }
   .tagline { color: var(--muted); font-size: 16px; margin-top: 12px; }
   .badge {
@@ -72,6 +72,26 @@
     font-family: Consolas, Menlo, monospace; font-size: 12px;
     color: var(--green); user-select: all;
   }
+
+  .dl-grid {
+    margin: 36px auto 0; max-width: 760px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 700px) { .dl-grid { grid-template-columns: 1fr; } }
+  .dl-grid .dl-card { margin: 0; max-width: none; padding: 28px 24px; }
+  .dl-tag {
+    display: inline-block; margin-bottom: 14px; padding: 3px 10px;
+    border-radius: 999px; font-size: 12px; letter-spacing: .3px;
+    background: rgba(51,112,255,.12); color: var(--accent-2);
+    border: 1px solid rgba(51,112,255,.35);
+  }
+  .dl-tag.alt { background: transparent; border-color: var(--line); color: var(--muted); }
+  .dl-btn.alt {
+    background: transparent; border: 1px solid var(--accent);
+    color: var(--accent-2); box-shadow: none;
+    padding: 12px 26px; font-size: 15px;
+  }
+  .dl-btn.alt:hover { background: rgba(51,112,255,.08); transform: none; box-shadow: none; }
 
   .notice {
     margin: 20px auto 0; max-width: 640px;
@@ -163,26 +183,43 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="logo">L.</div>
+    <div class="logo"><img src="resource/app_512.png" alt="L.Note"></div>
     <h1>L.Note</h1>
     <p class="tagline">本地 Notion 风文本编辑器 —— 语法高亮 · Markdown 预览 · Mermaid 图表 · JSON/XML 工具</p>
-    <div class="badge">免费 · 免安装 · 纯本地运行 · 无需联网 · <b>v0.21.11</b></div>
+    <div class="badge">免费 · 纯本地运行 · 无需联网 · 安装版 / 便携版可选 · <b>v0.21.11</b></div>
   </header>
 
-  <div class="dl-card">
-    <a class="dl-btn" href="L.Note-v0.21.11-win64.exe" download>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-      下载 L.Note v0.21.11（Windows）
-    </a>
-    <div class="dl-meta">
-      便携版 · 约 18 MB · Windows 10/11（x64）<br>
-      SHA256（可复制核对）：<br>
-      <code class="hash">00FD9389162672446CF0D3F9AFC9EEDB4CB51BACF166BA1C98FE749344232D70</code>
+  <div class="dl-grid">
+    <div class="dl-card">
+      <div class="dl-tag">推荐 · 安装版</div>
+      <a class="dl-btn" href="L.Note-setup-v0.21.11.exe" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        下载安装版 v0.21.11
+      </a>
+      <div class="dl-meta">
+        安装向导 · 约 18.3 MB · Windows 10/11（x64）<br>
+        可选注册 .md / .markdown / 图片文件关联，含卸载程序<br>
+        SHA256（可复制核对）：<br>
+        <code class="hash">E876288661A36C826D315034B8DC55D7A318E7EA0B0FFE15B56788CA140E751E</code>
+      </div>
+    </div>
+    <div class="dl-card">
+      <div class="dl-tag alt">免安装 · 便携版</div>
+      <a class="dl-btn alt" href="L.Note-v0.21.11-win64.exe" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        下载便携版 v0.21.11
+      </a>
+      <div class="dl-meta">
+        免安装 · 约 18 MB · Windows 10/11（x64）<br>
+        双击直接运行；需要文件关联时用 register-file-assoc.ps1<br>
+        SHA256（可复制核对）：<br>
+        <code class="hash">00FD9389162672446CF0D3F9AFC9EEDB4CB51BACF166BA1C98FE749344232D70</code>
+      </div>
     </div>
   </div>
 
   <div class="notice">
-    <b>首次运行提示：</b>当前版本未做代码签名，Windows SmartScreen 可能提示「未知发布者」。点击「更多信息」→「仍要运行」即可正常使用；核对上方 SHA256 可确认文件完整安全。
+    <b>首次运行提示：</b>安装版与便携版均未做代码签名，Windows SmartScreen 可能提示「未知发布者」。点击「更多信息」→「仍要运行」即可正常使用；核对上方对应文件的 SHA256 可确认文件完整安全。
   </div>
 
   <section>
@@ -268,7 +305,8 @@
       <div class="panel">
         <h3>安装与运行</h3>
         <ul>
-          <li>双击 <b>L.Note-v0.21.11-win64.exe</b>，免安装直接运行</li>
+          <li><b>安装版（推荐）：</b>双击 L.Note-setup-v0.21.11.exe，按向导完成安装；勾选「注册文件关联」后，.md / .markdown / 图片文件即可双击用 L.Note 打开</li>
+          <li><b>便携版：</b>双击 L.Note-v0.21.11-win64.exe，免安装直接运行</li>
           <li>依赖 Edge WebView2 运行时（Win11 自带，Win10 一般已预装）</li>
           <li>数据保存在本机浏览器存储，卸载/换机前请先导出备份</li>
         </ul>
@@ -276,8 +314,9 @@
       <div class="panel">
         <h3>验证文件完整性</h3>
         <ul>
-          <li>复制上方 SHA256 值</li>
+          <li>复制上方对应文件的 SHA256 值</li>
           <li>在 exe 所在目录执行：</li>
+          <li><b>certutil -hashfile L.Note-setup-v0.21.11.exe SHA256</b></li>
           <li><b>certutil -hashfile L.Note-v0.21.11-win64.exe SHA256</b></li>
           <li>比对输出哈希是否一致</li>
         </ul>
