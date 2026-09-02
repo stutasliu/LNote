@@ -3769,6 +3769,45 @@
       console.warn("[inkpad] cleanup orphans failed", e);
     });
   }
+  var runtimeHandoffBusy = false;
+  function initRuntimeHandoff() {
+    if (runtimeHandoffBusy) return;
+    runtimeHandoffBusy = true;
+    dbgLog2("initRuntimeHandoff enter");
+    window.__inkpadOpenExternalFiles = function(items) {
+      dbgLog2("__inkpadOpenExternalFiles: " + JSON.stringify(items));
+      (items || []).forEach(function(it) {
+        try {
+          if (!it || !it.path) return;
+          var p = String(it.path);
+          var name = it.name || (p.split(/[\\/]/).pop() || "\u6587\u4EF6");
+          dbgLog2("runtime open external: " + p);
+          openDiskFile(p, name);
+        } catch (e) {
+          dbgLog2("runtime open external error: " + (e && e.message));
+          console.warn("[inkpad] runtime open external failed", e);
+        }
+      });
+    };
+    var notifyReady = function() {
+      try {
+        dbgLog2("call frontend_ready");
+        getApi().frontend_ready();
+      } catch (e) {
+        dbgLog2("frontend_ready error: " + (e && e.message));
+        console.warn("[inkpad] frontend_ready failed", e);
+      }
+    };
+    if (!hasApi()) {
+      window.addEventListener("pywebviewready", function h() {
+        window.removeEventListener("pywebviewready", h);
+        dbgLog2("pywebviewready fired -> retry handoff");
+        notifyReady();
+      }, { once: true });
+      return;
+    }
+    notifyReady();
+  }
 
   // src-app/19-find-replace.js
   var FR_VERSION = 2;
@@ -10218,4 +10257,5 @@
   initCraftSidebar();
   initSettings();
   initAbout();
+  initRuntimeHandoff();
 })();

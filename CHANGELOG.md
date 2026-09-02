@@ -30,11 +30,17 @@
 
 - **思维导图批量删除子孙**：Ctrl+Delete / Ctrl+Backspace 一键删除选中节点的所有子孙节点。
 
+- **单实例运行时接力（「打开方式」直达已运行实例）**：主编辑器启动后在 `127.0.0.1:47331` 后台监听 IPC（socket + 4 字节长度前缀 JSON）；再次通过文件关联 /「打开方式」/ 命令行传文档启动时，若已有实例在运行，不再创建第二个主窗口，而是把文档路径转发给已运行实例，由前端 `window.__inkpadOpenExternalFiles` 处理器在**当前窗口**打开（复用磁盘文件打开链路）。前端初始化完成前到达的文档先入队，`frontend_ready()` 就绪握手后自动冲刷打开；接力成功后自动把主窗口还原到前台（Windows：还原最小化 + `SetForegroundWindow`）。图片文件仍走独立图片编辑窗口流程，不参与接力。
+
+- **Windows 安装版（Inno Setup 6）**：新增 `installer/LNote.iss` 安装脚本，`_build_exe.bat` 在 PyInstaller 打包成功后自动调用 ISCC 生成安装包（`release\L.Note-setup-v0.21.11.exe`，约 18.3 MB）。安装向导默认安装到 `%LOCALAPPDATA%\Programs\L.Note`，提供桌面 / 开始菜单快捷方式，可选注册 `.md/.markdown` 与常见图片文件关联，含卸载程序；`download.html` / `index.html` / `RELEASE-NOTES.md` / `SHA256SUMS.txt` 同步新增安装版下载入口与校验和。
+
 ### 测试
 
 - 前端构建通过（`node tools/build-app.js` + `npx vite build`，dist-web 同步更新）；Python 语法检查通过；PyInstaller 打包成功（`dist\L.Note.exe`）。
 
 - 单元测试通过（`npx vitest run tests/unit`，87 项）。
+
+- Inno Setup 6.7.3 编译安装包通过（`release\L.Note-setup-v0.21.11.exe`）；安装 / 卸载冒烟验证通过（默认安装路径、快捷方式、卸载清理、可选文件关联）。
 
 ## \[v0.21.10] - 2026-09-01
 

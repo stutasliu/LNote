@@ -12,6 +12,7 @@ import base64
 import json
 import struct
 import re
+import socket
 import html as _html
 
 import webview
@@ -24,6 +25,16 @@ pending_image = None
 
 # 供主编辑器窗口读取的「打开方式」传入的非图片文件
 pending_open_file = None
+
+# ---- 单实例 IPC（仅主编辑器进程参与） ----
+# 主编辑器进程在 127.0.0.1:IPC_PORT 后台监听；后续「打开方式」启动的进程
+# 连接成功并应答 ok 后，把文档路径转发过来并立即退出，不再重复创建主编辑器窗口。
+IPC_HOST = "127.0.0.1"
+IPC_PORT = 47331
+
+# 主编辑器前端就绪（frontend_ready 回调）前收到的「打开方式」文件队列
+_runtime_pending_files = []
+_runtime_frontend_ready = False
 
 # 版本号（与 js/app.js 页脚保持一致）
 APP_VERSION = "0.21.11"
@@ -534,6 +545,26 @@ class InkpadApi:
         """
         _debug_log("[api] get_pending_open_file -> " + repr(pending_open_file))
         return pending_open_file
+
+    def frontend_ready(self):
+        """主编辑器前端初始化完成回调（单实例接力）。
+
+        前端安装 window.__inkpadOpenExternalFiles 后调用本方法：
+        1) 告知后端前端已就绪，可以直接 evaluate_js 推送文件；
+        2) 把就绪前第二个实例转发来、已入队的文件一次性冲刷到前端打开。
+        """
+        global _runtime_frontend_ready
+        _debug_log("[api] frontend_ready, queued=" + repr(_runtime_pending_files))
+        _runtime_frontend_ready = True
+        if _runtime_pending_files:
+            items = _runtime_pending_files[:]
+            _runtime_pending_files[:] = []
+            # 与 translate 的推送一致：在 worker 线程里 evaluate_js，
+            # 避免在 js_api 调用栈内同步执行 JS 的重入问题。
+            threading.Thread(
+                target=_push_open_to_frontend, args=(self, items), daemon=True
+            ).start()
+        return True
 
     def debug_log(self, msg):
         """供前端写入调试日志，排查「打开方式」自动打开链路。"""
@@ -1217,8 +1248,183 @@ def _launch_image_editor(path: str):
     webview.start(private_mode=False)
 
 
+def _recv_exact(conn, n: int):
+    """从 socket 精确读取 n 字节；连接关闭或超时返回 None。"""
+    buf = b""
+    while len(buf) < n:
+        try:
+            chunk = conn.recv(n - len(buf))
+        except Exception:
+            return None
+        if not chunk:
+            return None
+        buf += chunk
+    return buf
+
+
+def _try_forward_to_running_instance() -> bool:
+    """若已有主编辑器实例在运行（IPC 端口可连且应答 ok），把本次命令行
+    传入的非图片文档路径转发过去并返回 True；调用方应立即退出、不再建窗口。
+
+    只转发文档：图片仍走原有「独立图片编辑窗口」流程，避免丢失编辑能力。
+    端口被其它程序占用但不应答 ok 时视为无运行实例，正常启动。
+    """
+    docs = [os.path.abspath(a) for a in sys.argv[1:] if _is_openable_file(a)]
+    if not docs:
+        return False
+    s = None
+    try:
+        s = socket.create_connection((IPC_HOST, IPC_PORT), timeout=1.0)
+        payload = json.dumps({"cmd": "open", "paths": docs}).encode("utf-8")
+        s.sendall(struct.pack(">I", len(payload)) + payload)
+        s.settimeout(1.5)
+        resp = _recv_exact(s, 2)  # 主实例应答 "ok" 才视为接力成功
+        _debug_log("[ipc] forward resp=" + repr(resp) + " paths=" + repr(docs))
+        return resp == b"ok"
+    except Exception as e:
+        _debug_log("[ipc] no running instance to forward: " + str(e))
+        return False
+    finally:
+        if s is not None:
+            try:
+                s.close()
+            except Exception:
+                pass
+
+
+def _dispatch_open_paths(api, paths):
+    """把第二个实例转发来的文档路径交给主编辑器前端打开。
+
+    前端未就绪（frontend_ready 尚未调用）时先入队，就绪后由
+    frontend_ready 统一冲刷；就绪后到达的文件直接推送。
+    """
+    global _runtime_frontend_ready
+    items = []
+    for p in paths:
+        if _is_openable_file(p):
+            items.append({"path": os.path.abspath(p), "name": os.path.basename(p)})
+    if not items:
+        return
+    if not _runtime_frontend_ready:
+        _runtime_pending_files.extend(items)
+        _debug_log("[ipc] frontend not ready, queued: " + repr(items))
+        return
+    _push_open_to_frontend(api, items)
+
+
+def _push_open_to_frontend(api, items):
+    """通过 evaluate_js 调用前端 window.__inkpadOpenExternalFiles 打开文件。"""
+    js = (
+        "if (window.__inkpadOpenExternalFiles) "
+        "window.__inkpadOpenExternalFiles(%s);"
+        % json.dumps(items, ensure_ascii=False)
+    )
+    try:
+        win = api._window if api is not None else None
+        if win is not None:
+            win.evaluate_js(js)
+            _debug_log("[ipc] pushed to frontend: " + repr(items))
+    except Exception as e:
+        _debug_log("[ipc] push to frontend failed: " + str(e))
+
+
+def _focus_primary_window(api):
+    """尽力把主编辑器窗口带到前台（Windows：还原最小化 + SetForegroundWindow）。"""
+    try:
+        win = api._window if api is not None else None
+        native = getattr(win, "native", None)
+        if native is None:
+            return
+        hwnd = None
+        try:
+            hwnd = int(native.Handle.ToInt32())
+        except Exception:
+            try:
+                hwnd = int(native.Handle)
+            except Exception:
+                hwnd = None
+        if hwnd:
+            import ctypes
+
+            ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE（还原最小化）
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+    except Exception:
+        pass
+
+
+def _start_ipc_server(api) -> bool:
+    """主编辑器实例的后台 IPC 监听：接收第二个实例转发的文件路径并推送打开。
+
+    绑定失败（端口已被其它主实例占用）返回 False，调用方应退出，
+    避免出现第二个主编辑器窗口。成功则返回 True。
+    """
+    srv = None
+    try:
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # 注意：Windows 上不要设 SO_REUSEADDR，否则两个实例可能同时绑定成功
+        srv.bind((IPC_HOST, IPC_PORT))
+        srv.listen(8)
+    except Exception as e:
+        _debug_log("[ipc] bind %s:%s failed: %s" % (IPC_HOST, IPC_PORT, e))
+        return False
+    _debug_log("[ipc] primary listening on %s:%s" % (IPC_HOST, IPC_PORT))
+
+    def loop():
+        try:
+            while True:
+                conn = None
+                try:
+                    conn, _addr = srv.accept()
+                except Exception:
+                    time.sleep(0.2)
+                    continue
+                try:
+                    conn.settimeout(3.0)
+                    head = _recv_exact(conn, 4)
+                    if head is None:
+                        continue
+                    (n,) = struct.unpack(">I", head)
+                    if n <= 0 or n > (1 << 20):
+                        continue
+                    body = _recv_exact(conn, n)
+                    if body is None:
+                        continue
+                    try:
+                        conn.sendall(b"ok")
+                    except Exception:
+                        pass
+                    try:
+                        msg = json.loads(body.decode("utf-8"))
+                    except Exception:
+                        continue
+                    _debug_log("[ipc] received: " + repr(msg))
+                    paths = msg.get("paths") or []
+                    if paths:
+                        _dispatch_open_paths(api, paths)
+                        _focus_primary_window(api)
+                except Exception as e:
+                    _debug_log("[ipc] serve error: " + str(e))
+                finally:
+                    if conn is not None:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+    threading.Thread(target=loop, daemon=True).start()
+    return True
+
+
 def main():
     _debug_log("[main] start, argv = " + repr(sys.argv))
+    # 单实例接力：若主编辑器已在运行，把「打开方式」传入的文档转发过去
+    # 并立即退出，避免重复启动一个应用窗口（双击文档出现两个 L.Note）。
+    if _try_forward_to_running_instance():
+        _debug_log("[main] forwarded to running instance, exit")
+        return
+
     # 右键「打开方式」传图片路径 → 进入单图编辑模式，不加载主编辑器
     for arg in sys.argv[1:]:
         if _is_image_arg(arg):
@@ -1243,6 +1449,11 @@ def main():
         _debug_log("[main] no pending open file")
 
     api = InkpadApi()
+    # 单实例 IPC：尽早绑定端口、成为主编辑器实例（端口被占用则说明已有
+    # 主实例在运行，属转发竞态，本进程直接退出避免出现重复窗口）。
+    if not _start_ipc_server(api):
+        _debug_log("[main] IPC port owned by another instance, exit")
+        return
     index = resource_path("index.html")
     window = webview.create_window(
         title="L.Note",

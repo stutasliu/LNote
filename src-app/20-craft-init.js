@@ -12,7 +12,7 @@ import { toast, renameDoc, newSticky, matchReminder, fmtStamp, revealInFolder } 
 import { initEvents } from './17-events.js';
 import { initSettings, openSettingsModal } from './26-settings.js';
 import { initAbout, openAboutModal } from './27-about.js';
-import { initApp, openPendingExternal } from './18-bootstrap.js';
+import { initApp, openPendingExternal, initRuntimeHandoff } from './18-bootstrap.js';
 import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchDestroy, batchExport, renameDocId, closeDocMenu, pendingDelId, renderList, renderSideSub, openTagEditModal, closeTagEditModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, stickyEditSave, syncSortButton, toggleSortGroup } from './06-doc-list.js';
 
   // 暴露给块编辑器（block-editor.js）使用的辅助函数
@@ -527,3 +527,8 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
   initCraftSidebar();
   initSettings();
   initAbout();
+
+  // 全部初始化完成后才向后端宣告就绪（单实例接力）：
+  // 安装 window.__inkpadOpenExternalFiles 处理器 + 调用 frontend_ready()，
+  // 使第二个实例转发来的文档能在此窗口打开，就绪前入队的文件也会被冲刷。
+  initRuntimeHandoff();

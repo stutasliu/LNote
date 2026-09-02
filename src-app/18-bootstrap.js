@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { FR_STORAGE, frState, FR_HL_HARD_CAP, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_BATCH, FR_BACK_MAX, initApp, cleanupRichOrphans, openPendingExternal };
+export { FR_STORAGE, frState, FR_HL_HARD_CAP, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_BATCH, FR_BACK_MAX, initApp, cleanupRichOrphans, openPendingExternal, initRuntimeHandoff };
 /* [esm] 导入依赖模块绑定 */
 import { bus, state } from './01-core.js';
 import { bindRichOutline } from './02-rich-outline.js';
@@ -151,4 +151,51 @@ import { initDocMap } from './25-doc-map.js';
       if (del > 0) toast('已清理 ' + del + ' 个历史残留富文档文件（忽略 ' + skp + ' 个非富文档 JSON）', 'success');
       else if (skp > 0) {} // 用户自己的 .json 不打扰
     }).catch(function (e) { console.warn('[inkpad] cleanup orphans failed', e); });
+  }
+
+  // 【单实例接力】运行时「打开方式」文件处理器（第二实例转发 → 本窗口打开）。
+  // 后端 IPC 线程收到第二个实例转发来的文档路径后，通过 evaluate_js 调用
+  // window.__inkpadOpenExternalFiles 在当前界面打开文件（复用 openDiskFile）。
+  // 处理器安装完成后调用 api.frontend_ready() 通知后端：就绪前入队的文件
+  // 会由后端一次性冲刷过来（见 main.py frontend_ready）。
+  var runtimeHandoffBusy = false;
+  function initRuntimeHandoff() {
+    if (runtimeHandoffBusy) return;
+    runtimeHandoffBusy = true;
+    dbgLog('initRuntimeHandoff enter');
+    window.__inkpadOpenExternalFiles = function (items) {
+      dbgLog('__inkpadOpenExternalFiles: ' + JSON.stringify(items));
+      (items || []).forEach(function (it) {
+        try {
+          if (!it || !it.path) return;
+          var p = String(it.path);
+          var name = it.name || (p.split(/[\\/]/).pop() || '文件');
+          dbgLog('runtime open external: ' + p);
+          openDiskFile(p, name);
+        } catch (e) {
+          dbgLog('runtime open external error: ' + (e && e.message));
+          console.warn('[inkpad] runtime open external failed', e);
+        }
+      });
+    };
+    var notifyReady = function () {
+      try {
+        dbgLog('call frontend_ready');
+        getApi().frontend_ready();
+      } catch (e) {
+        dbgLog('frontend_ready error: ' + (e && e.message));
+        console.warn('[inkpad] frontend_ready failed', e);
+      }
+    };
+    if (!hasApi()) {
+      // pywebview 桥尚未注入（极早期/浏览器环境）：等 pywebviewready 后重试。
+      // 纯浏览器环境永远不触发该事件，后端也不存在，无需处理。
+      window.addEventListener('pywebviewready', function h() {
+        window.removeEventListener('pywebviewready', h);
+        dbgLog('pywebviewready fired -> retry handoff');
+        notifyReady();
+      }, { once: true });
+      return;
+    }
+    notifyReady();
   }
