@@ -186,34 +186,34 @@
     <div class="logo"><img src="resource/app_512.png" alt="L.Note"></div>
     <h1>L.Note</h1>
     <p class="tagline">本地 Notion 风文本编辑器 —— 语法高亮 · Markdown 预览 · Mermaid 图表 · JSON/XML 工具</p>
-    <div class="badge">免费 · 纯本地运行 · 无需联网 · 安装版 / 便携版可选 · <b>v0.21.11</b></div>
+    <div class="badge">免费 · 纯本地运行 · 无需联网 · 安装版 / 便携版可选 · <b>v0.21.12</b></div>
   </header>
 
   <div class="dl-grid">
     <div class="dl-card">
       <div class="dl-tag">推荐 · 安装版</div>
-      <a class="dl-btn" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v0.21.11/L.Note-setup-v0.21.11.exe" download>
+      <a class="dl-btn" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v0.21.12/L.Note-setup-v0.21.12.exe" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        下载安装版 v0.21.11
+        下载安装版 v0.21.12
       </a>
       <div class="dl-meta">
         安装向导 · 约 18.3 MB · Windows 10/11（x64）<br>
         可选注册 .md / .markdown / 图片文件关联，含卸载程序<br>
         SHA256（可复制核对）：<br>
-        <code class="hash">E876288661A36C826D315034B8DC55D7A318E7EA0B0FFE15B56788CA140E751E</code>
+        <code class="hash">1501EA7E7C44E41AEFF9427B13EA234FF76DFB1BCECEF6CD71AB605951A4D54B</code>
       </div>
     </div>
     <div class="dl-card">
       <div class="dl-tag alt">免安装 · 便携版</div>
-      <a class="dl-btn alt" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v0.21.11/L.Note-v0.21.11-win64.exe" download>
+      <a class="dl-btn alt" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v0.21.12/L.Note-v0.21.12-win64.exe" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        下载便携版 v0.21.11
+        下载便携版 v0.21.12
       </a>
       <div class="dl-meta">
         免安装 · 约 18 MB · Windows 10/11（x64）<br>
         双击直接运行；需要文件关联时用 register-file-assoc.ps1<br>
         SHA256（可复制核对）：<br>
-        <code class="hash">00FD9389162672446CF0D3F9AFC9EEDB4CB51BACF166BA1C98FE749344232D70</code>
+        <code class="hash">5708D0931C2C1CE91BBA499B70D13420E9E4966ED8F1354F5B842A06515E4919</code>
       </div>
     </div>
   </div>
@@ -305,8 +305,8 @@
       <div class="panel">
         <h3>安装与运行</h3>
         <ul>
-          <li><b>安装版（推荐）：</b>双击 L.Note-setup-v0.21.11.exe，按向导完成安装；勾选「注册文件关联」后，.md / .markdown / 图片文件即可双击用 L.Note 打开</li>
-          <li><b>便携版：</b>双击 L.Note-v0.21.11-win64.exe，免安装直接运行</li>
+          <li><b>安装版（推荐）：</b>双击 L.Note-setup-v0.21.12.exe，按向导完成安装；勾选「注册文件关联」后，.md / .markdown / 图片文件即可双击用 L.Note 打开</li>
+          <li><b>便携版：</b>双击 L.Note-v0.21.12-win64.exe，免安装直接运行</li>
           <li>依赖 Edge WebView2 运行时（Win11 自带，Win10 一般已预装）</li>
           <li>数据保存在本机浏览器存储，卸载/换机前请先导出备份</li>
         </ul>
@@ -316,8 +316,8 @@
         <ul>
           <li>复制上方对应文件的 SHA256 值</li>
           <li>在 exe 所在目录执行：</li>
-          <li><b>certutil -hashfile L.Note-setup-v0.21.11.exe SHA256</b></li>
-          <li><b>certutil -hashfile L.Note-v0.21.11-win64.exe SHA256</b></li>
+          <li><b>certutil -hashfile L.Note-setup-v0.21.12.exe SHA256</b></li>
+          <li><b>certutil -hashfile L.Note-v0.21.12-win64.exe SHA256</b></li>
           <li>比对输出哈希是否一致</li>
         </ul>
       </div>
@@ -326,6 +326,12 @@
 
   <section>
     <h2>更新日志</h2>
+    <div class="changelog">
+      <div class="v">v0.21.12</div>
+      <ul>
+        <li>修复安装后打开软件显示官网下载页而非编辑器的问题：主窗口页面与官网下载页彻底解耦（独立 app.html），并同步更新打包清单</li>
+      </ul>
+    </div>
     <div class="changelog">
       <div class="v">v0.21.11</div>
       <ul>
