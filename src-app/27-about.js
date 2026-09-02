@@ -8,9 +8,9 @@ import { toast } from './16-doc-ops.js';
 
 /* ---------------- 关于：版本号 / 检查更新 / 更新日志 ---------------- */
 // 版本号与 main.py 的 APP_VERSION / package.json 的 version 保持一致
-var APP_VERSION = '0.21.10';
+var APP_VERSION = '0.21.11';
 var APP_RELEASES_URL = 'https://github.com/stutasliu/LNote/releases';
-var APP_HOME_URL = 'https://github.com/stutasliu/LNote';
+var APP_HOME_URL = 'https://stutasliu.github.io/LNote/';
 
 // 与 main.py _version_greater 语义一致的版本比较（a > b 返回 true）
 function versionGreater(a, b) {

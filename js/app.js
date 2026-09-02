@@ -9618,9 +9618,9 @@
   $("btn-compare").addEventListener("click", openCompareWindow);
 
   // src-app/27-about.js
-  var APP_VERSION = "0.21.10";
+  var APP_VERSION = "0.21.11";
   var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
-  var APP_HOME_URL = "https://github.com/stutasliu/LNote";
+  var APP_HOME_URL = "https://stutasliu.github.io/LNote/";
   function versionGreater(a, b) {
     function parts(v) {
       var arr = String(v || "").replace(/^v/i, "").trim().split(".");
