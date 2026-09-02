@@ -160,9 +160,9 @@ import { updateDocMapUI } from './25-doc-map.js';
     if (els.btnRichOutline) {
       els.btnRichOutline.style.display = kind === 'rich' ? '' : 'none';
     }
-    // 流程图专用：🎨 样式设置按钮只在流程图文档显示
+    // 流程图/思维导图专用：🎨 样式设置按钮只在流程图/思维导图文档显示
     if (els.btnStylePanel) {
-      els.btnStylePanel.style.display = kind === 'flow' ? '' : 'none';
+      els.btnStylePanel.style.display = (kind === 'flow' || kind === 'mind') ? '' : 'none';
       els.btnStylePanel.classList.remove('active');
     }
     // 富文档专用：顶部格式工具栏（B/I/U/删除线/代码/引用/列表/表格）只在富文档显示

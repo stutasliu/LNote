@@ -8066,7 +8066,7 @@
       els.btnRichOutline.style.display = kind === "rich" ? "" : "none";
     }
     if (els.btnStylePanel) {
-      els.btnStylePanel.style.display = kind === "flow" ? "" : "none";
+      els.btnStylePanel.style.display = kind === "flow" || kind === "mind" ? "" : "none";
       els.btnStylePanel.classList.remove("active");
     }
     if (els.abToolbar) {
@@ -10005,9 +10005,9 @@
       });
       document.addEventListener("mousedown", function(e) {
         if (!styleBtn.classList.contains("active")) return;
-        if (e.target.closest && e.target.closest(".flow-style-bar")) return;
+        if (e.target.closest && e.target.closest(".flow-style-bar, .mind-style-bar, .mind-ctx-menu")) return;
         if (e.target === styleBtn || styleBtn.contains(e.target)) return;
-        if (e.target.closest && e.target.closest(".flow-node, .flow-edge, .flow-lane")) return;
+        if (e.target.closest && e.target.closest(".flow-node, .flow-edge, .flow-lane, .mind-node, .mind-toggle")) return;
         var mod = state.currentVisual && state.currentVisual.module;
         if (mod && mod.setStylePanelOpen) {
           mod.setStylePanelOpen(false);
