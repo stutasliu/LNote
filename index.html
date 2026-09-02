@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>L.Note - 本地 Notion 风文本编辑器 · 下载</title>
-<link rel="icon" type="image/png" href="resource/app_32.png">
 <meta name="description" content="L.Note（Inkpad）是一款本地运行的 Notion 风文本编辑器：语法高亮、Markdown 实时预览、Mermaid 图表、JSON/XML 格式化。免费、纯本地、免安装。">
 <style>
   :root {
@@ -31,12 +30,12 @@
   header { padding: 72px 0 40px; text-align: center; }
   .logo {
     width: 84px; height: 84px; margin: 0 auto 22px;
-    border-radius: 18px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, #3370ff, #7b4dff);
     display: flex; align-items: center; justify-content: center;
+    font-size: 34px; font-weight: 700; color: #fff;
     box-shadow: 0 12px 40px rgba(51,112,255,.35);
-    overflow: hidden;
   }
-  .logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
   h1 { font-size: 40px; font-weight: 700; letter-spacing: .5px; }
   .tagline { color: var(--muted); font-size: 16px; margin-top: 12px; }
   .badge {
@@ -164,21 +163,21 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="logo"><img src="resource/app_512.png" alt="L.Note"></div>
+    <div class="logo">L.</div>
     <h1>L.Note</h1>
     <p class="tagline">本地 Notion 风文本编辑器 —— 语法高亮 · Markdown 预览 · Mermaid 图表 · JSON/XML 工具</p>
-    <div class="badge">免费 · 免安装 · 纯本地运行 · 无需联网 · <b>v0.21.10</b></div>
+    <div class="badge">免费 · 免安装 · 纯本地运行 · 无需联网 · <b>v0.21.11</b></div>
   </header>
 
   <div class="dl-card">
-    <a class="dl-btn" href="https://github.com/stutasliu/LNote/releases/download/v0.21.10/L.Note-v0.21.10-win64.exe" download>
+    <a class="dl-btn" href="L.Note-v0.21.11-win64.exe" download>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-      下载 L.Note v0.21.10（Windows）
+      下载 L.Note v0.21.11（Windows）
     </a>
     <div class="dl-meta">
-      便携版 · 约 17 MB · Windows 10/11（x64）· <a href="https://github.com/stutasliu/LNote/releases" target="_blank" rel="noopener" style="color:var(--accent-2)">GitHub Releases 备用入口</a><br>
+      便携版 · 约 18 MB · Windows 10/11（x64）<br>
       SHA256（可复制核对）：<br>
-      <code class="hash">fb491dc2472519ec5f6db14a754218e10965355f83b5383f81df74cae1ffa1f9</code>
+      <code class="hash">00FD9389162672446CF0D3F9AFC9EEDB4CB51BACF166BA1C98FE749344232D70</code>
     </div>
   </div>
 
@@ -224,15 +223,6 @@
           <li><b>隐私安全：</b>数据全部保存在本机（localStorage），无需联网、无账号、不上传任何数据</li>
         </ul>
       </div>
-      <div class="detail-block">
-        <h3>🔗 反向链接（Obsidian 风格）</h3>
-        <ul>
-          <li><b>内部链接：</b>正文输入 <code>[[文档标题]]</code> 即建立链接（支持 <code>[[标题|别名]]</code>），编辑器内实时高亮、可点击跳转</li>
-          <li><b>智能识别：</b>自动扫描全部文档，区分「链接当前文件」与「提到当前文件名」（潜在引用）</li>
-          <li><b>一键转链接：</b>潜在引用可一键「转为链接」，正文自动改写为 <code>[[标题]]</code>，面板实时刷新</li>
-          <li><b>计数徽标：</b>右上角「文档信息」按钮显示红色计数徽标，有反向链接时面板自动展开</li>
-        </ul>
-      </div>
     </div>
   </section>
 
@@ -269,11 +259,6 @@
         <figcaption>批量管理 · 多选与批量操作</figcaption>
         <div class="zoom-hint">点击图片可放大查看</div>
       </figure>
-      <figure>
-        <img src="screenshots/blink-1.png" alt="反向链接面板">
-        <figcaption>反向链接 · 徽标计数 + 自动展开</figcaption>
-        <div class="zoom-hint">点击图片可放大查看</div>
-      </figure>
     </div>
   </section>
 
@@ -283,7 +268,7 @@
       <div class="panel">
         <h3>安装与运行</h3>
         <ul>
-          <li>双击 <b>L.Note-v0.21.10-win64.exe</b>，免安装直接运行</li>
+          <li>双击 <b>L.Note-v0.21.11-win64.exe</b>，免安装直接运行</li>
           <li>依赖 Edge WebView2 运行时（Win11 自带，Win10 一般已预装）</li>
           <li>数据保存在本机浏览器存储，卸载/换机前请先导出备份</li>
         </ul>
@@ -293,7 +278,7 @@
         <ul>
           <li>复制上方 SHA256 值</li>
           <li>在 exe 所在目录执行：</li>
-          <li><b>certutil -hashfile L.Note-v0.21.10-win64.exe SHA256</b></li>
+          <li><b>certutil -hashfile L.Note-v0.21.11-win64.exe SHA256</b></li>
           <li>比对输出哈希是否一致</li>
         </ul>
       </div>
@@ -303,9 +288,13 @@
   <section>
     <h2>更新日志</h2>
     <div class="changelog">
-      <div class="v">v0.21.10</div>
+      <div class="v">v0.21.11</div>
       <ul>
-        <li>新增「关于 L.Note」弹窗（更多菜单 → 关于 L.Note）：显示版本号、检查更新（GitHub Releases API，失败自动回退 Gitee）、更新日志与项目主页链接（系统浏览器打开）</li>
+        <li>思维导图右键菜单：添加子节点 / 同级 / 编辑 / 删除 / 复制 / 剪切 / 粘贴 / 折叠展开</li>
+        <li>思维导图复制剪切粘贴：Ctrl+C/X/V 复制粘贴节点子树，支持跨文档粘贴</li>
+        <li>思维导图样式面板升级（节点 / 页面双 Tab）：形状切换（矩形/圆角/椭圆/菱形/六边形）、下划线/删除线、文字对齐、连线样式（粗细/线型/箭头）、布局密度、编号样式、12 套预设主题</li>
+        <li>思维导图拖拽：按住中心主题拖动平移画布，按住非根节点拖动重新排序（幽灵元素 + 插入指示线）</li>
+        <li>思维导图聚焦模式（Ctrl+`）、Shift+Tab 提升节点、Ctrl+Delete 批量删除子孙</li>
       </ul>
     </div>
     <div class="changelog">
@@ -316,47 +305,6 @@
         <li>新增流程图样式设置面板：节点 / 连线 / 泳道样式（23 色色板、线宽、线型、圆角、字号、箭头等），实时预览并持久化</li>
         <li>修复样式设置面板无法关闭、颜色设置不生效的问题</li>
         <li>新增顶栏按钮 hover 提示气泡</li>
-      </ul>
-    </div>
-    <div class="changelog">
-      <div class="v">v0.21.8</div>
-      <ul>
-        <li>新增「设置」面板（更多菜单 → 设置）：通用页支持编辑器字体大小滑块、行号显示开关、自动换行开关，设置持久化并可一键恢复默认</li>
-        <li>新增快捷键自定义：17 项快捷键（保存 / 新建 / 查找 / 替换 / 格式化 / 折叠等）均可录制重绑定，冲突检测支持 Ctrl/Cmd 别名，Windows 与 macOS 自动映射</li>
-        <li>新增 5 项文档类型新建快捷键：新建富文档（Ctrl+Shift+N）、新建流程图（Ctrl+Alt+N）、新建思维导图（Ctrl+Alt+M）、新建思维笔记（Ctrl+Shift+M）、新建便利贴（Ctrl+Alt+S）</li>
-      </ul>
-    </div>
-    <div class="changelog">
-      <div class="v">v0.21.7</div>
-      <ul>
-        <li>顶部格式工具栏（B/I/U/删除线/行内代码/引用/列表/表格）仅在打开富文本文档时显示，其他格式自动隐藏</li>
-        <li>修复隐藏格式工具栏后顶栏右侧按钮（搜索 / 信息面板 / 保存等）左移的问题</li>
-      </ul>
-    </div>
-    <div class="changelog">
-      <div class="v">v0.21.6</div>
-      <ul>
-        <li>文档地图升级为「真实文本缩略图」：视口内渲染文档真实文字（迷你字号字符，可辨识段落形状与内容密度），视口外保留行长度色块</li>
-      </ul>
-    </div>
-    <div class="changelog">
-      <div class="v">v0.21.5</div>
-      <ul>
-        <li>新增 PDF 查看器：文件树双击 /「打开方式」直接打开 .pdf，pdf.js 懒加载渲染、翻页缩放、文本复制、提取为文本</li>
-        <li>新增 Word 文档查看与导入：.docx / .doc 模态查看、一键导入富文档 / Markdown</li>
-        <li>新增文档地图（小地图）：编辑器右侧 130px 代码小地图，视口同步、点击拖拽跳转</li>
-        <li>图片查看器升级为图片编辑器：旋转翻转、裁剪、尺寸调整、滤镜、撤销/保存</li>
-        <li>新增文件关联注册脚本 register-file-assoc.ps1（仅写 HKCU，无需管理员）</li>
-        <li>新增 JSON 结构折叠（json-brace / json-auto）；块编辑器图片增强（更换图片、失败重试）</li>
-        <li>启动性能优化：Mermaid / PDF.js / mammoth 拆分为懒加载包，启动大幅提速</li>
-      </ul>
-    </div>
-    <div class="changelog">
-      <div class="v">v0.21.4</div>
-      <ul>
-        <li>新增「打开所在文件夹」：文档菜单 / 顶栏菜单一键在系统文件管理器中定位文档</li>
-        <li>修复从 Excel 复制内容粘贴被误识别为图片的问题（粘贴改为文本优先）</li>
-        <li>新增选中文本右键菜单「翻译」功能（桌面版，中英互译）</li>
       </ul>
     </div>
     <div class="changelog">
@@ -378,7 +326,6 @@
 
   <footer>
     L.Note（Inkpad）· MIT License · 有问题或建议请到仓库提交 Issue ·
-    <a href="https://github.com/stutasliu/LNote" target="_blank" rel="noopener">GitHub 仓库</a> ·
     <a href="https://gitee.com/x_xiansheng/l.-note" target="_blank" rel="noopener">Gitee 仓库</a>
   </footer>
 </div>
