@@ -228,6 +228,25 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
     return null;
   }
 
+  // 【修复】用户在原生「保存/另存为」对话框里直接输入的文件名，
+  // 也应成为文档标题（与 v0.17「磁盘文件名 = 文档标题」约定保持一致），
+  // 否则保存后侧边栏/标题框仍显示旧名「未命名文档」。
+  function adoptTitleFromPath(d, path) {
+    if (!d || !path) return;
+    var base = String(path).split(/[\\/]/).pop() || '';
+    base = base.replace(/\.[A-Za-z0-9]+$/, '');
+    base = (base || '').trim();
+    if (!base) return;
+    if ((d.title || '').trim() !== base) {
+      d.title = base;
+      d.updated = Date.now();
+      var act = activeDoc();
+      if (act && act.id === d.id && els.title) els.title.value = base;
+    }
+    persist();
+    bus.emit('docs:changed');
+  }
+
   // 保存 / 另存为：forceAsk=true 始终弹「另存为」对话框；false 时若已有 diskPath 则直接覆盖
   function saveDoc(forceAsk) {
     var d = activeDoc();
@@ -269,7 +288,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
         d.diskPath = newPath;
         d.encoding = d.encoding || 'UTF-8';
         d.updated = Date.now();
-        persist();
+        adoptTitleFromPath(d, newPath);
         if (!folderState.openFiles) folderState.openFiles = {};
         folderState.openFiles[normPath(newPath).toLowerCase()] = d.id;
         if (oldPath && oldPath !== newPath) {
@@ -278,7 +297,6 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
         }
         els.statSaved.textContent = '已保存到磁盘';
         els.statSaved.style.color = '#0f7b0f';
-        bus.emit('docs:changed');
         // 区分「保存」（首次保存，无 diskPath）与「另存为」的提示
         toast((forceAsk ? '已另存为：' : '已保存：') + newPath, 'success');
       }).catch(function () {
@@ -322,13 +340,12 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
       d.diskPath = path;
       d.encoding = d.encoding || 'UTF-8';
       d.updated = Date.now();
-      persist();
+      adoptTitleFromPath(d, path);
       // 登记到文件树 openFiles，避免之后双击同一磁盘文件时被当成新文档
       if (!folderState.openFiles) folderState.openFiles = {};
       folderState.openFiles[normPath(path).toLowerCase()] = d.id;
       els.statSaved.textContent = '已保存到磁盘';
       els.statSaved.style.color = '#0f7b0f';
-      bus.emit('docs:changed');
       // 区分「保存」（首次保存，无 diskPath）与「另存为」的提示
       toast((forceAsk ? '已另存为：' : '已保存：') + path, 'success');
     }).catch(function () {

@@ -1,7 +1,7 @@
 /* [esm] 导出本模块顶层绑定 */
 export { initCraftSidebar };
 /* [esm] 导入依赖模块绑定 */
-import { els, state } from './01-core.js';
+import { bus, els, state } from './01-core.js';
 import { activeDoc } from './05-store.js';
 import { refreshDocFromDisk } from './07-doc-open.js';
 import { richChanged } from './09-rich-save.js';
@@ -486,7 +486,12 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
       var val = els.docRenameInput ? els.docRenameInput.value : '';
       val = (val || '').trim();
       if (!val) { toast('文档名不能为空', 'error'); return; }
-      if (renameDoc(renameDocId, val)) { toast('重命名成功', 'success'); }
+      if (renameDoc(renameDocId, val)) {
+        var act = activeDoc();
+        if (act && act.id === renameDocId && els.title) els.title.value = val;
+        bus.emit('docs:changed');
+        toast('重命名成功', 'success');
+      }
       closeRename();
     }
     if (els.docRenameConfirm) els.docRenameConfirm.addEventListener('click', confirmRename);

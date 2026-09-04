@@ -2768,6 +2768,21 @@
     if (d && d.diskPath) return dirOf(d.diskPath);
     return null;
   }
+  function adoptTitleFromPath(d, path) {
+    if (!d || !path) return;
+    var base = String(path).split(/[\\/]/).pop() || "";
+    base = base.replace(/\.[A-Za-z0-9]+$/, "");
+    base = (base || "").trim();
+    if (!base) return;
+    if ((d.title || "").trim() !== base) {
+      d.title = base;
+      d.updated = Date.now();
+      var act = activeDoc();
+      if (act && act.id === d.id && els.title) els.title.value = base;
+    }
+    persist();
+    bus.emit("docs:changed");
+  }
   function saveDoc(forceAsk) {
     var d = activeDoc();
     if (!d) {
@@ -2806,7 +2821,7 @@
         d.diskPath = newPath;
         d.encoding = d.encoding || "UTF-8";
         d.updated = Date.now();
-        persist();
+        adoptTitleFromPath(d, newPath);
         if (!folderState.openFiles) folderState.openFiles = {};
         folderState.openFiles[normPath(newPath).toLowerCase()] = d.id;
         if (oldPath && oldPath !== newPath) {
@@ -2815,7 +2830,6 @@
         }
         els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
         els.statSaved.style.color = "#0f7b0f";
-        bus.emit("docs:changed");
         toast3((forceAsk ? "\u5DF2\u53E6\u5B58\u4E3A\uFF1A" : "\u5DF2\u4FDD\u5B58\uFF1A") + newPath, "success");
       }).catch(function() {
         toast3("\u4FDD\u5B58\u5931\u8D25", "error");
@@ -2856,12 +2870,11 @@
       d.diskPath = path;
       d.encoding = d.encoding || "UTF-8";
       d.updated = Date.now();
-      persist();
+      adoptTitleFromPath(d, path);
       if (!folderState.openFiles) folderState.openFiles = {};
       folderState.openFiles[normPath(path).toLowerCase()] = d.id;
       els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
       els.statSaved.style.color = "#0f7b0f";
-      bus.emit("docs:changed");
       toast3((forceAsk ? "\u5DF2\u53E6\u5B58\u4E3A\uFF1A" : "\u5DF2\u4FDD\u5B58\uFF1A") + path, "success");
     }).catch(function() {
       toast3("\u4FDD\u5B58\u5931\u8D25", "error");
@@ -9657,7 +9670,7 @@
   $("btn-compare").addEventListener("click", openCompareWindow);
 
   // src-app/27-about.js
-  var APP_VERSION = "0.21.13";
+  var APP_VERSION = "0.21.14";
   var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
   var APP_HOME_URL = "https://stutasliu.github.io/LNote/";
   function versionGreater(a, b) {
@@ -10355,6 +10368,9 @@
         return;
       }
       if (renameDoc(renameDocId, val)) {
+        var act = activeDoc();
+        if (act && act.id === renameDocId && els.title) els.title.value = val;
+        bus.emit("docs:changed");
         toast3("\u91CD\u547D\u540D\u6210\u529F", "success");
       }
       closeRename();
