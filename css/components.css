@@ -2575,6 +2575,56 @@
   display: inline-flex;
 }
 
+/* ---- v0.21.6 更多菜单：分组就地展开 ---- */
+#appbar-menu {
+  max-height: min(560px, calc(100vh - 84px));
+  overflow-y: auto;
+}
+.ab-group-label {
+  padding: 6px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  letter-spacing: 0.03em;
+  user-select: none;
+}
+.ab-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ab-trigger .submenu-arrow {
+  display: inline-block;
+  flex-shrink: 0;
+  transition: transform 0.15s var(--ease);
+}
+.ab-trigger[aria-expanded="true"] {
+  background: var(--hover);
+}
+.ab-trigger[aria-expanded="true"] .submenu-arrow {
+  transform: rotate(180deg);
+}
+.ab-sub {
+  margin: 2px 0 4px;
+  padding: 4px;
+  border-radius: 7px;
+  background: var(--surface-variant);
+}
+.ab-sub .menu-item {
+  padding: 6px 10px 6px 18px;
+}
+.ab-sub .menu-divider {
+  margin: 3px 8px;
+}
+.ab-sub-label {
+  padding: 5px 10px 2px 18px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  user-select: none;
+}
+
 /* 工具栏间距（兼容旧代码） */
 .toolbar-spacer { display: none; }
 

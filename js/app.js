@@ -9670,7 +9670,7 @@
   $("btn-compare").addEventListener("click", openCompareWindow);
 
   // src-app/27-about.js
-  var APP_VERSION = "0.21.14";
+  var APP_VERSION = "0.21.15";
   var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
   var APP_HOME_URL = "https://stutasliu.github.io/LNote/";
   function versionGreater(a, b) {
@@ -10242,39 +10242,97 @@
       });
     }
     if (btnMore && appbarMenu) {
+      var collapseMoreSubs = function() {
+        Array.prototype.forEach.call(appbarMenu.querySelectorAll(".ab-sub"), function(s) {
+          s.style.display = "none";
+          var tr = appbarMenu.querySelector('.ab-trigger[data-ab="' + s.getAttribute("data-ab-sub") + '"]');
+          if (tr) tr.setAttribute("aria-expanded", "false");
+        });
+      };
+      var setMoreVisible = function(sel, on) {
+        Array.prototype.forEach.call(appbarMenu.querySelectorAll(sel), function(el) {
+          el.style.display = on ? "" : "none";
+        });
+      };
+      var refreshMoreMenu = function() {
+        var d = activeDoc();
+        var kind = d ? d.kind || "text" : "";
+        var isText = kind === "text";
+        var isRich = kind === "rich";
+        var isTextOrRich = isText || isRich;
+        var previewable = !!(d && isText && (d.lang === "markdown" || d.lang === "html"));
+        setMoreVisible("#appbar-menu > .ab-group-label", isText);
+        setMoreVisible('[data-ab="encoding"],[data-ab="compare"],[data-ab="xml"],.ab-trigger[data-ab="json"],.ab-trigger[data-ab="convert"],.ab-trigger[data-ab="texttools"]', isText);
+        setMoreVisible('[data-ab-sub="json"],[data-ab-sub="convert"],[data-ab-sub="texttools"]', isText);
+        setMoreVisible('.ab-trigger[data-ab="insert"],[data-ab-sub="insert"]', isTextOrRich);
+        setMoreVisible('[data-ab="preview"]', previewable);
+      };
       btnMore.addEventListener("click", function(e) {
         e.stopPropagation();
-        appbarMenu.style.display = appbarMenu.style.display === "none" ? "block" : "none";
+        var opening = appbarMenu.style.display === "none";
+        if (opening) {
+          refreshMoreMenu();
+          collapseMoreSubs();
+        }
+        appbarMenu.style.display = opening ? "block" : "none";
       });
-      Array.prototype.forEach.call(appbarMenu.querySelectorAll(".menu-item"), function(it) {
-        it.addEventListener("click", function(e) {
+      appbarMenu.addEventListener("click", function(e) {
+        e.stopPropagation();
+        var t = e.target.closest && e.target.closest(".menu-item");
+        if (!t) return;
+        if (t.classList.contains("ab-trigger")) {
+          var key = t.getAttribute("data-ab");
+          var sub = appbarMenu.querySelector('.ab-sub[data-ab-sub="' + key + '"]');
+          if (!sub) return;
+          var open = sub.style.display !== "none";
+          collapseMoreSubs();
+          if (!open) {
+            sub.style.display = "";
+            t.setAttribute("aria-expanded", "true");
+          }
+          return;
+        }
+        if (t.classList.contains("ab-sub-item")) {
           appbarMenu.style.display = "none";
-          var ab = it.getAttribute("data-ab");
-          e.stopPropagation();
-          var map = {
-            encoding: "btn-encoding",
-            compare: "btn-compare",
-            xml: "btn-format-xml",
-            json: "btn-tools",
-            convert: "btn-convert",
-            texttools: "btn-texttools",
-            insert: "btn-insert",
-            preview: "btn-toggle-preview",
-            export: "btn-export",
-            saveas: "btn-save-as",
-            delete: "btn-delete",
-            reveal: ""
-            // v0.21.4：打开所在文件夹（无对应工具栏按钮，走自定义逻辑）
-          };
-          var target = map[ab] && document.getElementById(map[ab]);
-          if (target) target.click();
-          else if (ab === "reveal") revealInFolder();
-          else if (ab === "settings") openSettingsModal();
-          else if (ab === "about") openAboutModal();
-        });
+          var tool = t.getAttribute("data-tool");
+          var tt = t.getAttribute("data-tt");
+          var ins = t.getAttribute("data-insert");
+          if (tool) runTool(tool);
+          else if (tt === "snippet") openSnippetModal();
+          else if (tt === "clipboard") {
+            renderClipList();
+            openSingleModal("clip-modal");
+          } else if (tt) runTextTool(tt);
+          else if (ins) routeInsert(ins);
+          return;
+        }
+        var ab = t.getAttribute("data-ab");
+        if (!ab) return;
+        appbarMenu.style.display = "none";
+        if (ab === "encoding") openEncModal();
+        else if (ab === "compare") openCompareWindow();
+        else if (ab === "xml") formatXML();
+        else if (ab === "preview") {
+          state.previewOn = !state.previewOn;
+          updatePreviewVisibility();
+        } else if (ab === "export") exportDoc();
+        else if (ab === "saveas") saveDoc(true);
+        else if (ab === "delete") {
+          var d = activeDoc();
+          if (!d) {
+            toast3("\u6CA1\u6709\u53EF\u5220\u9664\u7684\u6587\u6863", "error");
+            return;
+          }
+          openDocDelConfirm(d.id);
+        } else if (ab === "reveal") revealInFolder();
+        else if (ab === "settings") openSettingsModal();
+        else if (ab === "about") openAboutModal();
       });
       document.addEventListener("click", function(e) {
-        if (!appbarMenu.contains(e.target) && e.target.id !== "btn-more") appbarMenu.style.display = "none";
+        if (!appbarMenu.contains(e.target) && e.target.id !== "btn-more") {
+          appbarMenu.style.display = "none";
+          collapseMoreSubs();
+        }
       });
     }
     if (els.batchToggle) {

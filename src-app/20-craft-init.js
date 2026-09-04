@@ -4,11 +4,14 @@ export { initCraftSidebar };
 import { bus, els, state } from './01-core.js';
 import { activeDoc } from './05-store.js';
 import { refreshDocFromDisk } from './07-doc-open.js';
-import { richChanged } from './09-rich-save.js';
+import { richChanged, saveDoc } from './09-rich-save.js';
+import { updatePreviewVisibility } from './10-status-preview.js';
+import { formatXML, runTool, runTextTool } from './11-format-tools.js';
+import { openSnippetModal, renderClipList } from './12-snippet-clip.js';
 import { dirOf, resolveImgSrc, getCachedRichDir } from './13-api-path.js';
-import { openSingleModal } from './15-insert.js';
+import { openSingleModal, routeInsert } from './15-insert.js';
 import { _guessMimeFromPath } from './15-insert.js';
-import { toast, renameDoc, newSticky, matchReminder, fmtStamp, revealInFolder } from './16-doc-ops.js';
+import { toast, renameDoc, newSticky, matchReminder, fmtStamp, revealInFolder, openEncModal, openCompareWindow, exportDoc } from './16-doc-ops.js';
 import { initEvents } from './17-events.js';
 import { initSettings, openSettingsModal } from './26-settings.js';
 import { initAbout, openAboutModal } from './27-about.js';
@@ -365,41 +368,96 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
       });
     }
     if (btnMore && appbarMenu) {
+      // v0.21.6：分组就地展开，功能直调对应模块处理函数，不再转发隐藏工具栏按钮
+      var collapseMoreSubs = function () {
+        Array.prototype.forEach.call(appbarMenu.querySelectorAll('.ab-sub'), function (s) {
+          s.style.display = 'none';
+          var tr = appbarMenu.querySelector('.ab-trigger[data-ab="' + s.getAttribute('data-ab-sub') + '"]');
+          if (tr) tr.setAttribute('aria-expanded', 'false');
+        });
+      };
+      var setMoreVisible = function (sel, on) {
+        Array.prototype.forEach.call(appbarMenu.querySelectorAll(sel), function (el) {
+          el.style.display = on ? '' : 'none';
+        });
+      };
+      // 按当前文档类型过滤菜单项（与 openDoc 的工具栏可见性规则保持一致）
+      var refreshMoreMenu = function () {
+        var d = activeDoc();
+        var kind = d ? (d.kind || 'text') : '';
+        var isText = kind === 'text';
+        var isRich = kind === 'rich';
+        var isTextOrRich = isText || isRich;
+        var previewable = !!(d && isText && (d.lang === 'markdown' || d.lang === 'html'));
+        setMoreVisible('#appbar-menu > .ab-group-label', isText);
+        setMoreVisible('[data-ab="encoding"],[data-ab="compare"],[data-ab="xml"],.ab-trigger[data-ab="json"],.ab-trigger[data-ab="convert"],.ab-trigger[data-ab="texttools"]', isText);
+        setMoreVisible('[data-ab-sub="json"],[data-ab-sub="convert"],[data-ab-sub="texttools"]', isText);
+        setMoreVisible('.ab-trigger[data-ab="insert"],[data-ab-sub="insert"]', isTextOrRich);
+        setMoreVisible('[data-ab="preview"]', previewable);
+      };
       btnMore.addEventListener('click', function (e) {
         e.stopPropagation();
-        appbarMenu.style.display = appbarMenu.style.display === 'none' ? 'block' : 'none';
+        var opening = appbarMenu.style.display === 'none';
+        if (opening) {
+          refreshMoreMenu();
+          collapseMoreSubs();
+        }
+        appbarMenu.style.display = opening ? 'block' : 'none';
       });
-      Array.prototype.forEach.call(appbarMenu.querySelectorAll('.menu-item'), function (it) {
-        it.addEventListener('click', function (e) {
+      appbarMenu.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var t = e.target.closest && e.target.closest('.menu-item');
+        if (!t) return;
+        // 分组项：展开 / 合拢就地子菜单（同一时刻只展开一个）
+        if (t.classList.contains('ab-trigger')) {
+          var key = t.getAttribute('data-ab');
+          var sub = appbarMenu.querySelector('.ab-sub[data-ab-sub="' + key + '"]');
+          if (!sub) return;
+          var open = sub.style.display !== 'none';
+          collapseMoreSubs();
+          if (!open) {
+            sub.style.display = '';
+            t.setAttribute('aria-expanded', 'true');
+          }
+          return;
+        }
+        // 子菜单项：直调工具处理函数
+        if (t.classList.contains('ab-sub-item')) {
           appbarMenu.style.display = 'none';
-          var ab = it.getAttribute('data-ab');
-          // v0.20.45：阻止冒泡到 document，避免 closeAllToolMenus 立即关闭
-          // 通过 target.click() 展开的 JSON/转换/文本/插入子菜单
-          e.stopPropagation();
-          // 复用原工具栏按钮的点击逻辑（id 保持不变，事件绑定依然生效）
-          var map = {
-            encoding: 'btn-encoding',
-            compare: 'btn-compare',
-            xml: 'btn-format-xml',
-            json: 'btn-tools',
-            convert: 'btn-convert',
-            texttools: 'btn-texttools',
-            insert: 'btn-insert',
-            preview: 'btn-toggle-preview',
-            export: 'btn-export',
-            saveas: 'btn-save-as',
-            delete: 'btn-delete',
-            reveal: '' // v0.21.4：打开所在文件夹（无对应工具栏按钮，走自定义逻辑）
-          };
-          var target = map[ab] && document.getElementById(map[ab]);
-          if (target) target.click();
-          else if (ab === 'reveal') revealInFolder();
-          else if (ab === 'settings') openSettingsModal();
-          else if (ab === 'about') openAboutModal();
-        });
+          var tool = t.getAttribute('data-tool');
+          var tt = t.getAttribute('data-tt');
+          var ins = t.getAttribute('data-insert');
+          if (tool) runTool(tool);
+          else if (tt === 'snippet') openSnippetModal();
+          else if (tt === 'clipboard') { renderClipList(); openSingleModal('clip-modal'); }
+          else if (tt) runTextTool(tt);
+          else if (ins) routeInsert(ins);
+          return;
+        }
+        // 一级普通项：直调
+        var ab = t.getAttribute('data-ab');
+        if (!ab) return;
+        appbarMenu.style.display = 'none';
+        if (ab === 'encoding') openEncModal();
+        else if (ab === 'compare') openCompareWindow();
+        else if (ab === 'xml') formatXML();
+        else if (ab === 'preview') { state.previewOn = !state.previewOn; updatePreviewVisibility(); }
+        else if (ab === 'export') exportDoc();
+        else if (ab === 'saveas') saveDoc(true);
+        else if (ab === 'delete') {
+          var d = activeDoc();
+          if (!d) { toast('没有可删除的文档', 'error'); return; }
+          openDocDelConfirm(d.id);
+        }
+        else if (ab === 'reveal') revealInFolder();
+        else if (ab === 'settings') openSettingsModal();
+        else if (ab === 'about') openAboutModal();
       });
       document.addEventListener('click', function (e) {
-        if (!appbarMenu.contains(e.target) && e.target.id !== 'btn-more') appbarMenu.style.display = 'none';
+        if (!appbarMenu.contains(e.target) && e.target.id !== 'btn-more') {
+          appbarMenu.style.display = 'none';
+          collapseMoreSubs();
+        }
       });
     }
 

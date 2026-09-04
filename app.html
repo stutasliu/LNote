@@ -199,13 +199,84 @@
             <svg viewBox="0 0 24 24" class="ico"><circle cx="5" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="12" r="1.5" fill="currentColor"/></svg>
           </button>
           <div class="appbar-menu" id="appbar-menu" style="display:none">
+            <div class="ab-group-label">工具</div>
             <button class="menu-item" data-ab="encoding">编码转换</button>
             <button class="menu-item" data-ab="compare">文件比较</button>
             <button class="menu-item" data-ab="xml">XML 格式化</button>
-            <button class="menu-item" data-ab="json">JSON 工具</button>
-            <button class="menu-item" data-ab="convert">转换工具</button>
-            <button class="menu-item" data-ab="texttools">文本工具</button>
-            <button class="menu-item" data-ab="insert">插入块</button>
+            <button class="menu-item ab-trigger" data-ab="json" aria-expanded="false">JSON 工具<span class="submenu-arrow">▾</span></button>
+            <div class="ab-sub" data-ab-sub="json" style="display:none">
+              <button class="menu-item ab-sub-item" data-tool="format">JSON 格式化</button>
+              <button class="menu-item ab-sub-item" data-tool="compress">JSON 压缩</button>
+              <button class="menu-item ab-sub-item" data-tool="escape">转义</button>
+              <button class="menu-item ab-sub-item" data-tool="unescape">去转义</button>
+              <div class="menu-divider"></div>
+              <button class="menu-item ab-sub-item" data-tool="copy">复制</button>
+            </div>
+            <button class="menu-item ab-trigger" data-ab="convert" aria-expanded="false">转换工具<span class="submenu-arrow">▾</span></button>
+            <div class="ab-sub" data-ab-sub="convert" style="display:none">
+              <button class="menu-item ab-sub-item" data-tool="unicode-zh">Unicode → 中文</button>
+              <button class="menu-item ab-sub-item" data-tool="zh-unicode">中文 → Unicode</button>
+              <button class="menu-item ab-sub-item" data-tool="to-get">转 GET 参数</button>
+              <div class="menu-divider"></div>
+              <button class="menu-item ab-sub-item" data-tool="b64-encode">Base64 编码</button>
+              <button class="menu-item ab-sub-item" data-tool="b64-decode">Base64 解码</button>
+              <div class="menu-divider"></div>
+              <button class="menu-item ab-sub-item" data-tool="url-encode">URL 编码</button>
+              <button class="menu-item ab-sub-item" data-tool="url-decode">URL 解码</button>
+              <div class="menu-divider"></div>
+              <button class="menu-item ab-sub-item" data-tool="ts-convert">时间戳转换…</button>
+            </div>
+            <button class="menu-item ab-trigger" data-ab="texttools" aria-expanded="false">文本工具<span class="submenu-arrow">▾</span></button>
+            <div class="ab-sub" data-ab-sub="texttools" style="display:none">
+              <div class="ab-sub-label">大小写</div>
+              <button class="menu-item ab-sub-item" data-tt="upper">转大写</button>
+              <button class="menu-item ab-sub-item" data-tt="lower">转小写</button>
+              <button class="menu-item ab-sub-item" data-tt="title">单词首字母大写</button>
+              <button class="menu-item ab-sub-item" data-tt="swap">反转大小写</button>
+              <div class="ab-sub-label">全半角</div>
+              <button class="menu-item ab-sub-item" data-tt="full2half">全角 半角</button>
+              <button class="menu-item ab-sub-item" data-tt="half2full">半角 全角</button>
+              <div class="ab-sub-label">删除行</div>
+              <button class="menu-item ab-sub-item" data-tt="del-empty">删除空行</button>
+              <button class="menu-item ab-sub-item" data-tt="del-dup">删除重复行</button>
+              <button class="menu-item ab-sub-item" data-tt="del-sol-space">删除行头空白</button>
+              <button class="menu-item ab-sub-item" data-tt="del-eol-space">删除行尾空白</button>
+              <button class="menu-item ab-sub-item" data-tt="del-line">删除整行</button>
+              <button class="menu-item ab-sub-item" data-tt="del-to-sol">删除到行头</button>
+              <button class="menu-item ab-sub-item" data-tt="del-to-eol">删除到行尾</button>
+              <div class="ab-sub-label">行操作</div>
+              <button class="menu-item ab-sub-item" data-tt="sort">行排序</button>
+              <button class="menu-item ab-sub-item" data-tt="sort-len">按长度排序</button>
+              <button class="menu-item ab-sub-item" data-tt="reverse">反转行序</button>
+              <button class="menu-item ab-sub-item" data-tt="merge">合并行</button>
+              <button class="menu-item ab-sub-item" data-tt="reindent">重新缩进</button>
+              <div class="ab-sub-label">折叠</div>
+              <button class="menu-item ab-sub-item" data-tt="fold-all">折叠全部</button>
+              <button class="menu-item ab-sub-item" data-tt="unfold-all">展开全部</button>
+              <button class="menu-item ab-sub-item" data-tt="fold-1">折叠级别 1</button>
+              <button class="menu-item ab-sub-item" data-tt="fold-2">折叠级别 2</button>
+              <button class="menu-item ab-sub-item" data-tt="fold-3">折叠级别 3</button>
+              <button class="menu-item ab-sub-item" data-tt="fold-4">折叠级别 4</button>
+              <button class="menu-item ab-sub-item" data-tt="fold-5">折叠级别 5</button>
+              <div class="menu-divider"></div>
+              <button class="menu-item ab-sub-item" data-tt="snippet">插入代码段…</button>
+              <button class="menu-item ab-sub-item" data-tt="clipboard">剪贴板历史…</button>
+            </div>
+            <button class="menu-item ab-trigger" data-ab="insert" aria-expanded="false">插入块<span class="submenu-arrow">▾</span></button>
+            <div class="ab-sub" data-ab-sub="insert" style="display:none">
+              <button class="menu-item ab-sub-item" data-insert="code">代码块</button>
+              <button class="menu-item ab-sub-item" data-insert="image">图片</button>
+              <button class="menu-item ab-sub-item" data-insert="table">表格</button>
+              <button class="menu-item ab-sub-item" data-insert="mermaid">流程图 / 思维导图</button>
+              <button class="menu-item ab-sub-item" data-insert="icon">图标</button>
+              <button class="menu-item ab-sub-item" data-insert="math">数学公式</button>
+              <button class="menu-item ab-sub-item" data-insert="callout">标注 / 提示</button>
+              <button class="menu-item ab-sub-item" data-insert="task">任务列表</button>
+              <button class="menu-item ab-sub-item" data-insert="quote">引用</button>
+              <button class="menu-item ab-sub-item" data-insert="toc">自动目录</button>
+              <button class="menu-item ab-sub-item" data-insert="hr">分割线</button>
+              <button class="menu-item ab-sub-item" data-insert="cols">分栏（两列）</button>
+            </div>
             <div class="menu-divider"></div>
             <button class="menu-item" data-ab="preview">切换预览</button>
             <button class="menu-item" data-ab="export">导出文档</button>
