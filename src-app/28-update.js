@@ -14,10 +14,13 @@ var _pendingTag = '';
 // 是否有更新任务进行中（防重复点击）
 var _updateBusy = false;
 
-// 顶栏「更多」按钮红色更新标签：显示/隐藏
+// 更新标签（顶栏「更多」按钮 + 菜单「关于 L.Note」项）：显示/隐藏
 function setUpdBadge(on) {
-  var el = $('update-badge');
-  if (el) el.style.display = on ? 'block' : 'none';
+  var ids = ['update-badge', 'menu-update-badge'];
+  for (var i = 0; i < ids.length; i++) {
+    var el = $(ids[i]);
+    if (el) el.style.display = on ? 'block' : 'none';
+  }
 }
 
 function setUpdStatus(text, cls) {

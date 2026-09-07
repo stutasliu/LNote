@@ -2980,6 +2980,19 @@
 /* ===== 自动更新：顶栏「更多」按钮红色更新标签 ===== */
 #btn-more { position: relative; }
 
+/* ===== 自动更新：「更多」菜单「关于 L.Note」项红色“新”提示（与三点按钮同一状态驱动） ===== */
+#appbar-menu .menu-item.menu-upd-about {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+#appbar-menu .menu-item.menu-upd-about .upd-badge {
+  position: static;
+  flex-shrink: 0;
+  box-shadow: none;
+}
+
 /* ===== 设置弹窗（v0.22：通用设置 + 快捷键） ===== */
 .settings-tabs {
   display: flex;

@@ -2,6 +2,24 @@
 
 本项目所有值得记录的变更均会收录在此文件中。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## \[v0.21.16] - 2026-09-07
+
+### 变更
+
+- **「关于 L.Note」菜单项新增更新提示角标**：检测到软件更新后，除右上角「更多」三点按钮外，「更多 → 关于 L.Note」行右侧也点亮红色「新」角标——打开菜单即可在「关于 L.Note」处看到高亮提示，明确告知更新操作入口所在。
+
+- **两处角标与更新状态严格联动**：三点按钮与「关于 L.Note」项上的「新」角标由同一更新状态驱动（`setUpdBadge` 统一点亮 / 隐藏），仅在检测到新版本时显示、已是最新版自动隐藏；并配套新增 E2E 用例（headless Edge/CDP）验证两处角标同步点亮。
+
+### 测试
+
+- 前端构建通过（`node tools/build-app.js` + `npx vite build`，dist-web 同步更新）；Python 语法检查通过。
+
+- 单元测试通过（`npx vitest run tests/unit`，87 项）。
+
+- 更新徽标联动 E2E 通过（`tests/e2e/update-badge.test.js`，headless Edge/CDP 验证三点按钮与「关于 L.Note」菜单项角标同步点亮）。
+
+- PyInstaller 打包成功（`dist\L.Note.exe`）；Inno Setup 安装包编译成功（`release\L.Note-setup-v0.21.16.exe`）。
+
 ## \[v0.21.15] - 2026-09-05
 
 ### 变更

@@ -9670,7 +9670,7 @@
   $("btn-compare").addEventListener("click", openCompareWindow);
 
   // src-app/27-about.js
-  var APP_VERSION = "0.21.15";
+  var APP_VERSION = "0.21.16";
   var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
   var APP_HOME_URL = "https://stutasliu.github.io/LNote/";
   function versionGreater(a, b) {
@@ -9770,8 +9770,11 @@
   var _pendingTag = "";
   var _updateBusy = false;
   function setUpdBadge(on) {
-    var el = $("update-badge");
-    if (el) el.style.display = on ? "block" : "none";
+    var ids = ["update-badge", "menu-update-badge"];
+    for (var i = 0; i < ids.length; i++) {
+      var el = $(ids[i]);
+      if (el) el.style.display = on ? "block" : "none";
+    }
   }
   function setUpdStatus(text, cls) {
     var el = $("update-status");
