@@ -21,7 +21,25 @@
 
 - 若 GitHub 推送因网络超时失败，重试直至成功，然后再推 Gitee，不可跳过 GitHub。
 
-### 2. 生成 / 更新变更日志
+- 推送发布 tag（tag-first）：先 `git push github vX.Y.Z`，再 `git push origin vX.Y.Z`。tag 必须在第 2 步 Release 落地前存在于两个远端，且远端 tag 指向的 commit 必须与本地一致。
+
+### 2. 双平台 Release 发布（GitHub + Gitee 统一口径，强制脚本）
+
+> 【根因教训】v0.21.16 曾出现：GitHub Release body 只写 268 字摘要、Gitee 是全量发布说明；且 GitHub 的 tag 指向仓库初始 commit（default branch main = Initial commit），与实际发布 commit 不一致——来源都是脱离脚本手工分别编辑两个平台。
+>
+> 因此**禁止手工在网页 / API 上分别创建或编辑 GitHub / Gitee Release**，双平台发布统一走脚本 `node tools/publish-release.js`，两条平台走同一条代码路径。
+
+- **正文唯一口径**：Release body = 仓库根目录 `RELEASE-NOTES.md` 全量（脚本自动归一化换行 / 首标题必须是 `# L.Note vX.Y.Z 发布说明`）；标题 = tag 提交信息（`git log -1 --format=%s vX.Y.Z`）；附件 = `release/` 下两个安装 exe（SHA256 必须与 `SHA256SUMS.txt` 一致）。
+
+- **落地前强制校验**：任何 `--apply` 之前必须先跑只读校验 `node tools/publish-release.js <vX.Y.Z>`，除「release 不存在 / body 或附件缺失」这类可修复差异外不得有任何 FAIL；脚本双平台校验 PASS 后才允许 `--apply` 落地。
+
+- `--apply` 语义：双平台缺 release 则创建、已有则把 body/标题更新为统一口径、缺失附件补传，随后自动复检；复检仍有 FAIL 时退出码为 1，不得视为发布成功。
+
+- **tag-first 强制规则**：远端 tag 必须与本地 tag 对象一致，脚本在 tag 不一致 / 缺失时会**中止该平台写入**。若远端 tag 已指向错误 commit（如 v0.21.16 GitHub tag=0eaf26e ≠ 本地 bfbc2a7），须先人工修正——删除远端错误 tag 并重推正确 tag，或删除并重建该平台 Release——修正后重跑脚本，不得带着错误 tag 强行更新 body。
+
+- 认证：GitHub 用 gh CLI（`gh auth status`）；Gitee 用 `GITEE_TOKEN` 环境变量或仓库根目录 `.gitee_token` 文件（该文件已 gitignore，禁止入库 / 转发 / 泄露）。
+
+### 3. 生成 / 更新变更日志
 
 - 更新根目录 `CHANGELOG.md`（Keep a Changelog 格式）：
 
@@ -29,7 +47,7 @@
 
   - 按「新增 / 修复 / 变更」分组记录本次改动，说明影响范围与测试情况
 
-### 3. 更新功能列表
+### 4. 更新功能列表
 
 - 更新 `docs/06-功能列表.md`：
 
@@ -37,7 +55,7 @@
 
   - 按功能域（侧栏导航 / 文档管理 / 编辑器 / 富文档 / 翻译 / 便签等）补充本次新增的功能条目
 
-### 4. 更新 GitHub Pages 网页（<https://stutasliu.github.io/LNote/）>
+### 5. 更新 GitHub Pages 网页（<https://stutasliu.github.io/LNote/）>
 
 网页发布源为 **master 根目录**直接跟踪的发布文件（`download.html`、`index.html`、`blink-guide.html`、`RELEASE-NOTES.md`、`SHA256SUMS.txt`、`resource/`、`screenshots/`），发布分支为 `gh-pages`。
 **关键：Pages 配置为** **`branch=gh-pages, path=/`（从根目录构建）——发布文件必须放在 gh-pages 分支「根目录」，任何子目录（含** **`site/`）不会上线！** 只把内容放进子目录或漏掉 `resource/`，会导致线上仍是旧版 / favicon、logo 图标丢失（真实教训：v0.21.7 曾因内容只放 `site/` 线上停留在 v0.21.5；v0.21.11 发布提交 `30b91c9` 曾漏掉 `resource/` 导致线上图标全部丢失）。
