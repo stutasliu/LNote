@@ -24,3 +24,6 @@ _test/
 .edge-cdp-profile/
 tests/e2e/_*
 
+# Gitee 私有 token（本机发布校验用，禁止入库）
+.gitee_token
+
