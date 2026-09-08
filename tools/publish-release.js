@@ -228,7 +228,9 @@ async function giteeGetRelease(tag) {
 }
 
 async function giteeCreateOrUpdate(release, title, body) {
-  const payload = JSON.stringify({ tag_name: TAG, name: title, body: body });
+  const commit = git(['rev-list', '-n', '1', TAG]);
+  const targetCommitish = commit.status === 0 && commit.stdout.trim() ? commit.stdout.trim() : '';
+  const payload = JSON.stringify({ tag_name: TAG, target_commitish: targetCommitish, name: title, body: body });
   if (!release) {
     const j = await giteeFetch('/repos/' + GITEE.owner + '/' + GITEE.repo + '/releases', {
       method: 'POST',
