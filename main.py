@@ -40,7 +40,7 @@ _runtime_pending_files = []
 _runtime_frontend_ready = False
 
 # 版本号（与 js/app.js 页脚保持一致）
-APP_VERSION = "0.21.16"
+APP_VERSION = "0.21.17"
 
 
 def resource_path(rel: str) -> str:
@@ -578,7 +578,7 @@ class InkpadApi:
         """新版启动后消费「上次自动更新」的结果标记（一次性）。
 
         更新守护进程在安装结束后写入 update-result.json：
-        成功 {"ok": true, "version": "v0.21.16"}；失败 {"ok": false, "error": ...}。
+        成功 {"ok": true, "version": "v0.21.17"}；失败 {"ok": false, "error": ...}。
         前端据此 toast「已更新到 vX」或失败提示；读取后标记文件即被删除，
         无标记时返回 None（普通启动静默跳过）。
         """

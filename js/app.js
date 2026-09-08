@@ -9825,7 +9825,7 @@
   }
 
   // src-app/27-about.js
-  var APP_VERSION = "0.21.16";
+  var APP_VERSION = "0.21.17";
   var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
   var APP_HOME_URL = "https://stutasliu.github.io/LNote/";
   function versionGreater(a, b) {
