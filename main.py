@@ -1471,7 +1471,11 @@ def _run_update_guard(argv):
         flags = 0
         if sys.platform.startswith("win"):
             flags = 0x00000008 | 0x00000200
-        proc = subprocess.Popen(cmd, close_fds=True, creationflags=flags)
+        # 打标环境变量：安装器据此识别「guard 静默更新」，跳过 [Run] 自动启动，
+        # 由本守护进程在安装完全退出后再拉起新版本，避免与安装器收尾重叠。
+        env = dict(os.environ)
+        env["LNOTE_UPDATE_GUARD"] = "1"
+        proc = subprocess.Popen(cmd, env=env, close_fds=True, creationflags=flags)
         rc = proc.wait()
     except Exception as e:
         _debug_log("[guard] installer launch failed: %s" % e)

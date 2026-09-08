@@ -93,4 +93,14 @@ Name: "{autoprograms}\{#MyAppName}\{cm:UninstallApp}"; Filename: "{uninstallexe}
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:RunApp}"; WorkingDir: "{app}"; Flags: nowait postinstall
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:RunApp}"; WorkingDir: "{app}"; Flags: nowait postinstall; Check: not IsGuardDrivenUpdate
+
+[Code]
+function IsGuardDrivenUpdate(): Boolean;
+begin
+  // 更新守护进程（v0.21.17+ 自动更新）启动的静默安装带 LNOTE_UPDATE_GUARD=1
+  // 标记：跳过 [Run]，改由守护进程在安装器完全退出后拉起新版本，避免双重启动
+  // 与安装器收尾重叠导致 PyInstaller onefile 解压竞态（Failed to load Python
+  // DLL 报错）。手动交互安装 / 旧版本自动更新无此标记，仍由 [Run] 启动。
+  Result := GetEnv('LNOTE_UPDATE_GUARD') = '1';
+end;
