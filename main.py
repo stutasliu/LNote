@@ -13,6 +13,9 @@ import json
 import struct
 import re
 import socket
+import shutil
+import subprocess
+import tempfile
 import html as _html
 
 import webview
@@ -46,12 +49,17 @@ def resource_path(rel: str) -> str:
     return os.path.join(base, rel)
 
 
+def _lnote_data_dir() -> str:
+    """L.Note 用户数据目录（%LOCALAPPDATA%/L.Note），存调试日志与更新结果标记。"""
+    return os.path.join(
+        os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "L.Note"
+    )
+
+
 def _debug_log(msg: str):
     """写入调试日志（%LOCALAPPDATA%/L.Note/debug.log），用于排查「打开方式」传参问题。"""
     try:
-        log_dir = os.path.join(
-            os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "L.Note"
-        )
+        log_dir = _lnote_data_dir()
         os.makedirs(log_dir, exist_ok=True)
         with open(os.path.join(log_dir, "debug.log"), "a", encoding="utf-8") as f:
             f.write(time.strftime("%Y-%m-%d %H:%M:%S") + "  " + msg + "\n")
@@ -565,6 +573,26 @@ class InkpadApi:
                 target=_push_open_to_frontend, args=(self, items), daemon=True
             ).start()
         return True
+
+    def consume_update_result(self):
+        """新版启动后消费「上次自动更新」的结果标记（一次性）。
+
+        更新守护进程在安装结束后写入 update-result.json：
+        成功 {"ok": true, "version": "v0.21.16"}；失败 {"ok": false, "error": ...}。
+        前端据此 toast「已更新到 vX」或失败提示；读取后标记文件即被删除，
+        无标记时返回 None（普通启动静默跳过）。
+        """
+        _debug_log("[api] consume_update_result")
+        r = _read_update_result()
+        if not r:
+            return None
+        if r["ok"]:
+            return {"updated": True, "version": r["version"]}
+        return {
+            "failed": True,
+            "error": r["error"] or "未知错误",
+            "version": r["version"],
+        }
 
     def debug_log(self, msg):
         """供前端写入调试日志，排查「打开方式」自动打开链路。"""
@@ -1134,18 +1162,42 @@ class InkpadApi:
                 os.replace(partial, target)
                 push({"ok": True, "state": "ready", "path": target})
                 time.sleep(0.8)
-                # 以独立进程启动静默安装器（不等待）。安装器 CloseApplications=force
-                # 会接管正在运行的旧进程，装完后由 [Run] 自动启动新版本（/NORESTART
-                # 关闭 RestartApplications，避免安装器再额外拉起一个旧进程）。
-                flags = 0
-                if sys.platform.startswith("win"):
-                    flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-                subprocess.Popen(
-                    [target, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-"],
-                    close_fds=True,
-                    creationflags=flags,
-                )
+                # —— 静默安装 + 装完自动重启（由独立守护进程接力完成）——
+                # 旧实现只 Popen 安装器后 sleep 1.2s 便销毁窗口，问题有二：
+                #   1) 安装器按 Inno 默认目录装到 {localappdata}\Programs\L.Note，
+                #      而用户实际运行的是 D:\Program Files (x86)\L.Note 等自选
+                #      目录 → 装完找不到新版本；2) 无任何组件等安装结束再拉起
+                #      新版本，重启仅依赖安装器 [Run] 且目标目录还不匹配。
+                # 新实现：
+                #   1) 显式 /DIR 指向「当前正在运行的 exe」目录 → 原地升级；
+                #   2) 以 %TEMP% 中的 exe 副本（守护进程）等安装结束并自动启动
+                #      新版本 → 不再需要安装器 [Run] 或旧进程自行重启；
+                #   3) 新版本启动时前端 consume_update_result 读取结果并 toast。
+                # 若当前运行目录不可写/为空则回退 Inno 默认目录（开发环境）。
+                if getattr(sys, "frozen", False):
+                    install_dir = os.path.dirname(os.path.abspath(sys.executable))
+                else:
+                    install_dir = os.path.join(
+                        os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"),
+                        "Programs", "L.Note",
+                    )
+                try:
+                    os.makedirs(install_dir, exist_ok=True)
+                except Exception:
+                    pass
+                _write_update_pending(tag)
+                guard_cmd = _spawn_update_guard([
+                    "--update-guard",
+                    "--target", target,
+                    "--dir", install_dir,
+                    "--exe", "L.Note.exe",
+                    "--tag", tag,
+                ])
+                _debug_log("[update] launch update guard: " + repr(guard_cmd))
+                _launch_detached(guard_cmd)
                 push({"ok": True, "state": "installing"})
+                # 稍候片刻让 guard 真正起来，再销毁窗口退出主进程；
+                # 之后窗口由 guard 在安装完成后自动重启到新版本。
                 time.sleep(1.2)
                 try:
                     if self._window:
@@ -1251,6 +1303,194 @@ def _looks_chinese(text: str) -> bool:
     cjk = sum(1 for ch in text if "\u4e00" <= ch <= "\u9fff")
     latin = sum(1 for ch in text if ch.isascii() and ch.isalpha())
     return cjk > 0 and cjk >= max(latin, 1)
+
+
+# ---- 自动更新：安装标记文件与守护进程 ----
+# 更新分两段接力：
+#   1) 主程序 start_update 下载安装包后，写入 update-pending.json 标记，
+#      再以独立守护进程（见 _run_update_guard）启动安装器并销毁自身窗口；
+#   2) 守护进程静默运行安装器（/DIR 原地升级到当前 exe 所在目录），结束后
+#      把结果写入 update-result.json，成功则拉起新版本；新版本启动时由前端
+#      调用 consume_update_result 读取并删除该标记，toast「已更新到 vX」。
+def _update_pending_path() -> str:
+    return os.path.join(_lnote_data_dir(), "update-pending.json")
+
+
+def _update_result_path() -> str:
+    return os.path.join(_lnote_data_dir(), "update-result.json")
+
+
+def _write_update_pending(tag: str):
+    """记录「正在升级到 tag」标记（安装在失败/中断时留痕）。"""
+    try:
+        os.makedirs(_lnote_data_dir(), exist_ok=True)
+        with open(_update_pending_path(), "w", encoding="utf-8") as f:
+            json.dump({"tag": str(tag or ""), "ts": time.time()}, f, ensure_ascii=False)
+    except Exception as e:
+        _debug_log("[update] write pending failed: %s" % e)
+
+
+def _write_update_result(ok: bool, version: str, error: str = ""):
+    """写入更新结果标记，供新版本启动时消费并 toast。"""
+    try:
+        os.makedirs(_lnote_data_dir(), exist_ok=True)
+        with open(_update_result_path(), "w", encoding="utf-8") as f:
+            json.dump({
+                "ok": bool(ok),
+                "version": str(version or ""),
+                "error": str(error or ""),
+                "ts": time.time(),
+            }, f, ensure_ascii=False)
+    except Exception as e:
+        _debug_log("[update] write result failed: %s" % e)
+
+
+def _read_update_result():
+    """读取并删除更新结果标记；无标记返回 None。"""
+    path = _update_result_path()
+    try:
+        if not os.path.isfile(path):
+            return None
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        os.remove(path)
+        return {
+            "ok": bool(data.get("ok")),
+            "version": str(data.get("version") or ""),
+            "error": str(data.get("error") or ""),
+        }
+    except Exception as e:
+        _debug_log("[update] read result failed: %s" % e)
+        try:
+            os.remove(path)
+        except Exception:
+            pass
+        return None
+
+
+def _is_ipc_alive() -> bool:
+    """探测主编辑器实例是否仍在运行（IPC 端口可连即认为存活）。"""
+    s = None
+    try:
+        s = socket.create_connection((IPC_HOST, IPC_PORT), timeout=0.4)
+        return True
+    except Exception:
+        return False
+    finally:
+        if s is not None:
+            try:
+                s.close()
+            except Exception:
+                pass
+
+
+def _launch_detached(cmd, cwd=None):
+    """以独立进程组启动 cmd（不等待、不继承控制台）。"""
+    try:
+        flags = 0
+        if sys.platform.startswith("win"):
+            flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        subprocess.Popen(
+            cmd,
+            cwd=cwd,
+            close_fds=True,
+            creationflags=flags,
+        )
+    except Exception as e:
+        _debug_log("[update] detached launch failed: %s" % e)
+
+
+def _spawn_update_guard(args):
+    """构造「更新守护进程」启动命令。
+
+    打包（frozen）模式：把当前 exe 复制到 %TEMP% 再用副本运行。副本不在
+    安装目录内，Inno CloseApplications=force 关闭不到它，才能等安装结束
+    后自动拉起新版本；开发模式直接 `python main.py`（解释器不占用安装目录）。
+    """
+    script = os.path.abspath(__file__)
+    if not getattr(sys, "frozen", False):
+        return [sys.executable, script] + args
+    exe = sys.executable
+    tmp = os.path.join(tempfile.gettempdir(), "L.Note-update-guard.exe")
+    try:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)  # 上一轮残留副本（若已退出则可删）
+            except Exception:
+                pass
+        shutil.copy2(exe, tmp)
+        return [tmp] + args
+    except Exception as e:
+        _debug_log("[update] guard copy failed, fallback to self exe: %s" % e)
+        return [exe] + args
+
+
+def _run_update_guard(argv):
+    """更新守护进程（--update-guard）入口：等安装完成 → 自动拉起新版本。
+
+    由主程序在下载完成后以独立进程启动（打包模式下是 %TEMP% 中的 exe 副本）：
+      1) 等待旧主实例退出（窗口销毁后进程结束；超时不阻塞，安装器
+         CloseApplications=force 会兜底关闭仍在运行的旧进程）；
+      2) 静默运行安装器，显式 /DIR 指向当前 exe 目录做「原地升级」并 /LOG 留痕；
+      3) 安装成功 → 写结果标记并启动新版本；失败 → 写失败标记并尽力恢复旧 exe。
+    """
+    def arg(name, default=None):
+        for i, a in enumerate(argv):
+            if a == name and i + 1 < len(argv):
+                return argv[i + 1]
+        return default
+
+    target = arg("--target")
+    install_dir = arg("--dir")
+    exe_name = arg("--exe") or "L.Note.exe"
+    tag = arg("--tag") or ""
+    if not target or not install_dir or not os.path.isfile(target):
+        _debug_log("[guard] missing or invalid args: " + repr(argv))
+        return 2
+    _debug_log("[guard] start target=%s dir=%s exe=%s tag=%s"
+               % (target, install_dir, exe_name, tag))
+
+    # 1) 等旧主实例退出（最多 ~8s），尽量让安装器替换文件时无进程占用
+    try:
+        for _ in range(40):
+            if not _is_ipc_alive():
+                break
+            time.sleep(0.2)
+    except Exception:
+        pass
+
+    # 2) 静默安装：/DIR 原地升级 + /LOG 留痕
+    log_path = os.path.join(_lnote_data_dir(), "update-install-%s.log" % tag)
+    cmd = [
+        target, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-",
+        "/DIR=%s" % install_dir, "/LOG=%s" % log_path,
+    ]
+    _debug_log("[guard] run installer: " + repr(cmd))
+    rc = -1
+    try:
+        flags = 0
+        if sys.platform.startswith("win"):
+            flags = 0x00000008 | 0x00000200
+        proc = subprocess.Popen(cmd, close_fds=True, creationflags=flags)
+        rc = proc.wait()
+    except Exception as e:
+        _debug_log("[guard] installer launch failed: %s" % e)
+    _debug_log("[guard] installer exit code: %r" % rc)
+
+    new_exe = os.path.join(install_dir, exe_name)
+    if rc == 0 and os.path.isfile(new_exe):
+        _write_update_result(ok=True, version=tag)
+        time.sleep(0.8)  # 给安装器收尾 / 文件句柄释放留一点时间
+        _launch_detached([new_exe], cwd=install_dir)
+        _debug_log("[guard] relaunched %s" % new_exe)
+        return 0
+
+    # 3) 失败：写失败标记并尽力拉起原 exe（Inno 失败会回滚，旧 exe 仍在）
+    _write_update_result(ok=False, version=tag, error="安装器退出码 %s" % rc)
+    _debug_log("[guard] install failed (rc=%r), try restore" % rc)
+    if os.path.isfile(new_exe):
+        _launch_detached([new_exe], cwd=install_dir)
+    return 1
 
 
 def _version_greater(a: str, b: str) -> bool:
@@ -1550,6 +1790,10 @@ def _start_ipc_server(api) -> bool:
 
 
 def main():
+    # 更新守护进程（--update-guard）：不建窗口，等安装结束 → 自动拉起新版本
+    if "--update-guard" in sys.argv:
+        code = _run_update_guard(sys.argv)
+        sys.exit(code if isinstance(code, int) else 0)
     _debug_log("[main] start, argv = " + repr(sys.argv))
     # 单实例接力：若主编辑器已在运行，把「打开方式」传入的文档转发过去
     # 并立即退出，避免重复启动一个应用窗口（双击文档出现两个 L.Note）。

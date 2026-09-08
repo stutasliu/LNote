@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { initAutoUpdate, showUpdateModal };
+export { initAutoUpdate, showUpdateModal, notifyNewUpdate };
 /* [esm] 导入依赖模块绑定 */
 import { $ } from './01-core.js';
 import { getApi, hasApi } from './13-api-path.js';
@@ -43,6 +43,14 @@ function showUpdateModal(latest, current) {
   if (actions) actions.style.display = '';
   if (prog) prog.style.display = 'none';
   openSingleModal('update-modal');
+}
+
+// 发现新版本统一入口：点亮两处「新」角标 + 弹出更新提示
+// 启动自动检查与「关于」弹窗内的手动检查共用，保证行为一致
+function notifyNewUpdate(latest, current) {
+  _pendingTag = latest || _pendingTag;
+  setUpdBadge(true);
+  showUpdateModal(latest, current);
 }
 
 function _setUpdProgressView() {
@@ -102,12 +110,12 @@ function startUpdate() {
   if (_updateBusy) return;
   var api = getApi();
   if (!api || !api.start_update) {
-    toast('当前环境不支持自动更新', 'err');
+    toast('当前环境不支持自动更新', 'error');
     return;
   }
   var tag = _pendingTag;
   if (!tag) {
-    toast('缺少目标版本信息，请稍后重试', 'err');
+    toast('缺少目标版本信息，请稍后重试', 'error');
     return;
   }
   _updateBusy = true;
@@ -124,6 +132,23 @@ function startUpdate() {
   });
 }
 
+// 启动时消费「上次自动更新」的结果标记（一次性）：
+// 更新守护进程装完自动重启到新版本后，这里读到结果并 toast。
+function _notifyUpdateResult() {
+  var api = getApi();
+  if (!api || !api.consume_update_result) return; // 浏览器环境/旧版桥：静默跳过
+  api.consume_update_result().then(function (r) {
+    if (!r || typeof r !== 'object') return;
+    if (r.updated) {
+      toast('已更新到 ' + (r.version || '新版本'), 'success');
+    } else if (r.failed) {
+      toast('自动更新失败：' + (r.error || '未知错误'), 'error');
+    }
+  }).catch(function (e) {
+    console.warn('[lnote] 读取更新结果失败：' + (e && e.message ? e.message : e));
+  });
+}
+
 // 启动自动检查：发现新版本 → 红色标签 + 弹出更新提示；已是最新 → 无任何处理
 function autoCheckUpdate() {
   if (_autoChecked) return;
@@ -132,9 +157,7 @@ function autoCheckUpdate() {
   if (!api || !api.check_update) return; // 浏览器环境/桥未就绪：静默跳过
   api.check_update().then(function (r) {
     if (r && r.ok && r.update_available && r.latest) {
-      _pendingTag = r.latest;
-      setUpdBadge(true);
-      showUpdateModal(r.latest, r.current);
+      notifyNewUpdate(r.latest, r.current);
     }
     // 已是最新版本：不弹窗、不加角标
   }).catch(function (e) {
@@ -150,8 +173,11 @@ function initAutoUpdate() {
   $('update-modal').addEventListener('click', function (e) {
     if (e.target === $('update-modal')) closeUpdateModal();
   });
-  // 启动自动检查：pywebview 桥就绪后再执行（等界面稳定稍作延迟）
-  var boot = function () { setTimeout(autoCheckUpdate, 1200); };
+  // 启动流程：先消费上次自动更新的结果（toast），再做启动检查
+  var boot = function () {
+    _notifyUpdateResult();
+    setTimeout(autoCheckUpdate, 1200);
+  };
   if (hasApi()) {
     boot();
   } else {

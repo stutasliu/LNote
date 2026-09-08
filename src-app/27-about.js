@@ -5,6 +5,7 @@ import { $ } from './01-core.js';
 import { getApi } from './13-api-path.js';
 import { openSingleModal } from './15-insert.js';
 import { toast } from './16-doc-ops.js';
+import { notifyNewUpdate } from './28-update.js';
 
 /* ---------------- 关于：版本号 / 检查更新 / 更新日志 ---------------- */
 // 版本号与 main.py 的 APP_VERSION / package.json 的 version 保持一致
@@ -72,9 +73,10 @@ function checkUpdate() {
     api.check_update().then(function (r) {
       btn.disabled = false;
       if (r && r.ok) {
-        if (r.update_available) {
-          setAboutStatus('发现新版本 ' + r.latest + '（当前 ' + r.current + '），可在更新日志中查看', 'warn');
-          toast('发现新版本 ' + r.latest, 'success');
+        if (r.update_available && r.latest) {
+          notifyNewUpdate(r.latest, r.current);
+        } else if (r.update_available) {
+          setAboutStatus('发现新版本，请点击「更新日志」查看', 'warn');
         } else {
           setAboutStatus('已是最新版本 ' + r.latest, 'ok');
           toast('已是最新版本', 'success');
