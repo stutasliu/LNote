@@ -14,6 +14,7 @@ const inkpadPlugin = require('./tools/vite-plugin-inkpad');
 
 module.exports = defineConfig({
   root: __dirname,
+  cacheDir: 'node_modules/.vite',
   // 相对路径资源引用：产物在 file:// 下（pywebview 打包）也能正确加载
   base: './',
   publicDir: false,
