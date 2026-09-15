@@ -186,34 +186,34 @@
     <div class="logo"><img src="resource/app_512.png" alt="L.Note"></div>
     <h1>L.Note</h1>
     <p class="tagline">本地 Notion 风文本编辑器 —— 语法高亮 · Markdown 预览 · Mermaid 图表 · JSON/XML 工具</p>
-    <div class="badge">免费 · 纯本地运行 · 无需联网 · 安装版 / 便携版可选 · <b>v0.23.2</b></div>
+    <div class="badge">免费 · 纯本地运行 · 无需联网 · 安装版 / 便携版可选 · <b>v0.24.0</b></div>
   </header>
 
   <div class="dl-grid">
     <div class="dl-card">
       <div class="dl-tag">推荐 · 安装版</div>
-      <a class="dl-btn" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v0.23.2/L.Note-setup-v0.23.2.exe" download>
+      <a class="dl-btn" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v0.24.0/L.Note-setup-v0.24.0.exe" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        下载安装版 v0.23.2
+        下载安装版 v0.24.0
       </a>
       <div class="dl-meta">
         安装向导 · 约 18.3 MB · Windows 10/11（x64）<br>
         可选注册 .md / .markdown / 图片文件关联，含卸载程序<br>
         SHA256（可复制核对）：<br>
-        <code class="hash">58D6AB1156C40A7FC44E2AE465C67227B8F7673ADDE71ABF392188AC35378216</code>
+        <code class="hash">A5270C14B28E95B6A64F77EF4A74094F279E46C112981E9C38D2AC5782C0B035</code>
       </div>
     </div>
     <div class="dl-card">
       <div class="dl-tag alt">免安装 · 便携版</div>
-      <a class="dl-btn alt" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v0.23.2/L.Note-v0.23.2-win64.exe" download>
+      <a class="dl-btn alt" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v0.24.0/L.Note-v0.24.0-win64.exe" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        下载便携版 v0.23.2
+        下载便携版 v0.24.0
       </a>
       <div class="dl-meta">
-        免安装 · 约 18 MB · Windows 10/11（x64）<br>
+        免安装 · 约 16.7 MB · Windows 10/11（x64）<br>
         双击直接运行；需要文件关联时用 register-file-assoc.ps1<br>
         SHA256（可复制核对）：<br>
-        <code class="hash">1894A37CB4DABB0CCC2DB70A0AF7DB9FF7E9B462B5F60C7FB800FC97001CA37E</code>
+        <code class="hash">FC96FB6976A92AC300261D25FA3FAF034410027142B910A0A6764FEBFC50A37C</code>
       </div>
     </div>
   </div>
@@ -305,8 +305,8 @@
       <div class="panel">
         <h3>安装与运行</h3>
         <ul>
-          <li><b>安装版（推荐）：</b>双击 L.Note-setup-v0.23.2.exe，按向导完成安装；勾选「注册文件关联」后，.md / .markdown / 图片文件即可双击用 L.Note 打开</li>
-          <li><b>便携版：</b>双击 L.Note-v0.23.2-win64.exe，免安装直接运行</li>
+          <li><b>安装版（推荐）：</b>双击 L.Note-setup-v0.24.0.exe，按向导完成安装；勾选「注册文件关联」后，.md / .markdown / 图片文件即可双击用 L.Note 打开</li>
+          <li><b>便携版：</b>双击 L.Note-v0.24.0-win64.exe，免安装直接运行</li>
           <li>依赖 Edge WebView2 运行时（Win11 自带，Win10 一般已预装）</li>
           <li>数据保存在本机浏览器存储，卸载/换机前请先导出备份</li>
         </ul>
@@ -316,8 +316,8 @@
         <ul>
           <li>复制上方对应文件的 SHA256 值</li>
           <li>在 exe 所在目录执行：</li>
-          <li><b>certutil -hashfile L.Note-setup-v0.23.2.exe SHA256</b></li>
-          <li><b>certutil -hashfile L.Note-v0.23.2-win64.exe SHA256</b></li>
+          <li><b>certutil -hashfile L.Note-setup-v0.24.0.exe SHA256</b></li>
+          <li><b>certutil -hashfile L.Note-v0.24.0-win64.exe SHA256</b></li>
           <li>比对输出哈希是否一致</li>
         </ul>
       </div>
@@ -326,6 +326,12 @@
 
   <section>
     <h2>更新日志</h2>
+    <div class="changelog">
+      <div class="v">v0.24.0</div>
+      <ul>
+        <li>**全套文档类型图标改为统一线性 SVG 并全彩化**：新建菜单、左侧文档列表、顶栏面包屑、富文档浮动工具条与右键「AI 图表」菜单里原先的 emoji 图标全部替换为单色线性风格的矢量图标，并按文档类型各赋一种颜色——文档（灰蓝）/ 富文档（紫）/ Word（深蓝）/ 思维笔记（品红）/ 便利贴（琥珀）/ 图表（青）/ 流程图（蓝）/ 思维导图（绿）/ PDF（红）。，**「打开文件夹」「导入文件」两个菜单动作图标一并上色**：同样由 emoji 换为线性 SVG，「打开文件夹」取冷色青绿、「导入文件」取暖色橙棕，与紧邻的六类文档按钮在颜色上区分开。，**配色抽为 CSS 变量双层实现，并适配深色模式**：`css/base.css` 新增 11 个 `--ico-*` 变量与 11 条 `.ico-*` 规则，深色模式下自动切换为同色相提亮值；颜色挂在 svg 元素自身的 class 上、描边仍用 `currentColor`，从而让置灰态可以整体覆盖类型色。，**置灰态统一覆盖类型色**：回收站条目、富文档 AI 菜单禁用项不再保留各自的类型色，统一置灰，避免与「可用 / 不可用」的视觉语义冲突。，**图标定义集中管理**：`src-app/01-core.js` 内新增 `ICON_ATTR` / `svgIcon()` / `DOC_ICONS`，富文档浮条、文档列表、打开文档、可视化、文档操作、AI 图表等调用点统一改用矢量图标；顶栏面包屑改为以 `innerHTML` 渲染。，**自动更新安装期间不再无任何反馈**：守护进程调用安装器由 `/VERYSILENT` 改为 `/SILENT`（含 `/NOCANCEL`），保留原生安装进度窗口，用户可直观看到安装进展（commit c483ec9）。</li>
+      </ul>
+    </div>
     <div class="changelog">
       <div class="v">v0.23.2</div>
       <ul>
