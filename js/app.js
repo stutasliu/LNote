@@ -1534,6 +1534,145 @@
     renderList();
     toast3(state.sortGroup ? "\u5DF2\u5F00\u542F\u6309\u6700\u8FD1\u4F7F\u7528\u6392\u5E8F\uFF08\u65F6\u95F4\u5206\u7EC4\uFF09" : "\u5DF2\u5173\u95ED\u6392\u5E8F\uFF0C\u5217\u8868\u4FDD\u6301\u521B\u5EFA\u987A\u5E8F", "success");
   }
+  function moveDocBeforeAfter(docs, dragId, targetId, after) {
+    if (!docs || !dragId || !targetId || dragId === targetId) return docs;
+    var from = -1;
+    for (var i = 0; i < docs.length; i++) {
+      if (docs[i].id === dragId) {
+        from = i;
+        break;
+      }
+    }
+    if (from < 0) return docs;
+    var moved = docs.splice(from, 1)[0];
+    var t = -1;
+    for (var j = 0; j < docs.length; j++) {
+      if (docs[j].id === targetId) {
+        t = j;
+        break;
+      }
+    }
+    if (t < 0) {
+      docs.splice(from, 0, moved);
+      return docs;
+    }
+    docs.splice(after ? t + 1 : t, 0, moved);
+    return docs;
+  }
+  var _docDrag = null;
+  var _docDragJustDone = 0;
+  function forceManualOrder() {
+    if (!state.sortGroup) return false;
+    state.sortGroup = false;
+    try {
+      localStorage.setItem(SORT_KEY, "0");
+    } catch (e) {
+    }
+    if (els.btnSortToggle) els.btnSortToggle.classList.toggle("active", false);
+    return true;
+  }
+  function docItemById(id) {
+    if (!els.docList || !id) return null;
+    var items = els.docList.querySelectorAll(".doc-item");
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].dataset.docId === id) return items[i];
+    }
+    return null;
+  }
+  function clearDropIndicator() {
+    if (!els.docList) return;
+    var marks = els.docList.querySelectorAll(".drop-before, .drop-after");
+    Array.prototype.forEach.call(marks, function(n) {
+      n.classList.remove("drop-before", "drop-after");
+    });
+  }
+  function canReorderDocs() {
+    if (state.batchMode) return false;
+    if (state.docFilter === "trash" || state.docFilter === "sticky") return false;
+    return true;
+  }
+  function onDocDragDown(e) {
+    if (e.button !== 0) return;
+    if (!canReorderDocs()) return;
+    if (!e.target || !e.target.closest) return;
+    var item = e.target.closest(".doc-item");
+    if (!item || !els.docList || !els.docList.contains(item)) return;
+    if (item.classList.contains("empty-hint")) return;
+    if (e.target.closest(".doc-more-btn, .doc-menu, .doc-batch-check, .doc-tag")) return;
+    var id = item.dataset.docId;
+    if (!id) return;
+    _docDrag = { id, startX: e.clientX, startY: e.clientY, moved: false, targetId: null, after: false };
+  }
+  function onDocDragMove(e) {
+    if (!_docDrag) return;
+    if (!_docDrag.moved) {
+      var dx = Math.abs(e.clientX - _docDrag.startX);
+      var dy = Math.abs(e.clientY - _docDrag.startY);
+      if (dx < 4 && dy < 4) return;
+      _docDrag.moved = true;
+      if (forceManualOrder()) {
+        renderList();
+        toast3("\u5DF2\u5207\u6362\u4E3A\u624B\u52A8\u6392\u5E8F", "success");
+      }
+      document.body.classList.add("doc-dragging");
+      var src0 = docItemById(_docDrag.id);
+      if (src0) src0.classList.add("dragging");
+    }
+    if (e.preventDefault) e.preventDefault();
+    var under = document.elementFromPoint(e.clientX, e.clientY);
+    var over = under && under.closest ? under.closest(".doc-item") : null;
+    if (over && (over.classList.contains("empty-hint") || over.dataset.docId === _docDrag.id)) over = null;
+    clearDropIndicator();
+    if (over) {
+      var r = over.getBoundingClientRect();
+      _docDrag.targetId = over.dataset.docId;
+      _docDrag.after = e.clientY > r.top + r.height / 2;
+      over.classList.add(_docDrag.after ? "drop-after" : "drop-before");
+    } else {
+      _docDrag.targetId = null;
+    }
+  }
+  function onDocDragUp() {
+    if (!_docDrag) return;
+    var moved = _docDrag.moved;
+    var dragId = _docDrag.id;
+    var targetId = _docDrag.targetId;
+    var after = _docDrag.after;
+    _docDrag = null;
+    document.body.classList.remove("doc-dragging");
+    clearDropIndicator();
+    var src = docItemById(dragId);
+    if (src) src.classList.remove("dragging");
+    if (!moved) return;
+    _docDragJustDone = Date.now();
+    if (targetId && targetId !== dragId) {
+      moveDocBeforeAfter(state.docs, dragId, targetId, after);
+      persist();
+      renderList();
+      toast3("\u5DF2\u8C03\u6574\u6587\u6863\u987A\u5E8F", "success");
+    } else {
+      renderList();
+    }
+  }
+  function cancelDocDrag() {
+    if (!_docDrag) return;
+    _docDrag = null;
+    document.body.classList.remove("doc-dragging");
+    clearDropIndicator();
+    if (els.docList) {
+      var t = els.docList.querySelectorAll(".dragging");
+      Array.prototype.forEach.call(t, function(n) {
+        n.classList.remove("dragging");
+      });
+    }
+  }
+  window.addEventListener("mousedown", onDocDragDown, true);
+  window.addEventListener("mousemove", onDocDragMove, true);
+  window.addEventListener("mouseup", onDocDragUp, true);
+  window.addEventListener("blur", cancelDocDrag);
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") cancelDocDrag();
+  });
   function createDocItem(d) {
     var item = document.createElement("div");
     item.className = "doc-item" + (d.id === state.activeId ? " active" : "") + (state.batchMode ? " batch-mode" : "");
@@ -1560,6 +1699,9 @@
       });
     });
     item.addEventListener("click", function(e) {
+      if (_docDragJustDone && Date.now() - _docDragJustDone < 400) {
+        return;
+      }
       if (e.target.closest(".doc-more-btn") || e.target.closest(".doc-menu") || e.target.closest(".doc-batch-check")) {
         return;
       }
@@ -2595,6 +2737,20 @@
     openDoc(d.id);
     els.title.focus();
   }
+  function newVisualDocFromModel(kind, model, title) {
+    var d = {
+      id: uid(),
+      title: title || "",
+      kind,
+      lang: "json",
+      content: JSON.stringify(model),
+      updated: Date.now()
+    };
+    state.docs.push(d);
+    persist();
+    openDoc(d.id);
+    if (!title) els.title.focus();
+  }
   function newRichDoc() {
     var d = {
       id: uid(),
@@ -2884,6 +3040,1352 @@
     saveDoc(false);
   }
 
+  // src-app/26-settings.js
+  var SETTINGS_KEY = "inkpad.settings.v1";
+  var DEFAULT_SETTINGS = {
+    fontSize: 14,
+    lineWrapping: true,
+    lineNumbers: true,
+    shortcuts: {
+      save: "Ctrl-S",
+      newDoc: "Ctrl-N",
+      newRich: "Ctrl-Shift-N",
+      newFlow: "Ctrl-Alt-N",
+      newMind: "Ctrl-Alt-M",
+      newNote: "Ctrl-Shift-M",
+      newSticky: "Ctrl-Alt-S",
+      find: "Ctrl-F",
+      replace: "Ctrl-H",
+      findNext: "F3",
+      findPrev: "Shift-F3",
+      format: "Ctrl-Shift-F",
+      toggleComment: "Ctrl-/",
+      foldAll: "Ctrl-Alt-F",
+      unfoldAll: "Ctrl-Alt-Shift-F",
+      selectNextOccurrence: "Ctrl-Alt-Down",
+      mergeLines: "Ctrl-Shift-J"
+    }
+  };
+  var SHORTCUT_LIST = [
+    { id: "save", label: "\u4FDD\u5B58\u6587\u6863", scope: "global" },
+    { id: "newDoc", label: "\u65B0\u5EFA\u6587\u6863", scope: "global" },
+    { id: "newRich", label: "\u65B0\u5EFA\u5BCC\u6587\u6863", scope: "global" },
+    { id: "newFlow", label: "\u65B0\u5EFA\u6D41\u7A0B\u56FE", scope: "global" },
+    { id: "newMind", label: "\u65B0\u5EFA\u601D\u7EF4\u5BFC\u56FE", scope: "global" },
+    { id: "newNote", label: "\u65B0\u5EFA\u601D\u7EF4\u7B14\u8BB0", scope: "global" },
+    { id: "newSticky", label: "\u65B0\u5EFA\u4FBF\u5229\u8D34", scope: "global" },
+    { id: "find", label: "\u67E5\u627E", scope: "editor" },
+    { id: "replace", label: "\u66FF\u6362", scope: "editor" },
+    { id: "findNext", label: "\u67E5\u627E\u4E0B\u4E00\u4E2A", scope: "editor" },
+    { id: "findPrev", label: "\u67E5\u627E\u4E0A\u4E00\u4E2A", scope: "editor" },
+    { id: "format", label: "\u683C\u5F0F\u5316\u6587\u6863", scope: "editor" },
+    { id: "toggleComment", label: "\u6CE8\u91CA / \u53D6\u6D88\u6CE8\u91CA", scope: "editor" },
+    { id: "foldAll", label: "\u5168\u90E8\u6298\u53E0", scope: "editor" },
+    { id: "unfoldAll", label: "\u5168\u90E8\u5C55\u5F00", scope: "editor" },
+    { id: "selectNextOccurrence", label: "\u9009\u4E2D\u4E0B\u4E00\u5904\u5339\u914D", scope: "editor" },
+    { id: "mergeLines", label: "\u5408\u5E76\u884C", scope: "editor" }
+  ];
+  var settingsState = null;
+  function loadSettings() {
+    var base = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    try {
+      var saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") || {};
+      if (typeof saved.fontSize === "number") base.fontSize = saved.fontSize;
+      if (typeof saved.lineWrapping === "boolean") base.lineWrapping = saved.lineWrapping;
+      if (typeof saved.lineNumbers === "boolean") base.lineNumbers = saved.lineNumbers;
+      if (saved.shortcuts) {
+        Object.keys(base.shortcuts).forEach(function(k) {
+          var v = saved.shortcuts[k];
+          if (typeof v === "string" && v) base.shortcuts[k] = v;
+        });
+      }
+    } catch (e) {
+    }
+    if (!localStorage.getItem(SETTINGS_KEY)) {
+      var oldFs = parseInt(localStorage.getItem("inkpad.fontsize"), 10);
+      if (oldFs) base.fontSize = oldFs;
+    }
+    settingsState = base;
+  }
+  function saveSettings() {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settingsState));
+    } catch (e) {
+    }
+  }
+  function currentCombo(id) {
+    return settingsState && settingsState.shortcuts && settingsState.shortcuts[id] ? settingsState.shortcuts[id] : DEFAULT_SETTINGS.shortcuts[id] || "";
+  }
+  function fmtCombo(combo) {
+    return (combo || "").replace(/-/g, "+");
+  }
+  function parseCombo(combo) {
+    var parts = (combo || "").split("-");
+    var key = parts.pop() || "";
+    return {
+      ctrl: parts.indexOf("Ctrl") >= 0,
+      shift: parts.indexOf("Shift") >= 0,
+      alt: parts.indexOf("Alt") >= 0,
+      meta: parts.indexOf("Cmd") >= 0,
+      key
+    };
+  }
+  function comboKeyForCompare(combo) {
+    return (combo || "").replace("Cmd-", "Ctrl-");
+  }
+  function canonicalKey(k) {
+    if (!k) return "";
+    var m = { "ArrowUp": "Up", "ArrowDown": "Down", "ArrowLeft": "Left", "ArrowRight": "Right", " ": "Space", "Escape": "Esc" };
+    var v = m[k] || k;
+    return v.length === 1 ? v.toUpperCase() : v;
+  }
+  function matchesCombo(e, combo) {
+    var p = parseCombo(combo);
+    if (!p.key) return false;
+    var evtPrimary = e.ctrlKey || e.metaKey;
+    if ((p.ctrl || p.meta) !== evtPrimary) return false;
+    if (!!e.shiftKey !== !!p.shift) return false;
+    if (!!e.altKey !== !!p.alt) return false;
+    return canonicalKey(e.key).toLowerCase() === p.key.toLowerCase();
+  }
+  function buildCmExtraKeys() {
+    var s = settingsState ? settingsState.shortcuts : DEFAULT_SETTINGS.shortcuts;
+    var keys = {
+      "Tab": handleTabKey,
+      "Shift-Tab": function(cm2) {
+        cm2.execCommand("indentLess");
+      }
+    };
+    var actionMap = {
+      find: function() {
+        openFindModal(false);
+      },
+      replace: function() {
+        openFindModal(true);
+      },
+      findNext: function() {
+        frFindNext(false);
+      },
+      findPrev: function() {
+        frFindNext(true);
+      },
+      format: formatCurrent,
+      toggleComment: "toggleComment",
+      foldAll: "foldAll",
+      unfoldAll: "unfoldAll",
+      selectNextOccurrence: "selectNextOccurrence",
+      mergeLines: function() {
+        execEditorCmd("merge");
+      }
+    };
+    Object.keys(actionMap).forEach(function(id) {
+      var combo = s[id];
+      if (!combo) return;
+      keys[combo] = actionMap[id];
+      var hasCtrl = combo.indexOf("Ctrl") >= 0;
+      var hasCmd = combo.indexOf("Cmd") >= 0;
+      if (hasCtrl && !hasCmd) {
+        keys[combo.replace("Ctrl-", "Cmd-")] = actionMap[id];
+      } else if (hasCmd && !hasCtrl) {
+        keys[combo.replace("Cmd-", "Ctrl-")] = actionMap[id];
+      }
+    });
+    return keys;
+  }
+  function handleGlobalKeydown(e) {
+    if (e.defaultPrevented) return false;
+    if (matchesCombo(e, currentCombo("save"))) {
+      e.preventDefault();
+      saveDoc(false);
+      return true;
+    }
+    if (matchesCombo(e, currentCombo("newDoc"))) {
+      e.preventDefault();
+      newDoc("plaintext");
+      return true;
+    }
+    if (matchesCombo(e, currentCombo("newRich"))) {
+      e.preventDefault();
+      newRichDoc();
+      return true;
+    }
+    if (matchesCombo(e, currentCombo("newFlow"))) {
+      e.preventDefault();
+      newVisualDoc("flow");
+      return true;
+    }
+    if (matchesCombo(e, currentCombo("newMind"))) {
+      e.preventDefault();
+      newVisualDoc("mind");
+      return true;
+    }
+    if (matchesCombo(e, currentCombo("newNote"))) {
+      e.preventDefault();
+      newVisualDoc("note");
+      return true;
+    }
+    if (matchesCombo(e, currentCombo("newSticky"))) {
+      e.preventDefault();
+      var d = newSticky();
+      renderList();
+      if (d) toast3("\u5DF2\u65B0\u5EFA\u4FBF\u5229\u8D34", "success");
+      return true;
+    }
+    return false;
+  }
+  loadSettings();
+  var settingsRecordingId = null;
+  var settingsRecordingBtn = null;
+  function syncSettingsControls() {
+    $("settings-fontsize").value = settingsState.fontSize;
+    $("settings-fontsize-val").textContent = settingsState.fontSize + "px";
+    $("settings-linenum").value = settingsState.lineNumbers ? "1" : "0";
+    $("settings-wrap").value = settingsState.lineWrapping ? "1" : "0";
+  }
+  function switchSettingsTab(name) {
+    Array.prototype.forEach.call(document.querySelectorAll(".settings-tab"), function(t) {
+      t.classList.toggle("active", t.getAttribute("data-settings-tab") === name);
+    });
+    $("settings-pane-general").style.display = name === "general" ? "" : "none";
+    $("settings-pane-keys").style.display = name === "keys" ? "" : "none";
+    $("settings-pane-ai").style.display = name === "ai" ? "" : "none";
+    if (name === "keys") renderShortcutList();
+    if (name === "ai") loadAiConfig();
+  }
+  function renderShortcutList() {
+    var box = $("settings-keys-list");
+    box.innerHTML = "";
+    SHORTCUT_LIST.forEach(function(item) {
+      var row = document.createElement("div");
+      row.className = "sk-row";
+      var lab = document.createElement("span");
+      lab.className = "sk-label";
+      lab.textContent = item.label;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "sk-combo";
+      btn.textContent = fmtCombo(currentCombo(item.id));
+      btn.title = "\u70B9\u51FB\u540E\u6309\u4E0B\u65B0\u7EC4\u5408\u952E\u8FDB\u884C\u5F55\u5236";
+      btn.addEventListener("click", function() {
+        startSettingsRecording(item.id, btn);
+      });
+      row.appendChild(lab);
+      row.appendChild(btn);
+      box.appendChild(row);
+    });
+  }
+  function startSettingsRecording(id, btn) {
+    stopSettingsRecording();
+    settingsRecordingId = id;
+    settingsRecordingBtn = btn;
+    btn.classList.add("recording");
+    btn.textContent = "\u8BF7\u6309\u952E\u2026";
+    btn.blur();
+    window.addEventListener("keydown", onSettingsRecordKeydown, true);
+  }
+  function stopSettingsRecording() {
+    window.removeEventListener("keydown", onSettingsRecordKeydown, true);
+    settingsRecordingId = null;
+    if (settingsRecordingBtn) {
+      settingsRecordingBtn.classList.remove("recording");
+      settingsRecordingBtn = null;
+    }
+  }
+  function onSettingsRecordKeydown(e) {
+    if (!settingsRecordingId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat) return;
+    var ck = canonicalKey(e.key);
+    if (!ck) return;
+    if (ck === "Esc") {
+      stopSettingsRecording();
+      toast3("\u5DF2\u53D6\u6D88\u4FEE\u6539", "info");
+      return;
+    }
+    var mods = [];
+    if (e.ctrlKey) mods.push("Ctrl");
+    if (e.altKey) mods.push("Alt");
+    if (e.shiftKey) mods.push("Shift");
+    if (e.metaKey) mods.push("Cmd");
+    if (mods.length === 0 && ck.length === 1) {
+      toast3("\u8BF7\u81F3\u5C11\u542B\u4E00\u4E2A\u4FEE\u9970\u952E\uFF08Ctrl / Alt / Shift / Cmd\uFF09", "error");
+      return;
+    }
+    var combo = mods.concat([ck]).join("-");
+    var conflict = null;
+    Object.keys(DEFAULT_SETTINGS.shortcuts).forEach(function(k) {
+      if (k === settingsRecordingId) return;
+      if (comboKeyForCompare(currentCombo(k)) === comboKeyForCompare(combo)) conflict = k;
+    });
+    if (conflict) {
+      var dupLabel = "";
+      SHORTCUT_LIST.forEach(function(it) {
+        if (it.id === conflict) dupLabel = it.label;
+      });
+      stopSettingsRecording();
+      toast3("\u5FEB\u6377\u952E " + fmtCombo(combo) + " \u5DF2\u88AB\u300C" + dupLabel + "\u300D\u5360\u7528", "error");
+      renderShortcutList();
+      return;
+    }
+    settingsState.shortcuts[settingsRecordingId] = combo;
+    saveSettings();
+    cm.setOption("extraKeys", buildCmExtraKeys());
+    stopSettingsRecording();
+    renderShortcutList();
+    toast3("\u5FEB\u6377\u952E\u5DF2\u66F4\u65B0", "success");
+  }
+  function openSettingsModal() {
+    syncSettingsControls();
+    renderShortcutList();
+    var activeTab = document.querySelector(".settings-tab.active");
+    switchSettingsTab(activeTab ? activeTab.getAttribute("data-settings-tab") : "general");
+    openSingleModal("settings-modal");
+  }
+  function closeSettingsModal() {
+    stopSettingsRecording();
+    $("settings-modal").style.display = "none";
+  }
+  var fontSize = settingsState.fontSize;
+  function applyFontSize(px) {
+    settingsState.fontSize = px;
+    fontSize = px;
+    cm.getWrapperElement().style.fontSize = px + "px";
+    cm.refresh();
+    saveSettings();
+  }
+  function initSettings() {
+    $("settings-close").addEventListener("click", closeSettingsModal);
+    $("settings-done").addEventListener("click", closeSettingsModal);
+    $("settings-modal").addEventListener("click", function(e) {
+      if (e.target === $("settings-modal")) closeSettingsModal();
+    });
+    $("settings-reset").addEventListener("click", function() {
+      settingsState = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+      saveSettings();
+      cm.setOption("lineNumbers", settingsState.lineNumbers);
+      cm.setOption("lineWrapping", settingsState.lineWrapping);
+      cm.setOption("extraKeys", buildCmExtraKeys());
+      applyFontSize(settingsState.fontSize);
+      syncSettingsControls();
+      renderShortcutList();
+      toast3("\u5DF2\u6062\u590D\u9ED8\u8BA4\u8BBE\u7F6E", "success");
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".settings-tab"), function(t) {
+      t.addEventListener("click", function() {
+        switchSettingsTab(t.getAttribute("data-settings-tab"));
+      });
+    });
+    $("settings-fontsize").addEventListener("input", function() {
+      var px = parseInt(this.value, 10) || 14;
+      applyFontSize(px);
+      $("settings-fontsize-val").textContent = px + "px";
+    });
+    $("settings-linenum").addEventListener("change", function() {
+      settingsState.lineNumbers = this.value === "1";
+      saveSettings();
+      cm.setOption("lineNumbers", settingsState.lineNumbers);
+    });
+    $("settings-wrap").addEventListener("change", function() {
+      settingsState.lineWrapping = this.value === "1";
+      saveSettings();
+      cm.setOption("lineWrapping", settingsState.lineWrapping);
+    });
+    cm.setOption("lineNumbers", settingsState.lineNumbers);
+    cm.setOption("lineWrapping", settingsState.lineWrapping);
+    cm.setOption("extraKeys", buildCmExtraKeys());
+    applyFontSize(settingsState.fontSize);
+    cm.getWrapperElement().addEventListener("wheel", function(e) {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      fontSize = Math.min(26, Math.max(10, fontSize + (e.deltaY < 0 ? 1 : -1)));
+      applyFontSize(fontSize);
+    }, { passive: false });
+  }
+
+  // src-app/29-ai-config.js
+  var AI_PRESETS = {
+    deepseek: { baseUrl: "https://api.deepseek.com", model: "deepseek-chat" },
+    openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+    moonshot: { baseUrl: "https://api.moonshot.cn/v1", model: "moonshot-v1-8k" },
+    zhipu: { baseUrl: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-flash" },
+    custom: { baseUrl: "", model: "" }
+  };
+  var AI_TEST_TIMEOUT = 45e3;
+  var aiCfgView = null;
+  var aiBusy = false;
+  var aiInited = false;
+  var aiTestTimer = null;
+  var aiTestPending = false;
+  var aiCfgLoaded = false;
+  var aiCfgListeners = [];
+  function isAiConfigured() {
+    return !!(aiCfgView && aiCfgView.baseUrl && aiCfgView.model && aiCfgView.hasKey);
+  }
+  function isAiConfigLoaded() {
+    return aiCfgLoaded;
+  }
+  function notifyAiConfig() {
+    for (var i = 0; i < aiCfgListeners.length; i++) {
+      try {
+        aiCfgListeners[i](isAiConfigured());
+      } catch (e) {
+      }
+    }
+  }
+  function onAiConfigChanged(cb) {
+    if (typeof cb === "function") aiCfgListeners.push(cb);
+  }
+  function refreshAiConfigState() {
+    if (!hasApi() || !getApi().ai_get_config) {
+      aiCfgLoaded = true;
+      notifyAiConfig();
+      return Promise.resolve(null);
+    }
+    return getApi().ai_get_config().then(function(r) {
+      aiCfgView = r && r.config || null;
+      aiCfgLoaded = true;
+      notifyAiConfig();
+      return aiCfgView;
+    }).catch(function() {
+      aiCfgLoaded = true;
+      notifyAiConfig();
+      return null;
+    });
+  }
+  function openAiSettings() {
+    try {
+      openSettingsModal();
+      var tab = document.querySelector('.settings-tab[data-settings-tab="ai"]');
+      if (tab) tab.click();
+    } catch (e) {
+    }
+  }
+  function aiEntryBlocked() {
+    if (!hasApi() || !aiCfgLoaded || isAiConfigured()) return false;
+    toast3("\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u5B8C\u6210 AI \u914D\u7F6E", "error");
+    openAiSettings();
+    return true;
+  }
+  function isAiAuthError(msg) {
+    var s = String(msg || "");
+    return s.indexOf("401") >= 0 || s.indexOf("403") >= 0 || s.indexOf("API Key") >= 0 || s.indexOf("\u5BC6\u94A5") >= 0;
+  }
+  function setAiStatus(text, kind) {
+    var el = $("settings-ai-status");
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = kind === "error" ? "var(--danger)" : kind === "ok" || kind === "pending" ? "var(--accent)" : "";
+  }
+  function setAiBusy(busy) {
+    aiBusy = busy;
+    var t = $("settings-ai-test");
+    var s = $("settings-ai-save");
+    if (t) {
+      t.disabled = busy;
+      t.textContent = busy ? "\u6D4B\u8BD5\u4E2D\u2026" : "\u6D4B\u8BD5\u8FDE\u63A5";
+    }
+    if (s) s.disabled = busy;
+  }
+  function matchPreset(baseUrl) {
+    var url = String(baseUrl || "").replace(/\/+$/, "");
+    var hit = "custom";
+    Object.keys(AI_PRESETS).forEach(function(k) {
+      if (k === "custom") return;
+      if (AI_PRESETS[k].baseUrl.replace(/\/+$/, "") === url) hit = k;
+    });
+    return hit;
+  }
+  function applyAiView(cfg) {
+    aiCfgView = cfg || null;
+    aiCfgLoaded = true;
+    notifyAiConfig();
+    var baseurl = $("settings-ai-baseurl");
+    var model = $("settings-ai-model");
+    var keyInput = $("settings-ai-key");
+    var preset = $("settings-ai-preset");
+    if (baseurl) baseurl.value = cfg && cfg.baseUrl || "";
+    if (model) model.value = cfg && cfg.model || "";
+    if (preset) preset.value = matchPreset(cfg && cfg.baseUrl);
+    if (keyInput) {
+      keyInput.value = "";
+      keyInput.placeholder = cfg && cfg.hasKey ? "\u5DF2\u4FDD\u5B58 " + cfg.keyMasked + "\uFF08\u7559\u7A7A\u4E0D\u4FEE\u6539\uFF09" : "sk-...";
+    }
+  }
+  function collectAiInput() {
+    var cfg = {
+      baseUrl: ($("settings-ai-baseurl") ? $("settings-ai-baseurl").value : "").trim(),
+      model: ($("settings-ai-model") ? $("settings-ai-model").value : "").trim()
+    };
+    var key = ($("settings-ai-key") ? $("settings-ai-key").value : "").trim();
+    if (key) cfg.apiKey = key;
+    return cfg;
+  }
+  function loadAiConfig() {
+    if (!hasApi() || !getApi().ai_get_config) {
+      setAiStatus("\u5F53\u524D\u4E3A\u6D4F\u89C8\u5668\u9884\u89C8\u73AF\u5883\uFF0CAI \u914D\u7F6E\u4EC5\u5728\u684C\u9762\u7248\u53EF\u7528", "error");
+      return Promise.resolve(null);
+    }
+    return getApi().ai_get_config().then(function(r) {
+      if (!r || r.error || !r.config) {
+        setAiStatus(r && r.error || "\u8BFB\u53D6\u914D\u7F6E\u5931\u8D25", "error");
+        return null;
+      }
+      applyAiView(r.config);
+      setAiStatus(r.config.hasKey ? "\u5DF2\u914D\u7F6E\u5BC6\u94A5 " + r.config.keyMasked : "\u5C1A\u672A\u914D\u7F6E\u5BC6\u94A5", r.config.hasKey ? "ok" : "muted");
+      return r.config;
+    }).catch(function(e) {
+      setAiStatus("\u8BFB\u53D6\u914D\u7F6E\u5931\u8D25\uFF1A" + String(e && e.message || e), "error");
+      return null;
+    });
+  }
+  function onTestConnection() {
+    if (aiBusy) return;
+    var input = collectAiInput();
+    if (!input.baseUrl) {
+      setAiStatus("\u8BF7\u5148\u586B\u5199 Base URL", "error");
+      return;
+    }
+    if (!input.apiKey && !(aiCfgView && aiCfgView.hasKey)) {
+      setAiStatus("\u8BF7\u5148\u586B\u5199 API Key", "error");
+      return;
+    }
+    if (!input.model) {
+      setAiStatus("\u8BF7\u5148\u586B\u5199\u6A21\u578B\u540D", "error");
+      return;
+    }
+    if (!hasApi() || !getApi().ai_test) {
+      setAiStatus("\u5F53\u524D\u4E3A\u6D4F\u89C8\u5668\u9884\u89C8\u73AF\u5883\uFF0C\u65E0\u6CD5\u6D4B\u8BD5\u8FDE\u63A5", "error");
+      return;
+    }
+    setAiBusy(true);
+    setAiStatus("\u6B63\u5728\u6D4B\u8BD5\u2026", "pending");
+    aiTestPending = true;
+    if (aiTestTimer) clearTimeout(aiTestTimer);
+    aiTestTimer = setTimeout(function() {
+      aiTestTimer = null;
+      if (!aiTestPending) return;
+      aiTestPending = false;
+      setAiBusy(false);
+      setAiStatus("\u6D4B\u8BD5\u8D85\u65F6\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u6216 Base URL", "error");
+    }, AI_TEST_TIMEOUT);
+    getApi().ai_test(input).catch(function(e) {
+      if (aiTestTimer) {
+        clearTimeout(aiTestTimer);
+        aiTestTimer = null;
+      }
+      aiTestPending = false;
+      setAiBusy(false);
+      setAiStatus("\u6D4B\u8BD5\u5931\u8D25\uFF1A" + String(e && e.message || e), "error");
+    });
+  }
+  window.__inkpadAiTestCb = function(r) {
+    if (!aiTestPending) return;
+    aiTestPending = false;
+    if (aiTestTimer) {
+      clearTimeout(aiTestTimer);
+      aiTestTimer = null;
+    }
+    setAiBusy(false);
+    r = r || {};
+    if (r.error) {
+      setAiStatus("\u8FDE\u63A5\u5931\u8D25\uFF1A" + r.error, "error");
+      toast3("AI \u8FDE\u63A5\u6D4B\u8BD5\u5931\u8D25", "error");
+      return;
+    }
+    var ms = r.latencyMs != null ? " \xB7 " + r.latencyMs + "ms" : "";
+    setAiStatus("\u8FDE\u63A5\u6210\u529F \xB7 " + (r.model || "") + ms, "ok");
+    toast3("AI \u8FDE\u63A5\u6D4B\u8BD5\u6210\u529F", "success");
+  };
+  function onSaveConfig() {
+    if (aiBusy) return;
+    if (!hasApi() || !getApi().ai_save_config) {
+      toast3("\u6D4F\u89C8\u5668\u9884\u89C8\u73AF\u5883\u65E0\u6CD5\u4FDD\u5B58 AI \u914D\u7F6E", "error");
+      return;
+    }
+    var input = collectAiInput();
+    if (!input.baseUrl) {
+      setAiStatus("\u8BF7\u5148\u586B\u5199 Base URL", "error");
+      return;
+    }
+    if (!input.model) {
+      setAiStatus("\u8BF7\u5148\u586B\u5199\u6A21\u578B\u540D", "error");
+      return;
+    }
+    getApi().ai_save_config(input).then(function(r) {
+      if (!r || r.error || !r.config) {
+        setAiStatus(r && r.error || "\u4FDD\u5B58\u5931\u8D25", "error");
+        toast3("AI \u914D\u7F6E\u4FDD\u5B58\u5931\u8D25", "error");
+        return;
+      }
+      applyAiView(r.config);
+      setAiStatus(r.config.hasKey ? "\u5DF2\u4FDD\u5B58 \xB7 \u5BC6\u94A5 " + r.config.keyMasked : "\u5DF2\u4FDD\u5B58 \xB7 \u5C1A\u672A\u914D\u7F6E\u5BC6\u94A5", r.config.hasKey ? "ok" : "muted");
+      toast3("AI \u914D\u7F6E\u5DF2\u4FDD\u5B58", "success");
+    }).catch(function(e) {
+      setAiStatus("\u4FDD\u5B58\u5931\u8D25\uFF1A" + String(e && e.message || e), "error");
+      toast3("AI \u914D\u7F6E\u4FDD\u5B58\u5931\u8D25", "error");
+    });
+  }
+  function onClearKey() {
+    if (aiBusy) return;
+    if (!hasApi() || !getApi().ai_save_config) return;
+    getApi().ai_save_config({ clearKey: true }).then(function(r) {
+      if (r && r.config) applyAiView(r.config);
+      setAiStatus("\u5BC6\u94A5\u5DF2\u6E05\u9664", "muted");
+      toast3("\u5DF2\u6E05\u9664\u672C\u673A\u4FDD\u5B58\u7684 API Key", "success");
+    }).catch(function(e) {
+      toast3("\u6E05\u9664\u5931\u8D25\uFF1A" + String(e && e.message || e), "error");
+    });
+  }
+  function onPresetChange() {
+    var v = ($("settings-ai-preset") ? $("settings-ai-preset").value : "custom") || "custom";
+    var p = AI_PRESETS[v];
+    if (!p || v === "custom") return;
+    if ($("settings-ai-baseurl")) $("settings-ai-baseurl").value = p.baseUrl;
+    if ($("settings-ai-model")) $("settings-ai-model").value = p.model;
+    setAiStatus("\u5DF2\u586B\u5165\u9884\u8BBE\uFF0C\u8BF7\u8865\u5145 API Key \u540E\u6D4B\u8BD5", "muted");
+  }
+  function initAiConfig() {
+    if (aiInited) return;
+    aiInited = true;
+    var test = $("settings-ai-test");
+    var save = $("settings-ai-save");
+    var clear = $("settings-ai-clear");
+    var preset = $("settings-ai-preset");
+    if (test) test.addEventListener("click", onTestConnection);
+    if (save) save.addEventListener("click", onSaveConfig);
+    if (clear) clear.addEventListener("click", onClearKey);
+    if (preset) preset.addEventListener("change", onPresetChange);
+    if (hasApi()) refreshAiConfigState();
+    window.addEventListener("pywebviewready", function() {
+      refreshAiConfigState();
+    });
+  }
+
+  // src-app/30-ai-assistant.js
+  var AI_MAX_CHARS = 4e3;
+  var AI_SYSTEM_PROMPT = "\u4F60\u662F L.Note \u7684\u5199\u4F5C\u52A9\u624B\u3002\u8BF7\u76F4\u63A5\u8F93\u51FA\u5904\u7406\u540E\u7684\u6B63\u6587\u5185\u5BB9\uFF0C\u4E0D\u8981\u6DFB\u52A0\u89E3\u91CA\u6027\u8BF4\u660E\u3001\u524D\u8A00\u6216 Markdown \u4EE3\u7801\u5757\u56F4\u680F\u3002";
+  var AI_INSTRUCTIONS = [
+    {
+      key: "polish",
+      label: "\u6DA6\u8272",
+      tip: "\u8BA9\u8868\u8FBE\u66F4\u6D41\u7545\u4E13\u4E1A",
+      build: function(t) {
+        return "\u8BF7\u6DA6\u8272\u4EE5\u4E0B\u5185\u5BB9\uFF0C\u4F7F\u8868\u8FBE\u66F4\u6D41\u7545\u3001\u4E13\u4E1A\uFF0C\u4FDD\u6301\u539F\u610F\u4E0D\u53D8\u3002\u53EA\u8F93\u51FA\u6DA6\u8272\u540E\u7684\u6B63\u6587\uFF1A\n\n" + t;
+      }
+    },
+    {
+      key: "continue",
+      label: "\u7EED\u5199",
+      tip: "\u987A\u7740\u5185\u5BB9\u7EE7\u7EED\u5199",
+      build: function(t) {
+        return "\u8BF7\u987A\u7740\u4EE5\u4E0B\u5185\u5BB9\u7EE7\u7EED\u5199\u4F5C\uFF0C\u5EF6\u7EED\u539F\u6709\u98CE\u683C\u4E0E\u4E3B\u9898\u3002\u53EA\u8F93\u51FA\u7EED\u5199\u90E8\u5206\uFF1A\n\n" + t;
+      }
+    },
+    {
+      key: "summary",
+      label: "\u603B\u7ED3\u8981\u70B9",
+      tip: "\u63D0\u70BC\u5173\u952E\u4FE1\u606F",
+      build: function(t) {
+        return "\u8BF7\u603B\u7ED3\u4EE5\u4E0B\u5185\u5BB9\u7684\u8981\u70B9\uFF0C\u7528\u7B80\u6D01\u7684\u6761\u76EE\u5217\u51FA\u3002\u53EA\u8F93\u51FA\u8981\u70B9\uFF1A\n\n" + t;
+      }
+    },
+    {
+      key: "expand",
+      label: "\u6269\u5199",
+      tip: "\u8865\u5145\u7EC6\u8282\u4E0E\u4F8B\u5B50",
+      build: function(t) {
+        return "\u8BF7\u5BF9\u4EE5\u4E0B\u5185\u5BB9\u8FDB\u884C\u6269\u5199\uFF0C\u8865\u5145\u7EC6\u8282\u4E0E\u4F8B\u5B50\uFF0C\u4F7F\u5176\u66F4\u5145\u5B9E\u3002\u53EA\u8F93\u51FA\u6269\u5199\u540E\u7684\u6B63\u6587\uFF1A\n\n" + t;
+      }
+    },
+    {
+      key: "fix",
+      label: "\u7EA0\u9519",
+      tip: "\u4FEE\u6B63\u9519\u522B\u5B57\u4E0E\u8BED\u6CD5",
+      build: function(t) {
+        return "\u8BF7\u68C0\u67E5\u5E76\u4FEE\u6B63\u4EE5\u4E0B\u5185\u5BB9\u4E2D\u7684\u9519\u522B\u5B57\u3001\u8BED\u6CD5\u4E0E\u6807\u70B9\u9519\u8BEF\uFF0C\u4FDD\u6301\u539F\u610F\u4E0E\u7ED3\u6784\u3002\u53EA\u8F93\u51FA\u4FEE\u6B63\u540E\u7684\u6587\u672C\uFF1A\n\n" + t;
+      }
+    },
+    {
+      key: "outline",
+      label: "\u751F\u6210\u5927\u7EB2",
+      tip: "\u6574\u7406\u4E3A\u5C42\u7EA7\u5927\u7EB2",
+      build: function(t) {
+        return "\u8BF7\u4E3A\u4EE5\u4E0B\u5185\u5BB9\u751F\u6210\u5C42\u7EA7\u5316\u5927\u7EB2\uFF0C\u4F7F\u7528 Markdown \u5217\u8868\u3002\u53EA\u8F93\u51FA\u5927\u7EB2\uFF1A\n\n" + t;
+      }
+    }
+  ];
+  var aiSession = null;
+  var aiSeq = 0;
+  var aiPanelInited = false;
+  function aiInstructionByKey(key) {
+    for (var i = 0; i < AI_INSTRUCTIONS.length; i++) {
+      if (AI_INSTRUCTIONS[i].key === key) return AI_INSTRUCTIONS[i];
+    }
+    return null;
+  }
+  function resolveKind(kind) {
+    if (kind) return kind;
+    var d = activeDoc();
+    return d && d.kind === "rich" ? "rich" : "text";
+  }
+  function getSourceContext(kind) {
+    if (kind === "rich") {
+      var blk = window.InkpadBlocks && window.InkpadBlocks.getBlockAtCaret();
+      if (!blk || !blk.range) return null;
+      var rtext = blk.range.toString();
+      if (!rtext || !rtext.trim()) return null;
+      return { kind: "rich", text: rtext, range: blk.range.cloneRange(), editable: blk.editable };
+    }
+    if (!cm) return null;
+    var text = cm.getSelection();
+    if (!text || !text.trim()) return null;
+    return { kind: "text", text, from: cm.getCursor("from"), to: cm.getCursor("to") };
+  }
+  function setAiPanelTitle(t) {
+    var el = $("ai-panel-title");
+    if (el) el.textContent = t || "AI \u52A9\u624B";
+  }
+  function setAiPanelMeta(text, kind) {
+    var el = $("ai-panel-meta");
+    if (!el) return;
+    el.textContent = text || "";
+    el.style.color = kind === "error" ? "var(--danger)" : kind === "ok" || kind === "pending" ? "var(--accent)" : "";
+  }
+  function setAiPanelBody(text) {
+    var el = $("ai-panel-body");
+    if (!el) return;
+    el.textContent = text || "";
+    el.scrollTop = el.scrollHeight;
+  }
+  function setAiButtons(status) {
+    var streaming = status === "streaming";
+    var hasResult = !!(aiSession && aiSession.resultText);
+    var stopBtn = $("ai-stop");
+    var retryBtn = $("ai-retry");
+    if (stopBtn) stopBtn.style.display = streaming ? "" : "none";
+    if (retryBtn) retryBtn.style.display = status === "error" ? "" : "none";
+    var rep = $("ai-apply-replace");
+    var ins = $("ai-apply-insert");
+    var cp = $("ai-copy");
+    if (rep) rep.disabled = !(hasResult && !streaming);
+    if (ins) ins.disabled = !(hasResult && !streaming);
+    if (cp) cp.disabled = !hasResult;
+  }
+  function openAiPanel() {
+    var p = $("ai-panel");
+    if (p) p.style.display = "flex";
+  }
+  function countChars(s) {
+    return String(s == null ? "" : s).length;
+  }
+  function requestStop() {
+    if (!aiSession || !aiSession.sessionId) return;
+    try {
+      if (hasApi() && getApi().ai_stop) getApi().ai_stop(aiSession.sessionId);
+    } catch (e) {
+    }
+  }
+  function stopAiTask() {
+    if (!aiSession || aiSession.status !== "streaming") return;
+    requestStop();
+    aiSession.status = "stopped";
+    setAiPanelMeta("\u5DF2\u505C\u6B62\uFF08\u5DF2\u63A5\u6536 " + countChars(aiSession.resultText) + " \u5B57\uFF09");
+    setAiButtons("stopped");
+  }
+  function closeAiPanel() {
+    requestStop();
+    aiSession = null;
+    var p = $("ai-panel");
+    if (p) p.style.display = "none";
+  }
+  function finishAi(status, fullText, error) {
+    if (!aiSession) return;
+    if (typeof fullText === "string" && fullText.length >= aiSession.resultText.length) {
+      aiSession.resultText = fullText;
+    }
+    aiSession.status = status;
+    setAiPanelBody(aiSession.resultText);
+    setAiButtons(status);
+    if (status === "done") {
+      setAiPanelMeta("\u751F\u6210\u5B8C\u6210 \xB7 " + countChars(aiSession.resultText) + " \u5B57", "ok");
+    } else if (status === "stopped") {
+      setAiPanelMeta("\u5DF2\u505C\u6B62\uFF08\u5DF2\u63A5\u6536 " + countChars(aiSession.resultText) + " \u5B57\uFF09");
+    } else {
+      aiSession.error = error || "\u751F\u6210\u5931\u8D25";
+      setAiPanelMeta(aiSession.error, "error");
+      toast3("AI \u751F\u6210\u5931\u8D25", "error");
+      if (isAiAuthError(aiSession.error)) {
+        toast3("API Key \u65E0\u6548\u6216\u5DF2\u8FC7\u671F\uFF0C\u8BF7\u5728\u8BBE\u7F6E\u4E2D\u91CD\u65B0\u914D\u7F6E", "error");
+        openAiSettings();
+      }
+    }
+  }
+  window.__inkpadAiChatCb = function(msg) {
+    if (!msg || !msg.sessionId || !aiSession) return;
+    if (msg.sessionId !== aiSession.sessionId) return;
+    if (aiSession.status !== "streaming") return;
+    var d = activeDoc();
+    if (aiSession.docId && (!d || d.id !== aiSession.docId)) {
+      requestStop();
+      aiSession.status = "stopped";
+      aiSession = null;
+      var p = $("ai-panel");
+      if (p) p.style.display = "none";
+      return;
+    }
+    if (msg.type === "delta") {
+      aiSession.resultText += msg.delta || "";
+      setAiPanelBody(aiSession.resultText);
+      setAiButtons("streaming");
+      return;
+    }
+    if (msg.type === "done") {
+      finishAi("done", msg.fullText, null);
+      return;
+    }
+    if (msg.type === "stopped") {
+      finishAi("stopped", msg.fullText, null);
+      return;
+    }
+    if (msg.type === "error") {
+      finishAi("error", msg.fullText, msg.error);
+      return;
+    }
+  };
+  function startAiTask(inst, src) {
+    var text = src.text;
+    var truncated2 = false;
+    if (text.length > AI_MAX_CHARS) {
+      text = text.slice(0, AI_MAX_CHARS);
+      truncated2 = true;
+    }
+    if (aiSession) requestStop();
+    var d = activeDoc();
+    var sessionId = "ai-" + ++aiSeq + "-" + Date.now();
+    aiSession = {
+      sessionId,
+      kind: src.kind,
+      docId: d ? d.id : null,
+      sourceText: text,
+      sourceCtx: src,
+      promptKey: inst.key,
+      promptLabel: inst.label,
+      status: "streaming",
+      resultText: "",
+      error: null,
+      truncated: truncated2,
+      from: src.from || null,
+      to: src.to || null,
+      range: src.range || null,
+      editable: src.editable || null
+    };
+    setAiPanelTitle(inst.label);
+    setAiPanelBody("");
+    setAiPanelMeta("\u6B63\u5728\u751F\u6210\u2026", "pending");
+    setAiButtons("streaming");
+    openAiPanel();
+    if (truncated2) toast3("\u5185\u5BB9\u8FC7\u957F\uFF0C\u5DF2\u622A\u65AD\u5230\u524D " + AI_MAX_CHARS + " \u5B57\u7B26", "info");
+    var payload = {
+      sessionId,
+      messages: [
+        { role: "system", content: AI_SYSTEM_PROMPT },
+        { role: "user", content: inst.build(text) }
+      ]
+    };
+    getApi().ai_chat(payload).then(function(r) {
+      if (r && r.error) finishAi("error", "", r.error);
+    }).catch(function(e) {
+      finishAi("error", "", String(e && e.message || e));
+    });
+  }
+  function runAiInstruction(instKey, opts) {
+    opts = opts || {};
+    var inst = aiInstructionByKey(instKey);
+    if (!inst) return;
+    var kind = resolveKind(opts.kind);
+    var src = opts.context || getSourceContext(kind);
+    if (!src) {
+      toast3("\u8BF7\u5148\u9009\u4E2D\u8981\u5904\u7406\u7684\u5185\u5BB9", "error");
+      return;
+    }
+    if (!hasApi() || !getApi().ai_chat) {
+      toast3("\u5F53\u524D\u4E3A\u6D4F\u89C8\u5668\u9884\u89C8\u73AF\u5883\uFF0CAI \u52A9\u624B\u4EC5\u5728\u684C\u9762\u7248\u53EF\u7528", "error");
+      return;
+    }
+    if (aiEntryBlocked()) return;
+    startAiTask(inst, src);
+  }
+  function onAiRetry() {
+    if (!aiSession || !aiSession.sourceCtx) return;
+    var inst = aiInstructionByKey(aiSession.promptKey);
+    if (!inst) return;
+    startAiTask(inst, aiSession.sourceCtx);
+  }
+  function applyText(text, replace) {
+    if (!cm) return;
+    if (replace && aiSession.from && aiSession.to) {
+      var endR = cm.replaceRange(text, aiSession.from, aiSession.to);
+      cm.setCursor(endR);
+    } else {
+      var pos = aiSession.to || cm.getCursor();
+      var endI = cm.replaceRange(text, pos);
+      cm.setCursor(endI);
+    }
+    cm.focus();
+    toast3(replace ? "\u5DF2\u66FF\u6362\u9009\u4E2D\u5185\u5BB9" : "\u5DF2\u63D2\u5165\u5230\u5149\u6807\u5904", "success");
+    closeAiPanel();
+  }
+  function applyRich(text, replace) {
+    var editable = aiSession.editable;
+    var range = aiSession.range;
+    if (!editable || !range) {
+      toast3("\u65E0\u6CD5\u5B9A\u4F4D\u5230\u7F16\u8F91\u4F4D\u7F6E", "error");
+      return;
+    }
+    try {
+      editable.focus();
+      var sel = window.getSelection();
+      var r = range.cloneRange();
+      if (!replace) r.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(r);
+      var ok = false;
+      try {
+        ok = document.execCommand("insertText", false, text);
+      } catch (e0) {
+        ok = false;
+      }
+      if (!ok) {
+        var r2 = range.cloneRange();
+        if (!replace) r2.collapse(false);
+        r2.deleteContents();
+        var node = document.createTextNode(text);
+        r2.insertNode(node);
+        r2.setStartAfter(node);
+        r2.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r2);
+        editable.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    } catch (e) {
+      toast3("\u5199\u5165\u5BCC\u6587\u6863\u5931\u8D25\uFF1A" + String(e && e.message || e), "error");
+      return;
+    }
+    toast3(replace ? "\u5DF2\u66FF\u6362\u9009\u4E2D\u5185\u5BB9" : "\u5DF2\u63D2\u5165\u5230\u5149\u6807\u5904", "success");
+    closeAiPanel();
+  }
+  function applyResult(replace) {
+    if (!aiSession || !aiSession.resultText) {
+      toast3("\u6682\u65E0\u7ED3\u679C\u53EF\u5904\u7406", "error");
+      return;
+    }
+    if (aiSession.kind === "rich") applyRich(aiSession.resultText, replace);
+    else applyText(aiSession.resultText, replace);
+  }
+  function copyAiResult() {
+    if (!aiSession || !aiSession.resultText) {
+      toast3("\u6682\u65E0\u7ED3\u679C\u53EF\u590D\u5236", "error");
+      return;
+    }
+    copyToClipboard(aiSession.resultText).then(function() {
+      toast3("\u7ED3\u679C\u5DF2\u590D\u5236", "success");
+    }).catch(function() {
+      toast3("\u590D\u5236\u5931\u8D25", "error");
+    });
+  }
+  function initAiAssistant() {
+    if (aiPanelInited) return;
+    aiPanelInited = true;
+    var close = $("ai-panel-close");
+    if (close) close.addEventListener("click", closeAiPanel);
+    var stop = $("ai-stop");
+    if (stop) stop.addEventListener("click", stopAiTask);
+    var retry = $("ai-retry");
+    if (retry) retry.addEventListener("click", onAiRetry);
+    var rep = $("ai-apply-replace");
+    if (rep) rep.addEventListener("click", function() {
+      applyResult(true);
+    });
+    var ins = $("ai-apply-insert");
+    if (ins) ins.addEventListener("click", function() {
+      applyResult(false);
+    });
+    var cp = $("ai-copy");
+    if (cp) cp.addEventListener("click", copyAiResult);
+  }
+
+  // src-app/31-ai-diagram.js
+  var AI_DIAGRAM_MAX_CHARS = 8e3;
+  var DIAG_META = {
+    flow: { label: "\u6D41\u7A0B\u56FE", icon: "\u{1F500}" },
+    mind: { label: "\u601D\u7EF4\u5BFC\u56FE", icon: "\u{1F9E0}" }
+  };
+  var diagSession = null;
+  var diagSeq = 0;
+  var diagInited = false;
+  var diagPromptKind = null;
+  function resolveKind2(kind) {
+    if (kind) return kind;
+    var d = activeDoc();
+    return d && d.kind === "rich" ? "rich" : "text";
+  }
+  function collectSelection(kind) {
+    if (kind === "rich") {
+      var blk = window.InkpadBlocks && window.InkpadBlocks.getBlockAtCaret();
+      if (!blk || !blk.range) return "";
+      return blk.range.toString() || "";
+    }
+    if (!cm) return "";
+    return cm.getSelection() || "";
+  }
+  function flowNodeSize(text, type) {
+    var len = String(text == null ? "" : text).replace(/[\x00-\xff]/g, "a").length;
+    if (type === "decision") return { w: Math.max(120, len * 8 + 60), h: 64 };
+    return { w: Math.max(90, len * 8 + 34), h: 42 };
+  }
+  function flowLayers(nodes, edges) {
+    var depth = {}, i, p;
+    for (i = 0; i < nodes.length; i++) depth[nodes[i].id] = 0;
+    for (p = 0; p < nodes.length; p++) {
+      var changed = false;
+      for (i = 0; i < edges.length; i++) {
+        var e = edges[i];
+        if (depth[e.from] == null || depth[e.to] == null) continue;
+        if (depth[e.to] < depth[e.from] + 1) {
+          depth[e.to] = depth[e.from] + 1;
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+    return depth;
+  }
+  function buildFlowModel(structure) {
+    var src = structure && structure.nodes ? structure.nodes : [];
+    var srcEdges = structure && structure.edges ? structure.edges : [];
+    var layers = flowLayers(src, srcEdges);
+    var byLayer = {}, maxD = 0, i, j;
+    for (i = 0; i < src.length; i++) {
+      var d = layers[src[i].id] || 0;
+      (byLayer[d] = byLayer[d] || []).push(src[i]);
+      if (d > maxD) maxD = d;
+    }
+    var H_GAP = 48, V_GAP = 68, MARGIN_X = 160, MARGIN_Y = 120;
+    var layerWidths = [], maxLayerW = 0;
+    for (j = 0; j <= maxD; j++) {
+      var row = byLayer[j] || [];
+      var w = 0;
+      for (i = 0; i < row.length; i++) w += flowNodeSize(row[i].text, row[i].type).w + (i ? H_GAP : 0);
+      layerWidths[j] = w;
+      if (w > maxLayerW) maxLayerW = w;
+    }
+    var nodes = [], y = MARGIN_Y;
+    for (j = 0; j <= maxD; j++) {
+      var cur = byLayer[j] || [];
+      var rowMaxH = 42;
+      for (i = 0; i < cur.length; i++) {
+        var sh = flowNodeSize(cur[i].text, cur[i].type).h;
+        if (sh > rowMaxH) rowMaxH = sh;
+      }
+      var cursor = MARGIN_X + (maxLayerW - layerWidths[j]) / 2;
+      for (i = 0; i < cur.length; i++) {
+        var node = cur[i];
+        var sz = flowNodeSize(node.text, node.type);
+        nodes.push({
+          id: node.id,
+          type: node.type || "process",
+          text: node.text,
+          x: Math.round(cursor + sz.w / 2),
+          y: Math.round(y + rowMaxH / 2)
+        });
+        cursor += sz.w + H_GAP;
+      }
+      y += rowMaxH + V_GAP;
+    }
+    var edges = [];
+    for (i = 0; i < srcEdges.length; i++) {
+      var se = srcEdges[i];
+      var item = { id: "e" + (i + 1), from: se.from, to: se.to, shape: "line" };
+      if (se.text) item.text = se.text;
+      edges.push(item);
+    }
+    return { nodes, edges, lanes: [] };
+  }
+  function buildMindModel(structure) {
+    var seq = 0;
+    function norm(node) {
+      var id = seq === 0 ? "root" : "m" + seq;
+      seq++;
+      var children = [];
+      var src = node && node.children ? node.children : [];
+      for (var i = 0; i < src.length; i++) children.push(norm(src[i]));
+      return { id, text: node && node.text || "", collapsed: false, children };
+    }
+    var rootSrc = structure && structure.root ? structure.root : { text: "\u4E2D\u5FC3\u4E3B\u9898", children: [] };
+    return {
+      themeName: "classic",
+      layoutDensity: "normal",
+      numberingStyle: "none",
+      root: norm(rootSrc)
+    };
+  }
+  var FLOW_TYPE_LABEL = { start: "\u8D77\u70B9", process: "\u5904\u7406", decision: "\u5224\u65AD", end: "\u7EC8\u70B9" };
+  function previewFlowText(structure) {
+    var nodes = structure && structure.nodes || [];
+    var edges = structure && structure.edges || [];
+    var lines = ["\u8282\u70B9\uFF08" + nodes.length + "\uFF09"], i;
+    for (i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      lines.push("  " + (i + 1) + ". [" + (FLOW_TYPE_LABEL[n.type] || n.type) + "] " + n.text);
+    }
+    lines.push("");
+    lines.push("\u8FDE\u7EBF\uFF08" + edges.length + "\uFF09");
+    for (i = 0; i < edges.length; i++) {
+      var e = edges[i];
+      lines.push("  " + e.from + " \u2192 " + e.to + (e.text ? "\uFF08" + e.text + "\uFF09" : ""));
+    }
+    return lines.join("\n");
+  }
+  function previewMindText(structure) {
+    var lines = [];
+    function walk(node, depth) {
+      var pad = "";
+      for (var k = 0; k < depth; k++) pad += "  ";
+      lines.push(pad + (depth ? "\xB7 " : "") + (node && node.text || ""));
+      var cs = node && node.children || [];
+      for (var i = 0; i < cs.length; i++) walk(cs[i], depth + 1);
+    }
+    walk(structure && structure.root || { text: "" }, 0);
+    return lines.join("\n");
+  }
+  function setDiagTitle(t) {
+    var el = $("ai-diagram-title");
+    if (el) el.textContent = t || "AI \u56FE\u8868";
+  }
+  function setDiagMeta(text, kind) {
+    var el = $("ai-diagram-meta");
+    if (!el) return;
+    el.textContent = text || "";
+    el.style.color = kind === "error" ? "var(--danger)" : kind === "ok" || kind === "pending" ? "var(--accent)" : "";
+  }
+  function setDiagBody(text) {
+    var el = $("ai-diagram-body");
+    if (!el) return;
+    el.textContent = text || "";
+    el.scrollTop = 0;
+  }
+  function setDiagButtons(status) {
+    var streaming = status === "streaming";
+    var stop = $("ai-diagram-stop");
+    var retry = $("ai-diagram-retry");
+    var create = $("ai-diagram-create");
+    if (stop) stop.style.display = streaming ? "" : "none";
+    if (retry) retry.style.display = status === "error" ? "" : "none";
+    if (create) create.disabled = status !== "ready";
+  }
+  function openAiDiagramPanel() {
+    closeAiPanel();
+    var p = $("ai-diagram-panel");
+    if (p) p.style.display = "flex";
+  }
+  function closeAiDiagramPanel() {
+    requestDiagStop();
+    diagSession = null;
+    var p = $("ai-diagram-panel");
+    if (p) p.style.display = "none";
+  }
+  function requestDiagStop() {
+    if (!diagSession || !diagSession.sessionId) return;
+    try {
+      if (hasApi() && getApi().ai_stop) getApi().ai_stop(diagSession.sessionId);
+    } catch (e) {
+    }
+  }
+  function stopDiagTask() {
+    if (!diagSession || diagSession.status !== "streaming") return;
+    requestDiagStop();
+    diagSession.status = "stopped";
+    setDiagMeta("\u5DF2\u505C\u6B62");
+    setDiagButtons("stopped");
+  }
+  function finishDiag(status, structure, title, error) {
+    if (!diagSession) return;
+    diagSession.status = status;
+    if (status === "done") {
+      diagSession.status = "ready";
+      var meta = DIAG_META[diagSession.kind];
+      var model = diagSession.kind === "flow" ? buildFlowModel(structure) : buildMindModel(structure);
+      diagSession.model = model;
+      diagSession.title = title || structure && structure.title || "AI " + meta.label;
+      setDiagBody(diagSession.kind === "flow" ? previewFlowText(structure) : previewMindText(structure));
+      setDiagMeta("\u7ED3\u6784\u9884\u89C8 \xB7 \u786E\u8BA4\u540E\u65B0\u5EFA" + meta.label + "\u6587\u6863", "ok");
+      setDiagButtons("ready");
+    } else if (status === "stopped") {
+      setDiagMeta("\u5DF2\u505C\u6B62");
+      setDiagButtons("stopped");
+    } else {
+      diagSession.error = error || "\u751F\u6210\u5931\u8D25";
+      setDiagBody("");
+      setDiagMeta(diagSession.error, "error");
+      setDiagButtons("error");
+      toast3("AI \u56FE\u8868\u751F\u6210\u5931\u8D25", "error");
+      if (isAiAuthError(diagSession.error)) {
+        toast3("API Key \u65E0\u6548\u6216\u5DF2\u8FC7\u671F\uFF0C\u8BF7\u5728\u8BBE\u7F6E\u4E2D\u91CD\u65B0\u914D\u7F6E", "error");
+        openAiSettings();
+      }
+    }
+  }
+  window.__inkpadAiDiagramCb = function(msg) {
+    if (!msg || !msg.sessionId || !diagSession) return;
+    if (msg.sessionId !== diagSession.sessionId) return;
+    if (diagSession.status !== "streaming") return;
+    var d = activeDoc();
+    if (diagSession.docId && (!d || d.id !== diagSession.docId)) {
+      requestDiagStop();
+      diagSession = null;
+      var p = $("ai-diagram-panel");
+      if (p) p.style.display = "none";
+      return;
+    }
+    if (msg.type === "done") {
+      finishDiag("done", msg.structure, msg.title, null);
+      return;
+    }
+    if (msg.type === "error") {
+      finishDiag("error", null, null, msg.error);
+      return;
+    }
+  };
+  function startDiagTask(kind, rawText) {
+    var text = String(rawText == null ? "" : rawText);
+    if (!text.trim()) {
+      toast3("\u8BF7\u5148\u8F93\u5165\u7528\u4E8E\u751F\u6210\u56FE\u8868\u7684\u5185\u5BB9", "error");
+      return;
+    }
+    var truncated2 = false;
+    if (text.length > AI_DIAGRAM_MAX_CHARS) {
+      text = text.slice(0, AI_DIAGRAM_MAX_CHARS);
+      truncated2 = true;
+    }
+    if (diagSession) requestDiagStop();
+    var meta = DIAG_META[kind];
+    var d = activeDoc();
+    var sessionId = "aid-" + ++diagSeq + "-" + Date.now();
+    diagSession = {
+      sessionId,
+      kind,
+      docId: d ? d.id : null,
+      sourceText: text,
+      status: "streaming",
+      model: null,
+      title: "",
+      error: null
+    };
+    setDiagTitle("AI " + meta.label);
+    setDiagBody("");
+    setDiagMeta("\u6B63\u5728\u751F\u6210" + meta.label + "\u7ED3\u6784\u2026", "pending");
+    var create = $("ai-diagram-create");
+    if (create) create.textContent = "\u65B0\u5EFA\u4E3A" + meta.label;
+    setDiagButtons("streaming");
+    openAiDiagramPanel();
+    if (truncated2) toast3("\u5185\u5BB9\u8FC7\u957F\uFF0C\u5DF2\u622A\u65AD\u5230\u524D " + AI_DIAGRAM_MAX_CHARS + " \u5B57\u7B26", "info");
+    getApi().ai_diagram({ sessionId, kind, text }).then(function(r) {
+      if (r && r.error) finishDiag("error", null, null, r.error);
+    }).catch(function(e) {
+      finishDiag("error", null, null, String(e && e.message || e));
+    });
+  }
+  function onDiagRetry() {
+    if (!diagSession) return;
+    startDiagTask(diagSession.kind, diagSession.sourceText);
+  }
+  function confirmDiagCreate() {
+    if (!diagSession || diagSession.status !== "ready" || !diagSession.model) {
+      toast3("\u6682\u65E0\u53EF\u7528\u7ED3\u6784", "error");
+      return;
+    }
+    var kind = diagSession.kind;
+    var model = diagSession.model;
+    var title = diagSession.title || "AI " + DIAG_META[kind].label;
+    closeAiDiagramPanel();
+    newVisualDocFromModel(kind, model, title);
+    toast3("\u5DF2\u65B0\u5EFA" + DIAG_META[kind].label + "\u6587\u6863", "success");
+  }
+  function openDiagPrompt(kind) {
+    diagPromptKind = kind;
+    var m = $("ai-diagram-prompt");
+    if (!m) {
+      toast3("\u754C\u9762\u672A\u5C31\u7EEA", "error");
+      return;
+    }
+    var title = $("ai-diagram-prompt-title");
+    if (title) title.textContent = "\u751F\u6210" + DIAG_META[kind].label;
+    var ta = $("ai-diagram-prompt-text");
+    if (ta) ta.value = "";
+    m.style.zIndex = "9600";
+    m.style.display = "flex";
+    setTimeout(function() {
+      if (ta) ta.focus();
+    }, 30);
+  }
+  function closeDiagPrompt() {
+    var m = $("ai-diagram-prompt");
+    if (m) m.style.display = "none";
+    diagPromptKind = null;
+  }
+  function submitDiagPrompt() {
+    var kind = diagPromptKind;
+    var ta = $("ai-diagram-prompt-text");
+    var text = ta ? ta.value : "";
+    if (!text || !text.trim()) {
+      toast3("\u8BF7\u8F93\u5165\u5185\u5BB9\u63CF\u8FF0", "error");
+      return;
+    }
+    closeDiagPrompt();
+    if (DIAG_META[kind]) startDiagTask(kind, text);
+  }
+  function runAiDiagram(kind, opts) {
+    opts = opts || {};
+    if (!DIAG_META[kind]) return;
+    if (!hasApi() || !getApi().ai_diagram) {
+      toast3("\u5F53\u524D\u4E3A\u6D4F\u89C8\u5668\u9884\u89C8\u73AF\u5883\uFF0CAI \u56FE\u8868\u751F\u6210\u4EC5\u5728\u684C\u9762\u7248\u53EF\u7528", "error");
+      return;
+    }
+    var srcKind = resolveKind2(opts.kind);
+    var text = opts.text;
+    if (text == null) text = collectSelection(srcKind);
+    var useDirect = !!(text && text.trim());
+    if (aiEntryBlocked()) return;
+    if (useDirect) startDiagTask(kind, text);
+    else openDiagPrompt(kind);
+  }
+  function initAiDiagram() {
+    if (diagInited) return;
+    diagInited = true;
+    var close = $("ai-diagram-close");
+    if (close) close.addEventListener("click", closeAiDiagramPanel);
+    var stop = $("ai-diagram-stop");
+    if (stop) stop.addEventListener("click", stopDiagTask);
+    var retry = $("ai-diagram-retry");
+    if (retry) retry.addEventListener("click", onDiagRetry);
+    var create = $("ai-diagram-create");
+    if (create) create.addEventListener("click", confirmDiagCreate);
+    var pclose = $("ai-diagram-prompt-close");
+    if (pclose) pclose.addEventListener("click", closeDiagPrompt);
+    var pcancel = $("ai-diagram-prompt-cancel");
+    if (pcancel) pcancel.addEventListener("click", closeDiagPrompt);
+    var pok = $("ai-diagram-prompt-ok");
+    if (pok) pok.addEventListener("click", submitDiagPrompt);
+    var pta = $("ai-diagram-prompt-text");
+    if (pta) pta.addEventListener("keydown", function(e) {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        submitDiagPrompt();
+      }
+    });
+  }
+
   // src-app/03-rich-bubble.js
   var bubbleMenu = {
     root: null,
@@ -2892,6 +4394,7 @@
     linkInput: null,
     colorBar: null,
     colorItems: null,
+    aiMenu: null,
     visible: false,
     currentBlock: null
   };
@@ -2962,6 +4465,14 @@
   var BUBBLE_COLORS = BUBBLE_TEXT_COLORS.concat(BUBBLE_BG_COLORS).filter(function(c, idx, arr) {
     return arr.indexOf(c) === idx;
   });
+  var BUBBLE_AI_ICONS = {
+    polish: "\u2726",
+    continue: "\u270E",
+    summary: "\u2630",
+    expand: "\u2922",
+    fix: "\u2713",
+    outline: "\u229E"
+  };
   function ensureBubbleRoot() {
     if (bubbleMenu.root) return bubbleMenu.root;
     var root = document.createElement("div");
@@ -3037,6 +4548,16 @@
       });
       bar.appendChild(b);
     });
+    bar.appendChild(makeBubbleSep());
+    var aiBtn = document.createElement("button");
+    aiBtn.className = "ink-bubble-btn ink-bubble-ai";
+    aiBtn.title = "AI \u52A9\u624B";
+    aiBtn.innerHTML = '<span class="ink-bubble-ai-mark">\u2726</span><span class="ink-bubble-caret">\u25BE</span>';
+    aiBtn.addEventListener("mousedown", function(e) {
+      e.preventDefault();
+      toggleBubbleAiMenu();
+    });
+    bar.appendChild(aiBtn);
     var closeBtn = document.createElement("button");
     closeBtn.className = "ink-bubble-btn ink-bubble-close";
     closeBtn.title = "\u5173\u95ED";
@@ -3107,6 +4628,42 @@
       }
     });
     root.appendChild(dd);
+    var aiMenu = document.createElement("div");
+    aiMenu.className = "ink-bubble-ai-menu";
+    aiMenu.style.display = "none";
+    AI_INSTRUCTIONS.forEach(function(inst) {
+      var row = document.createElement("div");
+      row.className = "ink-bubble-ai-item";
+      row.setAttribute("data-ai", inst.key);
+      row.innerHTML = '<span class="ink-bubble-ai-mark">' + (BUBBLE_AI_ICONS[inst.key] || "\u2726") + '</span><span class="ink-bubble-ai-text"><b>' + inst.label + "</b><small>" + inst.tip + "</small></span>";
+      row.addEventListener("mousedown", function(e) {
+        e.preventDefault();
+        hideBubbleAiMenu();
+        runAiInstruction(inst.key, { kind: "rich" });
+        hideRichBubble();
+      });
+      aiMenu.appendChild(row);
+    });
+    var aiSep = document.createElement("div");
+    aiSep.className = "ink-bubble-ai-sep";
+    aiMenu.appendChild(aiSep);
+    [
+      { kind: "flow", mark: "\u{1F500}", label: "\u751F\u6210\u6D41\u7A0B\u56FE", tip: "\u6309\u9009\u4E2D\u5185\u5BB9\u751F\u6210\u6D41\u7A0B\u56FE" },
+      { kind: "mind", mark: "\u{1F9E0}", label: "\u751F\u6210\u601D\u7EF4\u5BFC\u56FE", tip: "\u6309\u9009\u4E2D\u5185\u5BB9\u751F\u6210\u601D\u7EF4\u5BFC\u56FE" }
+    ].forEach(function(item) {
+      var drow = document.createElement("div");
+      drow.className = "ink-bubble-ai-item";
+      drow.setAttribute("data-ai-diagram", item.kind);
+      drow.innerHTML = '<span class="ink-bubble-ai-mark">' + item.mark + '</span><span class="ink-bubble-ai-text"><b>' + item.label + "</b><small>" + item.tip + "</small></span>";
+      drow.addEventListener("mousedown", function(e) {
+        e.preventDefault();
+        hideBubbleAiMenu();
+        runAiDiagram(item.kind, { kind: "rich" });
+        hideRichBubble();
+      });
+      aiMenu.appendChild(drow);
+    });
+    root.appendChild(aiMenu);
     var linkWrap = document.createElement("div");
     linkWrap.className = "ink-bubble-link-row";
     linkWrap.style.display = "none";
@@ -3202,6 +4759,7 @@
     bubbleMenu.linkInput = linkInput;
     bubbleMenu.linkRow = linkWrap;
     bubbleMenu.colorBar = colorBar;
+    bubbleMenu.aiMenu = aiMenu;
     return root;
   }
   function makeBubbleSep() {
@@ -3288,6 +4846,7 @@
     hideBubbleDropdown();
     hideBubbleLinkInput();
     hideBubbleColorBar();
+    hideBubbleAiMenu();
     bubbleMenu.visible = false;
     bubbleMenu.currentBlock = null;
   }
@@ -3296,6 +4855,7 @@
     var v = bubbleMenu.dropdown.style.display;
     hideBubbleLinkInput();
     hideBubbleColorBar();
+    hideBubbleAiMenu();
     bubbleMenu.dropdown.style.display = v === "none" || v === "" ? "block" : "none";
     if (bubbleMenu.dropdown.style.display !== "none") repositionBubbleForPanel();
   }
@@ -3307,6 +4867,7 @@
     var v = bubbleMenu.linkRow.style.display;
     hideBubbleDropdown();
     hideBubbleColorBar();
+    hideBubbleAiMenu();
     bubbleMenu.linkRow.style.display = v === "none" || v === "" ? "flex" : "none";
     if (bubbleMenu.linkRow.style.display !== "none") {
       setTimeout(function() {
@@ -3324,16 +4885,46 @@
     var v = bubbleMenu.colorBar.style.display;
     hideBubbleDropdown();
     hideBubbleLinkInput();
+    hideBubbleAiMenu();
     bubbleMenu.colorBar.style.display = v === "none" || v === "" ? "flex" : "none";
     if (bubbleMenu.colorBar.style.display !== "none") repositionBubbleForPanel();
   }
   function hideBubbleColorBar() {
     if (bubbleMenu.colorBar) bubbleMenu.colorBar.style.display = "none";
   }
+  function syncBubbleAiDisabled() {
+    if (!bubbleMenu.aiMenu) return;
+    var on = isAiConfigured();
+    var items = bubbleMenu.aiMenu.querySelectorAll(".ink-bubble-ai-item");
+    for (var i = 0; i < items.length; i++) {
+      if (on) {
+        items[i].classList.remove("ink-bubble-ai-item-disabled");
+        items[i].removeAttribute("title");
+      } else {
+        items[i].classList.add("ink-bubble-ai-item-disabled");
+        items[i].setAttribute("title", "\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u5B8C\u6210 AI \u914D\u7F6E");
+      }
+    }
+  }
+  function toggleBubbleAiMenu() {
+    if (!bubbleMenu.aiMenu) return;
+    var v = bubbleMenu.aiMenu.style.display;
+    hideBubbleDropdown();
+    hideBubbleLinkInput();
+    hideBubbleColorBar();
+    bubbleMenu.aiMenu.style.display = v === "none" || v === "" ? "block" : "none";
+    if (bubbleMenu.aiMenu.style.display !== "none") syncBubbleAiDisabled();
+    if (bubbleMenu.aiMenu.style.display !== "none") repositionBubbleForPanel();
+  }
+  function hideBubbleAiMenu() {
+    if (bubbleMenu.aiMenu) bubbleMenu.aiMenu.style.display = "none";
+  }
   function runBubbleInline(cmd) {
     if (window.InkpadBlocks) window.InkpadBlocks.applyInlineFormat(cmd, null);
   }
   function bindRichBubble() {
+    onAiConfigChanged(syncBubbleAiDisabled);
+    refreshAiConfigState();
     if (window.InkpadBlocks) {
       window.InkpadBlocks.setBubbleListener(function(info) {
         if (!info) {
@@ -3353,7 +4944,10 @@
       setTimeout(function() {
         var sel = window.getSelection();
         if (!sel || sel.isCollapsed) hideRichBubble();
-        else if (bubbleMenu.dropdown && bubbleMenu.dropdown.style.display !== "none") hideBubbleDropdown();
+        else {
+          if (bubbleMenu.dropdown && bubbleMenu.dropdown.style.display !== "none") hideBubbleDropdown();
+          if (bubbleMenu.aiMenu && bubbleMenu.aiMenu.style.display !== "none") hideBubbleAiMenu();
+        }
       }, 0);
     }, true);
     document.addEventListener("keydown", function(ev) {
@@ -8335,365 +9929,6 @@
     els.btnInsertImage.style.display = d && (d.lang === "markdown" || d.lang === "html") ? "" : "none";
   }
 
-  // src-app/26-settings.js
-  var SETTINGS_KEY = "inkpad.settings.v1";
-  var DEFAULT_SETTINGS = {
-    fontSize: 14,
-    lineWrapping: true,
-    lineNumbers: true,
-    shortcuts: {
-      save: "Ctrl-S",
-      newDoc: "Ctrl-N",
-      newRich: "Ctrl-Shift-N",
-      newFlow: "Ctrl-Alt-N",
-      newMind: "Ctrl-Alt-M",
-      newNote: "Ctrl-Shift-M",
-      newSticky: "Ctrl-Alt-S",
-      find: "Ctrl-F",
-      replace: "Ctrl-H",
-      findNext: "F3",
-      findPrev: "Shift-F3",
-      format: "Ctrl-Shift-F",
-      toggleComment: "Ctrl-/",
-      foldAll: "Ctrl-Alt-F",
-      unfoldAll: "Ctrl-Alt-Shift-F",
-      selectNextOccurrence: "Ctrl-Alt-Down",
-      mergeLines: "Ctrl-Shift-J"
-    }
-  };
-  var SHORTCUT_LIST = [
-    { id: "save", label: "\u4FDD\u5B58\u6587\u6863", scope: "global" },
-    { id: "newDoc", label: "\u65B0\u5EFA\u6587\u6863", scope: "global" },
-    { id: "newRich", label: "\u65B0\u5EFA\u5BCC\u6587\u6863", scope: "global" },
-    { id: "newFlow", label: "\u65B0\u5EFA\u6D41\u7A0B\u56FE", scope: "global" },
-    { id: "newMind", label: "\u65B0\u5EFA\u601D\u7EF4\u5BFC\u56FE", scope: "global" },
-    { id: "newNote", label: "\u65B0\u5EFA\u601D\u7EF4\u7B14\u8BB0", scope: "global" },
-    { id: "newSticky", label: "\u65B0\u5EFA\u4FBF\u5229\u8D34", scope: "global" },
-    { id: "find", label: "\u67E5\u627E", scope: "editor" },
-    { id: "replace", label: "\u66FF\u6362", scope: "editor" },
-    { id: "findNext", label: "\u67E5\u627E\u4E0B\u4E00\u4E2A", scope: "editor" },
-    { id: "findPrev", label: "\u67E5\u627E\u4E0A\u4E00\u4E2A", scope: "editor" },
-    { id: "format", label: "\u683C\u5F0F\u5316\u6587\u6863", scope: "editor" },
-    { id: "toggleComment", label: "\u6CE8\u91CA / \u53D6\u6D88\u6CE8\u91CA", scope: "editor" },
-    { id: "foldAll", label: "\u5168\u90E8\u6298\u53E0", scope: "editor" },
-    { id: "unfoldAll", label: "\u5168\u90E8\u5C55\u5F00", scope: "editor" },
-    { id: "selectNextOccurrence", label: "\u9009\u4E2D\u4E0B\u4E00\u5904\u5339\u914D", scope: "editor" },
-    { id: "mergeLines", label: "\u5408\u5E76\u884C", scope: "editor" }
-  ];
-  var settingsState = null;
-  function loadSettings() {
-    var base = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-    try {
-      var saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") || {};
-      if (typeof saved.fontSize === "number") base.fontSize = saved.fontSize;
-      if (typeof saved.lineWrapping === "boolean") base.lineWrapping = saved.lineWrapping;
-      if (typeof saved.lineNumbers === "boolean") base.lineNumbers = saved.lineNumbers;
-      if (saved.shortcuts) {
-        Object.keys(base.shortcuts).forEach(function(k) {
-          var v = saved.shortcuts[k];
-          if (typeof v === "string" && v) base.shortcuts[k] = v;
-        });
-      }
-    } catch (e) {
-    }
-    if (!localStorage.getItem(SETTINGS_KEY)) {
-      var oldFs = parseInt(localStorage.getItem("inkpad.fontsize"), 10);
-      if (oldFs) base.fontSize = oldFs;
-    }
-    settingsState = base;
-  }
-  function saveSettings() {
-    try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settingsState));
-    } catch (e) {
-    }
-  }
-  function currentCombo(id) {
-    return settingsState && settingsState.shortcuts && settingsState.shortcuts[id] ? settingsState.shortcuts[id] : DEFAULT_SETTINGS.shortcuts[id] || "";
-  }
-  function fmtCombo(combo) {
-    return (combo || "").replace(/-/g, "+");
-  }
-  function parseCombo(combo) {
-    var parts = (combo || "").split("-");
-    var key = parts.pop() || "";
-    return {
-      ctrl: parts.indexOf("Ctrl") >= 0,
-      shift: parts.indexOf("Shift") >= 0,
-      alt: parts.indexOf("Alt") >= 0,
-      meta: parts.indexOf("Cmd") >= 0,
-      key
-    };
-  }
-  function comboKeyForCompare(combo) {
-    return (combo || "").replace("Cmd-", "Ctrl-");
-  }
-  function canonicalKey(k) {
-    if (!k) return "";
-    var m = { "ArrowUp": "Up", "ArrowDown": "Down", "ArrowLeft": "Left", "ArrowRight": "Right", " ": "Space", "Escape": "Esc" };
-    var v = m[k] || k;
-    return v.length === 1 ? v.toUpperCase() : v;
-  }
-  function matchesCombo(e, combo) {
-    var p = parseCombo(combo);
-    if (!p.key) return false;
-    var evtPrimary = e.ctrlKey || e.metaKey;
-    if ((p.ctrl || p.meta) !== evtPrimary) return false;
-    if (!!e.shiftKey !== !!p.shift) return false;
-    if (!!e.altKey !== !!p.alt) return false;
-    return canonicalKey(e.key).toLowerCase() === p.key.toLowerCase();
-  }
-  function buildCmExtraKeys() {
-    var s = settingsState ? settingsState.shortcuts : DEFAULT_SETTINGS.shortcuts;
-    var keys = {
-      "Tab": handleTabKey,
-      "Shift-Tab": function(cm2) {
-        cm2.execCommand("indentLess");
-      }
-    };
-    var actionMap = {
-      find: function() {
-        openFindModal(false);
-      },
-      replace: function() {
-        openFindModal(true);
-      },
-      findNext: function() {
-        frFindNext(false);
-      },
-      findPrev: function() {
-        frFindNext(true);
-      },
-      format: formatCurrent,
-      toggleComment: "toggleComment",
-      foldAll: "foldAll",
-      unfoldAll: "unfoldAll",
-      selectNextOccurrence: "selectNextOccurrence",
-      mergeLines: function() {
-        execEditorCmd("merge");
-      }
-    };
-    Object.keys(actionMap).forEach(function(id) {
-      var combo = s[id];
-      if (!combo) return;
-      keys[combo] = actionMap[id];
-      var hasCtrl = combo.indexOf("Ctrl") >= 0;
-      var hasCmd = combo.indexOf("Cmd") >= 0;
-      if (hasCtrl && !hasCmd) {
-        keys[combo.replace("Ctrl-", "Cmd-")] = actionMap[id];
-      } else if (hasCmd && !hasCtrl) {
-        keys[combo.replace("Cmd-", "Ctrl-")] = actionMap[id];
-      }
-    });
-    return keys;
-  }
-  function handleGlobalKeydown(e) {
-    if (e.defaultPrevented) return false;
-    if (matchesCombo(e, currentCombo("save"))) {
-      e.preventDefault();
-      saveDoc(false);
-      return true;
-    }
-    if (matchesCombo(e, currentCombo("newDoc"))) {
-      e.preventDefault();
-      newDoc("plaintext");
-      return true;
-    }
-    if (matchesCombo(e, currentCombo("newRich"))) {
-      e.preventDefault();
-      newRichDoc();
-      return true;
-    }
-    if (matchesCombo(e, currentCombo("newFlow"))) {
-      e.preventDefault();
-      newVisualDoc("flow");
-      return true;
-    }
-    if (matchesCombo(e, currentCombo("newMind"))) {
-      e.preventDefault();
-      newVisualDoc("mind");
-      return true;
-    }
-    if (matchesCombo(e, currentCombo("newNote"))) {
-      e.preventDefault();
-      newVisualDoc("note");
-      return true;
-    }
-    if (matchesCombo(e, currentCombo("newSticky"))) {
-      e.preventDefault();
-      var d = newSticky();
-      renderList();
-      if (d) toast3("\u5DF2\u65B0\u5EFA\u4FBF\u5229\u8D34", "success");
-      return true;
-    }
-    return false;
-  }
-  loadSettings();
-  var settingsRecordingId = null;
-  var settingsRecordingBtn = null;
-  function syncSettingsControls() {
-    $("settings-fontsize").value = settingsState.fontSize;
-    $("settings-fontsize-val").textContent = settingsState.fontSize + "px";
-    $("settings-linenum").value = settingsState.lineNumbers ? "1" : "0";
-    $("settings-wrap").value = settingsState.lineWrapping ? "1" : "0";
-  }
-  function switchSettingsTab(name) {
-    Array.prototype.forEach.call(document.querySelectorAll(".settings-tab"), function(t) {
-      t.classList.toggle("active", t.getAttribute("data-settings-tab") === name);
-    });
-    $("settings-pane-general").style.display = name === "general" ? "" : "none";
-    $("settings-pane-keys").style.display = name === "keys" ? "" : "none";
-    if (name === "keys") renderShortcutList();
-  }
-  function renderShortcutList() {
-    var box = $("settings-keys-list");
-    box.innerHTML = "";
-    SHORTCUT_LIST.forEach(function(item) {
-      var row = document.createElement("div");
-      row.className = "sk-row";
-      var lab = document.createElement("span");
-      lab.className = "sk-label";
-      lab.textContent = item.label;
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "sk-combo";
-      btn.textContent = fmtCombo(currentCombo(item.id));
-      btn.title = "\u70B9\u51FB\u540E\u6309\u4E0B\u65B0\u7EC4\u5408\u952E\u8FDB\u884C\u5F55\u5236";
-      btn.addEventListener("click", function() {
-        startSettingsRecording(item.id, btn);
-      });
-      row.appendChild(lab);
-      row.appendChild(btn);
-      box.appendChild(row);
-    });
-  }
-  function startSettingsRecording(id, btn) {
-    stopSettingsRecording();
-    settingsRecordingId = id;
-    settingsRecordingBtn = btn;
-    btn.classList.add("recording");
-    btn.textContent = "\u8BF7\u6309\u952E\u2026";
-    btn.blur();
-    window.addEventListener("keydown", onSettingsRecordKeydown, true);
-  }
-  function stopSettingsRecording() {
-    window.removeEventListener("keydown", onSettingsRecordKeydown, true);
-    settingsRecordingId = null;
-    if (settingsRecordingBtn) {
-      settingsRecordingBtn.classList.remove("recording");
-      settingsRecordingBtn = null;
-    }
-  }
-  function onSettingsRecordKeydown(e) {
-    if (!settingsRecordingId) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.repeat) return;
-    var ck = canonicalKey(e.key);
-    if (!ck) return;
-    if (ck === "Esc") {
-      stopSettingsRecording();
-      toast3("\u5DF2\u53D6\u6D88\u4FEE\u6539", "info");
-      return;
-    }
-    var mods = [];
-    if (e.ctrlKey) mods.push("Ctrl");
-    if (e.altKey) mods.push("Alt");
-    if (e.shiftKey) mods.push("Shift");
-    if (e.metaKey) mods.push("Cmd");
-    if (mods.length === 0 && ck.length === 1) {
-      toast3("\u8BF7\u81F3\u5C11\u542B\u4E00\u4E2A\u4FEE\u9970\u952E\uFF08Ctrl / Alt / Shift / Cmd\uFF09", "error");
-      return;
-    }
-    var combo = mods.concat([ck]).join("-");
-    var conflict = null;
-    Object.keys(DEFAULT_SETTINGS.shortcuts).forEach(function(k) {
-      if (k === settingsRecordingId) return;
-      if (comboKeyForCompare(currentCombo(k)) === comboKeyForCompare(combo)) conflict = k;
-    });
-    if (conflict) {
-      var dupLabel = "";
-      SHORTCUT_LIST.forEach(function(it) {
-        if (it.id === conflict) dupLabel = it.label;
-      });
-      stopSettingsRecording();
-      toast3("\u5FEB\u6377\u952E " + fmtCombo(combo) + " \u5DF2\u88AB\u300C" + dupLabel + "\u300D\u5360\u7528", "error");
-      renderShortcutList();
-      return;
-    }
-    settingsState.shortcuts[settingsRecordingId] = combo;
-    saveSettings();
-    cm.setOption("extraKeys", buildCmExtraKeys());
-    stopSettingsRecording();
-    renderShortcutList();
-    toast3("\u5FEB\u6377\u952E\u5DF2\u66F4\u65B0", "success");
-  }
-  function openSettingsModal() {
-    syncSettingsControls();
-    renderShortcutList();
-    openSingleModal("settings-modal");
-  }
-  function closeSettingsModal() {
-    stopSettingsRecording();
-    $("settings-modal").style.display = "none";
-  }
-  var fontSize = settingsState.fontSize;
-  function applyFontSize(px) {
-    settingsState.fontSize = px;
-    fontSize = px;
-    cm.getWrapperElement().style.fontSize = px + "px";
-    cm.refresh();
-    saveSettings();
-  }
-  function initSettings() {
-    $("settings-close").addEventListener("click", closeSettingsModal);
-    $("settings-done").addEventListener("click", closeSettingsModal);
-    $("settings-modal").addEventListener("click", function(e) {
-      if (e.target === $("settings-modal")) closeSettingsModal();
-    });
-    $("settings-reset").addEventListener("click", function() {
-      settingsState = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-      saveSettings();
-      cm.setOption("lineNumbers", settingsState.lineNumbers);
-      cm.setOption("lineWrapping", settingsState.lineWrapping);
-      cm.setOption("extraKeys", buildCmExtraKeys());
-      applyFontSize(settingsState.fontSize);
-      syncSettingsControls();
-      renderShortcutList();
-      toast3("\u5DF2\u6062\u590D\u9ED8\u8BA4\u8BBE\u7F6E", "success");
-    });
-    Array.prototype.forEach.call(document.querySelectorAll(".settings-tab"), function(t) {
-      t.addEventListener("click", function() {
-        switchSettingsTab(t.getAttribute("data-settings-tab"));
-      });
-    });
-    $("settings-fontsize").addEventListener("input", function() {
-      var px = parseInt(this.value, 10) || 14;
-      applyFontSize(px);
-      $("settings-fontsize-val").textContent = px + "px";
-    });
-    $("settings-linenum").addEventListener("change", function() {
-      settingsState.lineNumbers = this.value === "1";
-      saveSettings();
-      cm.setOption("lineNumbers", settingsState.lineNumbers);
-    });
-    $("settings-wrap").addEventListener("change", function() {
-      settingsState.lineWrapping = this.value === "1";
-      saveSettings();
-      cm.setOption("lineWrapping", settingsState.lineWrapping);
-    });
-    cm.setOption("lineNumbers", settingsState.lineNumbers);
-    cm.setOption("lineWrapping", settingsState.lineWrapping);
-    cm.setOption("extraKeys", buildCmExtraKeys());
-    applyFontSize(settingsState.fontSize);
-    cm.getWrapperElement().addEventListener("wheel", function(e) {
-      if (!e.ctrlKey) return;
-      e.preventDefault();
-      fontSize = Math.min(26, Math.max(10, fontSize + (e.deltaY < 0 ? 1 : -1)));
-      applyFontSize(fontSize);
-    }, { passive: false });
-  }
-
   // src-app/22-translate.js
   function detectLang(text) {
     var t = String(text == null ? "" : text);
@@ -9089,8 +10324,51 @@
     }
     return false;
   }
+  function syncAiCtxGroup() {
+    var grp = document.getElementById("ctx-group-ai");
+    if (!grp) return;
+    var d = activeDoc();
+    var isText = !d || !d.kind || d.kind === "text";
+    var sel = "";
+    try {
+      sel = isText && cm ? cm.getSelection() || "" : "";
+    } catch (e) {
+      sel = "";
+    }
+    grp.style.display = isText && sel.trim() ? "" : "none";
+  }
+  function syncAiDiagramCtxGroup() {
+    var grp = document.getElementById("ctx-group-ai-diagram");
+    if (!grp) return;
+    var d = activeDoc();
+    var isText = !d || !d.kind || d.kind === "text";
+    grp.style.display = isText ? "" : "none";
+  }
+  function syncAiCtxDisabled() {
+    var on = isAiConfigured();
+    var ids = ["ctx-group-ai", "ctx-group-ai-diagram"];
+    for (var i = 0; i < ids.length; i++) {
+      var grp = document.getElementById(ids[i]);
+      if (!grp) continue;
+      var items = grp.querySelectorAll(".ctx-item");
+      for (var j = 0; j < items.length; j++) {
+        if (on) {
+          items[j].classList.remove("ctx-item-disabled");
+          items[j].removeAttribute("aria-disabled");
+          items[j].removeAttribute("title");
+        } else {
+          items[j].classList.add("ctx-item-disabled");
+          items[j].setAttribute("aria-disabled", "true");
+          items[j].setAttribute("title", "\u8BF7\u5148\u5728\u8BBE\u7F6E\u4E2D\u5B8C\u6210 AI \u914D\u7F6E");
+        }
+      }
+    }
+  }
   function openCtxMenu(x, y) {
     if (!ctxMenu) return;
+    syncAiCtxGroup();
+    syncAiDiagramCtxGroup();
+    syncAiCtxDisabled();
     if (docCtxMenu) docCtxMenu.style.display = "none";
     ctxMenu.style.display = "block";
     var w = ctxMenu.offsetWidth || 184;
@@ -9173,6 +10451,30 @@
       case "translate":
         translateSelection();
         break;
+      case "ai-polish":
+        runAiInstruction("polish");
+        break;
+      case "ai-continue":
+        runAiInstruction("continue");
+        break;
+      case "ai-summary":
+        runAiInstruction("summary");
+        break;
+      case "ai-expand":
+        runAiInstruction("expand");
+        break;
+      case "ai-fix":
+        runAiInstruction("fix");
+        break;
+      case "ai-outline":
+        runAiInstruction("outline");
+        break;
+      case "ai-diagram-flow":
+        runAiDiagram("flow", { kind: "text" });
+        break;
+      case "ai-diagram-mind":
+        runAiDiagram("mind", { kind: "text" });
+        break;
       case "json-format":
         runTool("format");
         break;
@@ -9237,6 +10539,8 @@
     ctxDebug = document.getElementById("stat-ctx");
     if (!ctxMenu) return;
     paintCtxDebug();
+    onAiConfigChanged(syncAiCtxDisabled);
+    refreshAiConfigState();
     var __diag = { md: 0, mdR: 0, ctx: 0, key: 0, last: "" };
     function diagUpdate() {
       if (!ctxDebug) return;
@@ -9825,7 +11129,7 @@
   }
 
   // src-app/27-about.js
-  var APP_VERSION = "0.21.17";
+  var APP_VERSION = "0.23.2";
   var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
   var APP_HOME_URL = "https://stutasliu.github.io/LNote/";
   function versionGreater(a, b) {
@@ -10488,5 +11792,8 @@
   initSettings();
   initAbout();
   initAutoUpdate();
+  initAiConfig();
+  initAiAssistant();
+  initAiDiagram();
   initRuntimeHandoff();
 })();

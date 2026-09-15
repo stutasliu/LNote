@@ -22,7 +22,9 @@ beforeAll(() => {
       'isWholeJson', 'matchBalanced', 'tryClose', 'longestJsonPrefix', 'extractJsonFragments', 'isJsonResidue', 'countRecovered'
     ]) +
     '\n' +
-    extractFns('09-rich-save', ['sanitizeFileName']);
+    extractFns('09-rich-save', ['sanitizeFileName']) +
+    '\n' +
+    extractFns('06-doc-list', ['moveDocBeforeAfter']);
 
   const ctx = vm.createContext({
     TextEncoder, TextDecoder, btoa, atob,
@@ -31,7 +33,7 @@ beforeAll(() => {
   });
   vm.runInContext(
     code +
-      '\nthis.__T = { jsonFormat, jsonCompress, strEscape, strUnescape, unicodeToZh, zhToUnicode, jsonToGet, b64Encode, b64Decode, urlEncodeText, urlDecodeText, titleCase, swapCase, fullToHalf, halfToFull, dedupeLines, indentOf, pad2, formatBeijing, prettyXML, sanitizeFileName, isJsonResidue, countRecovered };',
+      '\nthis.__T = { jsonFormat, jsonCompress, strEscape, strUnescape, unicodeToZh, zhToUnicode, jsonToGet, b64Encode, b64Decode, urlEncodeText, urlDecodeText, titleCase, swapCase, fullToHalf, halfToFull, dedupeLines, indentOf, pad2, formatBeijing, prettyXML, sanitizeFileName, isJsonResidue, countRecovered, moveDocBeforeAfter };',
     ctx
   );
   T = ctx.__T;
@@ -186,5 +188,36 @@ describe('文件名清洗', () => {
   });
   it('sanitizeFileName 空名兜底', () => {
     expect(T.sanitizeFileName('   ')).toBe('未命名文档');
+  });
+});
+
+describe('文档列表拖拽重排（moveDocBeforeAfter）', () => {
+  const mk = (...ids) => ids.map((id) => ({ id }));
+  const ids = (arr) => arr.map((d) => d.id);
+
+  it('向下拖动：放到目标项之后', () => {
+    expect(ids(T.moveDocBeforeAfter(mk('a', 'b', 'c', 'd'), 'a', 'c', true))).toEqual(['b', 'c', 'a', 'd']);
+  });
+  it('向上拖动：放到目标项之前', () => {
+    expect(ids(T.moveDocBeforeAfter(mk('a', 'b', 'c', 'd'), 'd', 'b', false))).toEqual(['a', 'd', 'b', 'c']);
+  });
+  it('拖到末项之后（移到末尾）', () => {
+    expect(ids(T.moveDocBeforeAfter(mk('a', 'b', 'c'), 'a', 'c', true))).toEqual(['b', 'c', 'a']);
+  });
+  it('拖到首项之前（移到开头）', () => {
+    expect(ids(T.moveDocBeforeAfter(mk('a', 'b', 'c'), 'c', 'a', false))).toEqual(['c', 'a', 'b']);
+  });
+  it('原地不动：dragId 与 targetId 相同', () => {
+    expect(ids(T.moveDocBeforeAfter(mk('a', 'b'), 'a', 'a', true))).toEqual(['a', 'b']);
+  });
+  it('目标不存在：保持原顺序', () => {
+    expect(ids(T.moveDocBeforeAfter(mk('a', 'b'), 'a', 'zzz', false))).toEqual(['a', 'b']);
+  });
+  it('拖拽项不存在：保持原顺序', () => {
+    expect(ids(T.moveDocBeforeAfter(mk('a', 'b'), 'zzz', 'a', true))).toEqual(['a', 'b']);
+  });
+  it('原地修改并返回同一数组引用', () => {
+    const arr = mk('a', 'b', 'c');
+    expect(T.moveDocBeforeAfter(arr, 'a', 'b', true)).toBe(arr);
   });
 });

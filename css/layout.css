@@ -368,6 +368,16 @@
 .doc-item.batch-mode .doc-more-btn { display: none !important; }
 .doc-item.batch-mode .doc-batch-check { display: inline-flex; }
 
+/* ---- v0.23 左侧文档列表：左键拖动排序 ---- */
+.doc-item.dragging { opacity: 0.45; }
+.doc-item.drop-before { box-shadow: inset 0 2px 0 0 #2B7FFF; }
+.doc-item.drop-after { box-shadow: inset 0 -2px 0 0 #2B7FFF; }
+body.doc-dragging,
+body.doc-dragging .doc-item {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
 /* 三点操作菜单（flyout） */
 .doc-menu {
   position: fixed;

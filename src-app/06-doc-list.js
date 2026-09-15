@@ -160,6 +160,151 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
     toast(state.sortGroup ? '已开启按最近使用排序（时间分组）' : '已关闭排序，列表保持创建顺序', 'success');
   }
 
+  /* ---------------- 左侧文档列表：左键拖动排序（手动顺序） ---------------- */
+
+  // 纯函数：把 dragId 对应文档移动到 targetId 的前（after=false）或后（after=true）
+  // 直接原地修改并返回 docs，便于单元测试与复用
+  function moveDocBeforeAfter(docs, dragId, targetId, after) {
+    if (!docs || !dragId || !targetId || dragId === targetId) return docs;
+    var from = -1;
+    for (var i = 0; i < docs.length; i++) { if (docs[i].id === dragId) { from = i; break; } }
+    if (from < 0) return docs;
+    var moved = docs.splice(from, 1)[0];
+    // 移除后重新定位目标下标
+    var t = -1;
+    for (var j = 0; j < docs.length; j++) { if (docs[j].id === targetId) { t = j; break; } }
+    if (t < 0) { docs.splice(from, 0, moved); return docs; }  // 目标丢失：回退原位
+    docs.splice(after ? t + 1 : t, 0, moved);
+    return docs;
+  }
+
+  var _docDrag = null;        // 当前拖拽会话：{ id, startX, startY, moved, targetId, after }
+  var _docDragJustDone = 0;   // 刚完成拖拽的时间戳（抑制随后触发的 click 打开文档）
+
+  // 拖拽时自动切回手动排序：关闭「按最近使用排序」并同步按钮态
+  function forceManualOrder() {
+    if (!state.sortGroup) return false;
+    state.sortGroup = false;
+    try { localStorage.setItem(SORT_KEY, '0'); } catch (e) {}
+    if (els.btnSortToggle) els.btnSortToggle.classList.toggle('active', false);
+    return true;
+  }
+
+  // 取文档列表中的某个 item 节点
+  function docItemById(id) {
+    if (!els.docList || !id) return null;
+    var items = els.docList.querySelectorAll('.doc-item');
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].dataset.docId === id) return items[i];
+    }
+    return null;
+  }
+
+  // 清除放置位置指示线
+  function clearDropIndicator() {
+    if (!els.docList) return;
+    var marks = els.docList.querySelectorAll('.drop-before, .drop-after');
+    Array.prototype.forEach.call(marks, function (n) { n.classList.remove('drop-before', 'drop-after'); });
+  }
+
+  // 是否允许在当前视图对文档做拖拽重排（回收站 / 便利贴 / 批量模式不支持）
+  function canReorderDocs() {
+    if (state.batchMode) return false;
+    if (state.docFilter === 'trash' || state.docFilter === 'sticky') return false;
+    return true;
+  }
+
+  // 左键按下：命中「我的文档」列表项 → 记录起点，位移超过阈值才判定为拖拽。
+  // 右键不参与拖拽，完全交回右键菜单模块（17-events.js）处理其原有功能。
+  function onDocDragDown(e) {
+    if (e.button !== 0) return;
+    if (!canReorderDocs()) return;
+    if (!e.target || !e.target.closest) return;
+    var item = e.target.closest('.doc-item');
+    if (!item || !els.docList || !els.docList.contains(item)) return;
+    if (item.classList.contains('empty-hint')) return;
+    // 命中行内交互控件（三点按钮 / 行内菜单 / 批量复选框 / 标签胶囊）时不启动拖拽
+    if (e.target.closest('.doc-more-btn, .doc-menu, .doc-batch-check, .doc-tag')) return;
+    var id = item.dataset.docId;
+    if (!id) return;
+    _docDrag = { id: id, startX: e.clientX, startY: e.clientY, moved: false, targetId: null, after: false };
+  }
+
+  // 移动：超过阈值后进入拖拽态，实时计算放置目标
+  function onDocDragMove(e) {
+    if (!_docDrag) return;
+    if (!_docDrag.moved) {
+      var dx = Math.abs(e.clientX - _docDrag.startX);
+      var dy = Math.abs(e.clientY - _docDrag.startY);
+      if (dx < 4 && dy < 4) return;
+      _docDrag.moved = true;
+      // 拖拽时自动切回手动排序
+      if (forceManualOrder()) { renderList(); toast('已切换为手动排序', 'success'); }
+      document.body.classList.add('doc-dragging');
+      var src0 = docItemById(_docDrag.id);
+      if (src0) src0.classList.add('dragging');
+    }
+    if (e.preventDefault) e.preventDefault();
+
+    var under = document.elementFromPoint(e.clientX, e.clientY);
+    var over = under && under.closest ? under.closest('.doc-item') : null;
+    if (over && (over.classList.contains('empty-hint') || over.dataset.docId === _docDrag.id)) over = null;
+    clearDropIndicator();
+    if (over) {
+      var r = over.getBoundingClientRect();
+      _docDrag.targetId = over.dataset.docId;
+      _docDrag.after = e.clientY > (r.top + r.height / 2);
+      over.classList.add(_docDrag.after ? 'drop-after' : 'drop-before');
+    } else {
+      _docDrag.targetId = null;
+    }
+  }
+
+  // 松开：完成重排并持久化；若未发生位移则视作普通点击（交给 click 处理）
+  function onDocDragUp() {
+    if (!_docDrag) return;
+    var moved = _docDrag.moved;
+    var dragId = _docDrag.id;
+    var targetId = _docDrag.targetId;
+    var after = _docDrag.after;
+    _docDrag = null;
+    document.body.classList.remove('doc-dragging');
+    clearDropIndicator();
+    var src = docItemById(dragId);
+    if (src) src.classList.remove('dragging');
+    if (!moved) return;
+    _docDragJustDone = Date.now();  // 抑制随后的 click 打开文档
+    if (targetId && targetId !== dragId) {
+      moveDocBeforeAfter(state.docs, dragId, targetId, after);
+      persist();
+      renderList();
+      toast('已调整文档顺序', 'success');
+    } else {
+      renderList();
+    }
+  }
+
+  // 取消进行中的拖拽（窗口失焦等）
+  function cancelDocDrag() {
+    if (!_docDrag) return;
+    _docDrag = null;
+    document.body.classList.remove('doc-dragging');
+    clearDropIndicator();
+    if (els.docList) {
+      var t = els.docList.querySelectorAll('.dragging');
+      Array.prototype.forEach.call(t, function (n) { n.classList.remove('dragging'); });
+    }
+  }
+
+  // 全局手势绑定（capture 阶段，保证左键拖动先于行点击生效；右键不在此处理）
+  window.addEventListener('mousedown', onDocDragDown, true);
+  window.addEventListener('mousemove', onDocDragMove, true);
+  window.addEventListener('mouseup', onDocDragUp, true);
+  window.addEventListener('blur', cancelDocDrag);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') cancelDocDrag();
+  });
+
   function createDocItem(d) {
     var item = document.createElement('div');
     item.className = 'doc-item' + (d.id === state.activeId ? ' active' : '') + (state.batchMode ? ' batch-mode' : '');
@@ -209,6 +354,8 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
 
     // 1) 整体行点击：打开文档（批量模式下不再是打开，而是切换选中）
     item.addEventListener('click', function (e) {
+      // 刚完成一次拖拽：抑制这次 click，避免误打开文档
+      if (_docDragJustDone && Date.now() - _docDragJustDone < 400) { return; }
       // 若点在三点按钮/复选框或操作菜单里，不走默认打开
       if (e.target.closest('.doc-more-btn') || e.target.closest('.doc-menu') || e.target.closest('.doc-batch-check')) {
         return;

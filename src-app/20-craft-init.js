@@ -16,6 +16,9 @@ import { initEvents } from './17-events.js';
 import { initSettings, openSettingsModal } from './26-settings.js';
 import { initAbout, openAboutModal } from './27-about.js';
 import { initAutoUpdate } from './28-update.js';
+import { initAiConfig } from './29-ai-config.js';
+import { initAiAssistant } from './30-ai-assistant.js';
+import { initAiDiagram } from './31-ai-diagram.js';
 import { initApp, openPendingExternal, initRuntimeHandoff } from './18-bootstrap.js';
 import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchDestroy, batchExport, renameDocId, closeDocMenu, pendingDelId, renderList, renderSideSub, openTagEditModal, closeTagEditModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, stickyEditSave, syncSortButton, toggleSortGroup } from './06-doc-list.js';
 
@@ -592,6 +595,9 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
   initSettings();
   initAbout();
   initAutoUpdate();
+  initAiConfig();
+  initAiAssistant();   // v0.22：AI 助手结果面板（浮层）事件绑定
+  initAiDiagram();     // v0.22：AI 图表生成面板（结构预览 → 确认落图）事件绑定
 
   // 全部初始化完成后才向后端宣告就绪（单实例接力）：
   // 安装 window.__inkpadOpenExternalFiles 处理器 + 调用 frontend_ready()，

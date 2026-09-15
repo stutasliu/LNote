@@ -525,6 +525,46 @@
 }
 .ink-bubble-color-reset:hover { background: #f1f1f3; }
 
+/* 【v0.22】AI 助手 — 气泡工具条入口 + 指令菜单（与块类型/颜色/链接面板互斥） */
+.ink-bubble-ai { padding: 0 6px; gap: 3px; }
+.ink-bubble-ai .ink-bubble-ai-mark { font-size: 13px; color: #cc782f; }
+.ink-bubble-ai-menu {
+  display: none;
+  background: #FFFFFF;
+  border-top: 1px solid #ececf2;
+  margin-top: 4px;
+  padding: 4px 0;
+  border-radius: 6px;
+  min-width: 220px;
+  max-height: min(320px, calc(100vh - 80px));
+  overflow-y: auto;
+}
+.ink-bubble-ai-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.ink-bubble-ai-item:hover { background: #f1f1f3; }
+.ink-bubble-ai-item .ink-bubble-ai-mark {
+  display: inline-block;
+  min-width: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: #6ea8ff;
+}
+.ink-bubble-ai-text { display: flex; flex-direction: column; line-height: 1.3; }
+.ink-bubble-ai-text b { font-size: 13px; font-weight: 500; color: #171E23; }
+.ink-bubble-ai-text small { font-size: 11px; color: #888; }
+.ink-bubble-ai-sep { height: 1px; margin: 4px 8px; background: #ececf2; }
+/* v0.22：未配置时 AI 入口置灰（PRD 功能 #8）—— 保留可点击，点击后引导进入设置 */
+.ink-bubble-ai-item-disabled,
+.ink-bubble-ai-item-disabled:hover { background: transparent; cursor: not-allowed; }
+.ink-bubble-ai-item-disabled .ink-bubble-ai-mark,
+.ink-bubble-ai-item-disabled .ink-bubble-ai-text b,
+.ink-bubble-ai-item-disabled .ink-bubble-ai-text small { color: #bbb; }
+
 @media (prefers-color-scheme: dark) {
   #ink-bubble { background: #25252a; color: #e6e6ea; border-color: #3a3a44; box-shadow: 0 4px 18px rgba(0,0,0,0.5); }
   .ink-bubble-btn { color: #e6e6ea; }
@@ -551,6 +591,14 @@
   .ink-bubble-color-reset { background: #2c2c34; border-color: #3a3a44; color: #c0c0c8; }
   .ink-bubble-color-reset:hover { background: #34343b; }
   .ink-bubble-color-letter { color: #e6e6ea; }
+  .ink-bubble-ai-menu { background: #25252a; border-top-color: #3a3a44; }
+  .ink-bubble-ai-item:hover { background: #34343b; }
+  .ink-bubble-ai-text b { color: #e6e6ea; }
+  .ink-bubble-ai-text small { color: #a0a0aa; }
+  .ink-bubble-ai-item-disabled:hover { background: transparent; }
+  .ink-bubble-ai-item-disabled .ink-bubble-ai-mark,
+  .ink-bubble-ai-item-disabled .ink-bubble-ai-text b,
+  .ink-bubble-ai-item-disabled .ink-bubble-ai-text small { color: #6a6a72; }
 }
 
 /* 【v0.19.0】图片灯箱（双击图片放大查看） */

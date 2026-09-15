@@ -1,13 +1,16 @@
 /* [esm] 导出本模块顶层绑定 */
-export { bubbleMenu, richBubbleTypeLabel, BUBBLE_BLOCK_ITEMS, BUBBLE_BLOCK_FLYOUT, BUBBLE_TEXT_COLORS, BUBBLE_BG_COLORS, BUBBLE_COLORS, ensureBubbleRoot, makeBubbleSep, showRichBubble, repositionBubbleForPanel, hideRichBubble, toggleBubbleDropdown, hideBubbleDropdown, toggleBubbleLinkInput, hideBubbleLinkInput, toggleBubbleColorBar, hideBubbleColorBar, runBubbleInline, bindRichBubble };
+export { bubbleMenu, richBubbleTypeLabel, BUBBLE_BLOCK_ITEMS, BUBBLE_BLOCK_FLYOUT, BUBBLE_TEXT_COLORS, BUBBLE_BG_COLORS, BUBBLE_COLORS, BUBBLE_AI_ICONS, ensureBubbleRoot, makeBubbleSep, showRichBubble, repositionBubbleForPanel, hideRichBubble, toggleBubbleDropdown, hideBubbleDropdown, toggleBubbleLinkInput, hideBubbleLinkInput, toggleBubbleColorBar, hideBubbleColorBar, toggleBubbleAiMenu, hideBubbleAiMenu, runBubbleInline, bindRichBubble };
 /* [esm] 导入依赖模块绑定 */
 import { toast } from './16-doc-ops.js';
+import { AI_INSTRUCTIONS, runAiInstruction } from './30-ai-assistant.js';
+import { runAiDiagram } from './31-ai-diagram.js';
+import { isAiConfigured, onAiConfigChanged, refreshAiConfigState } from './29-ai-config.js';
   /* ============================================================
    *  富文档 bubble menu（飞书式：选中文本浮条菜单）
    * ============================================================ */
   var bubbleMenu = {
     root: null, bar: null, dropdown: null, linkInput: null,
-    colorBar: null, colorItems: null,
+    colorBar: null, colorItems: null, aiMenu: null,
     visible: false, currentBlock: null
   };
 
@@ -76,6 +79,12 @@ import { toast } from './16-doc-ops.js';
   var BUBBLE_COLORS = BUBBLE_TEXT_COLORS.concat(BUBBLE_BG_COLORS).filter(function (c, idx, arr) {
     return arr.indexOf(c) === idx;
   });
+
+  // AI 助手指令图标（v0.22：M2）—— key 与 30-ai-assistant.js 的 AI_INSTRUCTIONS 一一对应
+  var BUBBLE_AI_ICONS = {
+    polish: '✦', continue: '✎', summary: '☰',
+    expand: '⤢', fix: '✓', outline: '⊞'
+  };
 
   function ensureBubbleRoot() {
     if (bubbleMenu.root) return bubbleMenu.root;
@@ -161,6 +170,15 @@ import { toast } from './16-doc-ops.js';
         bar.appendChild(b);
       });
 
+    // AI 助手入口（v0.22：M2）—— 展开指令菜单，把选中内容交给助手处理
+    bar.appendChild(makeBubbleSep());
+    var aiBtn = document.createElement('button');
+    aiBtn.className = 'ink-bubble-btn ink-bubble-ai';
+    aiBtn.title = 'AI 助手';
+    aiBtn.innerHTML = '<span class="ink-bubble-ai-mark">✦</span><span class="ink-bubble-caret">▾</span>';
+    aiBtn.addEventListener('mousedown', function (e) { e.preventDefault(); toggleBubbleAiMenu(); });
+    bar.appendChild(aiBtn);
+
     // 关闭按钮
     var closeBtn = document.createElement('button');
     closeBtn.className = 'ink-bubble-btn ink-bubble-close';
@@ -244,6 +262,51 @@ import { toast } from './16-doc-ops.js';
       }
     });
     root.appendChild(dd);
+
+    // AI 助手指令菜单（默认隐藏）—— 指令集与 30-ai-assistant.js 保持单一数据源
+    var aiMenu = document.createElement('div');
+    aiMenu.className = 'ink-bubble-ai-menu';
+    aiMenu.style.display = 'none';
+    AI_INSTRUCTIONS.forEach(function (inst) {
+      var row = document.createElement('div');
+      row.className = 'ink-bubble-ai-item';
+      row.setAttribute('data-ai', inst.key);
+      row.innerHTML =
+        '<span class="ink-bubble-ai-mark">' + (BUBBLE_AI_ICONS[inst.key] || '✦') + '</span>' +
+        '<span class="ink-bubble-ai-text"><b>' + inst.label + '</b><small>' + inst.tip + '</small></span>';
+      row.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        hideBubbleAiMenu();
+        // runAiInstruction 内部同步采集选区上下文，先发起再收起气泡，确保选区不丢
+        runAiInstruction(inst.key, { kind: 'rich' });
+        hideRichBubble();
+      });
+      aiMenu.appendChild(row);
+    });
+    // v0.22：AI 图表 — 由选中文本生成 flow/mind（结构预览 → 确认落图）
+    var aiSep = document.createElement('div');
+    aiSep.className = 'ink-bubble-ai-sep';
+    aiMenu.appendChild(aiSep);
+    [
+      { kind: 'flow', mark: '🔀', label: '生成流程图', tip: '按选中内容生成流程图' },
+      { kind: 'mind', mark: '🧠', label: '生成思维导图', tip: '按选中内容生成思维导图' }
+    ].forEach(function (item) {
+      var drow = document.createElement('div');
+      drow.className = 'ink-bubble-ai-item';
+      drow.setAttribute('data-ai-diagram', item.kind);
+      drow.innerHTML =
+        '<span class="ink-bubble-ai-mark">' + item.mark + '</span>' +
+        '<span class="ink-bubble-ai-text"><b>' + item.label + '</b><small>' + item.tip + '</small></span>';
+      drow.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        hideBubbleAiMenu();
+        // runAiDiagram 内部同步采集选区上下文，先发起再收起气泡，确保选区不丢
+        runAiDiagram(item.kind, { kind: 'rich' });
+        hideRichBubble();
+      });
+      aiMenu.appendChild(drow);
+    });
+    root.appendChild(aiMenu);
 
     // 链接输入（默认隐藏）
     var linkWrap = document.createElement('div');
@@ -351,6 +414,7 @@ import { toast } from './16-doc-ops.js';
     bubbleMenu.linkInput = linkInput;
     bubbleMenu.linkRow = linkWrap;
     bubbleMenu.colorBar = colorBar;
+    bubbleMenu.aiMenu = aiMenu;
     return root;
   }
 
@@ -457,6 +521,7 @@ import { toast } from './16-doc-ops.js';
     hideBubbleDropdown();
     hideBubbleLinkInput();
     hideBubbleColorBar();
+    hideBubbleAiMenu();
     bubbleMenu.visible = false;
     bubbleMenu.currentBlock = null;
   }
@@ -464,7 +529,7 @@ import { toast } from './16-doc-ops.js';
   function toggleBubbleDropdown() {
     if (!bubbleMenu.dropdown) return;
     var v = bubbleMenu.dropdown.style.display;
-    hideBubbleLinkInput(); hideBubbleColorBar();
+    hideBubbleLinkInput(); hideBubbleColorBar(); hideBubbleAiMenu();
     // 注意：CSS 基础值是 display:none，不能设成 ''（清空 inline 会回退到 none，导致永远隐藏）。
     // 这里用显式 'block'。
     bubbleMenu.dropdown.style.display = (v === 'none' || v === '' ? 'block' : 'none');
@@ -476,7 +541,7 @@ import { toast } from './16-doc-ops.js';
   function toggleBubbleLinkInput() {
     if (!bubbleMenu.linkRow) return;
     var v = bubbleMenu.linkRow.style.display;
-    hideBubbleDropdown(); hideBubbleColorBar();
+    hideBubbleDropdown(); hideBubbleColorBar(); hideBubbleAiMenu();
     // CSS 基础值是 display:none，必须用显式 'flex'（横向排列输入框 + 取消按钮）。
     bubbleMenu.linkRow.style.display = (v === 'none' || v === '' ? 'flex' : 'none');
     if (bubbleMenu.linkRow.style.display !== 'none') {
@@ -493,7 +558,7 @@ import { toast } from './16-doc-ops.js';
   function toggleBubbleColorBar() {
     if (!bubbleMenu.colorBar) return;
     var v = bubbleMenu.colorBar.style.display;
-    hideBubbleDropdown(); hideBubbleLinkInput();
+    hideBubbleDropdown(); hideBubbleLinkInput(); hideBubbleAiMenu();
     // CSS 基础值是 display:none，必须用显式 'flex'（换行色板使用 flex-wrap）。
     bubbleMenu.colorBar.style.display = (v === 'none' || v === '' ? 'flex' : 'none');
     // 【v0.18.7】面板展开后整体高度变化，重新定位
@@ -501,11 +566,41 @@ import { toast } from './16-doc-ops.js';
   }
   function hideBubbleColorBar() { if (bubbleMenu.colorBar) bubbleMenu.colorBar.style.display = 'none'; }
 
+  // AI 助手指令菜单（v0.22：M2）—— 与块类型/颜色/链接面板互斥
+  // v0.22：未配置时 AI 入口置灰并提示（PRD 功能 #8）；点击仍会走到各入口的引导逻辑
+  function syncBubbleAiDisabled() {
+    if (!bubbleMenu.aiMenu) return;
+    var on = isAiConfigured();
+    var items = bubbleMenu.aiMenu.querySelectorAll('.ink-bubble-ai-item');
+    for (var i = 0; i < items.length; i++) {
+      if (on) {
+        items[i].classList.remove('ink-bubble-ai-item-disabled');
+        items[i].removeAttribute('title');
+      } else {
+        items[i].classList.add('ink-bubble-ai-item-disabled');
+        items[i].setAttribute('title', '请先在设置中完成 AI 配置');
+      }
+    }
+  }
+  function toggleBubbleAiMenu() {
+    if (!bubbleMenu.aiMenu) return;
+    var v = bubbleMenu.aiMenu.style.display;
+    hideBubbleDropdown(); hideBubbleLinkInput(); hideBubbleColorBar();
+    bubbleMenu.aiMenu.style.display = (v === 'none' || v === '' ? 'block' : 'none');
+    if (bubbleMenu.aiMenu.style.display !== 'none') syncBubbleAiDisabled();
+    // 面板展开后整体高度变化，重新定位以避开被窗口底边裁掉
+    if (bubbleMenu.aiMenu.style.display !== 'none') repositionBubbleForPanel();
+  }
+  function hideBubbleAiMenu() { if (bubbleMenu.aiMenu) bubbleMenu.aiMenu.style.display = 'none'; }
+
   function runBubbleInline(cmd) {
     if (window.InkpadBlocks) window.InkpadBlocks.applyInlineFormat(cmd, null);
   }
 
   function bindRichBubble() {
+    // v0.22：AI 配置变更时刷新气泡 AI 菜单置灰态（PRD 功能 #8）
+    onAiConfigChanged(syncBubbleAiDisabled);
+    refreshAiConfigState();
     // 1. 注册 block-editor 的 bubble 回调
     if (window.InkpadBlocks) {
       window.InkpadBlocks.setBubbleListener(function (info) {
@@ -522,7 +617,10 @@ import { toast } from './16-doc-ops.js';
       setTimeout(function () {
         var sel = window.getSelection();
         if (!sel || sel.isCollapsed) hideRichBubble();
-        else if (bubbleMenu.dropdown && bubbleMenu.dropdown.style.display !== 'none') hideBubbleDropdown();
+        else {
+          if (bubbleMenu.dropdown && bubbleMenu.dropdown.style.display !== 'none') hideBubbleDropdown();
+          if (bubbleMenu.aiMenu && bubbleMenu.aiMenu.style.display !== 'none') hideBubbleAiMenu();
+        }
       }, 0);
     }, true);
     document.addEventListener('keydown', function (ev) {

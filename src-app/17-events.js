@@ -20,6 +20,9 @@ import { closePdfModal, extractPdfText, pdfFitWidth, pdfNext, pdfPrev, pdfZoomIn
 import { closeDocModal, extractDocText, importDocAsRich, importDocAsText } from './24-doc.js';
 import { openFindModal } from './19-find-replace.js';
 import { translateSelection } from './22-translate.js';
+import { runAiInstruction } from './30-ai-assistant.js';
+import { runAiDiagram } from './31-ai-diagram.js';
+import { isAiConfigured, onAiConfigChanged, refreshAiConfigState } from './29-ai-config.js';
   /* ---------------- 事件绑定 ----------------
    * Phase ESM：直接操作 cm 的绑定收敛为 initEvents()，由入口模块
    * 装配调用（此时 04 已完成 CodeMirror 初始化），消除 ESM 环内
@@ -303,8 +306,51 @@ import { translateSelection } from './22-translate.js';
     }
     return false;
   }
+  // v0.22：仅当文本编辑器存在非空选区时才显示右键菜单「AI 助手」分组
+  // （富文档的助手入口在浮动气泡工具条上，不走右键菜单）
+  function syncAiCtxGroup() {
+    var grp = document.getElementById('ctx-group-ai');
+    if (!grp) return;
+    var d = activeDoc();
+    var isText = !d || !d.kind || d.kind === 'text';
+    var sel = '';
+    try { sel = (isText && cm) ? (cm.getSelection() || '') : ''; } catch (e) { sel = ''; }
+    grp.style.display = (isText && sel.trim()) ? '' : 'none';
+  }
+  // v0.22：文本编辑器常显「AI 图表」分组（未选中文本时弹描述输入框，PRD §5.3）
+  function syncAiDiagramCtxGroup() {
+    var grp = document.getElementById('ctx-group-ai-diagram');
+    if (!grp) return;
+    var d = activeDoc();
+    var isText = !d || !d.kind || d.kind === 'text';
+    grp.style.display = isText ? '' : 'none';
+  }
+  // v0.22：未配置时 AI 入口置灰并提示（PRD 功能 #8）；点击仍会走到各入口的引导逻辑
+  function syncAiCtxDisabled() {
+    var on = isAiConfigured();
+    var ids = ['ctx-group-ai', 'ctx-group-ai-diagram'];
+    for (var i = 0; i < ids.length; i++) {
+      var grp = document.getElementById(ids[i]);
+      if (!grp) continue;
+      var items = grp.querySelectorAll('.ctx-item');
+      for (var j = 0; j < items.length; j++) {
+        if (on) {
+          items[j].classList.remove('ctx-item-disabled');
+          items[j].removeAttribute('aria-disabled');
+          items[j].removeAttribute('title');
+        } else {
+          items[j].classList.add('ctx-item-disabled');
+          items[j].setAttribute('aria-disabled', 'true');
+          items[j].setAttribute('title', '请先在设置中完成 AI 配置');
+        }
+      }
+    }
+  }
   function openCtxMenu(x, y) {
     if (!ctxMenu) return;
+    syncAiCtxGroup();
+    syncAiDiagramCtxGroup();
+    syncAiCtxDisabled();
     if (docCtxMenu) docCtxMenu.style.display = 'none';
     ctxMenu.style.display = 'block';
     // 设成 block 后再读真实尺寸，避免初始 0 宽高导致位置错位
@@ -351,6 +397,16 @@ import { translateSelection } from './22-translate.js';
       case 'cmt': cm.execCommand('toggleComment'); break;
       // v0.21：右键「翻译」→ 弹窗展示
       case 'translate': translateSelection(); break;
+      // v0.22：右键「AI 助手」→ 结果面板流式展示（润色/续写/总结要点/扩写/纠错/生成大纲）
+      case 'ai-polish': runAiInstruction('polish'); break;
+      case 'ai-continue': runAiInstruction('continue'); break;
+      case 'ai-summary': runAiInstruction('summary'); break;
+      case 'ai-expand': runAiInstruction('expand'); break;
+      case 'ai-fix': runAiInstruction('fix'); break;
+      case 'ai-outline': runAiInstruction('outline'); break;
+      // v0.22：右键「AI 图表」→ 结构预览 → 确认落图（新建 flow/mind 文档）
+      case 'ai-diagram-flow': runAiDiagram('flow', { kind: 'text' }); break;
+      case 'ai-diagram-mind': runAiDiagram('mind', { kind: 'text' }); break;
       // v0.20.45：右键菜单 JSON 工具（复用工具栏 JSON 工具集）
       case 'json-format': runTool('format'); break;
       case 'json-compress': runTool('compress'); break;
@@ -395,6 +451,9 @@ import { translateSelection } from './22-translate.js';
     ctxDebug = document.getElementById('stat-ctx');
     if (!ctxMenu) return;
     paintCtxDebug();
+    // v0.22：AI 配置变更时刷新右键菜单入口置灰态（PRD 功能 #8）
+    onAiConfigChanged(syncAiCtxDisabled);
+    refreshAiConfigState();
     // v0.20.7 诊断 + 多路触发：
     // 之前 9 个版本反复失败，根因不明（疑似本机 WebView2 在禁用原生菜单后不派发右键事件）。
     // 这里：(1) 状态栏实时计数 mousedown/contextmenu/键盘，定位事件是否到达 JS；

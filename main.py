@@ -40,7 +40,7 @@ _runtime_pending_files = []
 _runtime_frontend_ready = False
 
 # 版本号（与 js/app.js 页脚保持一致）
-APP_VERSION = "0.21.17"
+APP_VERSION = "0.23.2"
 
 
 def resource_path(rel: str) -> str:
@@ -578,7 +578,7 @@ class InkpadApi:
         """新版启动后消费「上次自动更新」的结果标记（一次性）。
 
         更新守护进程在安装结束后写入 update-result.json：
-        成功 {"ok": true, "version": "v0.21.17"}；失败 {"ok": false, "error": ...}。
+        成功 {"ok": true, "version": "v0.23.2"}；失败 {"ok": false, "error": ...}。
         前端据此 toast「已更新到 vX」或失败提示；读取后标记文件即被删除，
         无标记时返回 None（普通启动静默跳过）。
         """
@@ -1034,6 +1034,200 @@ class InkpadApi:
 
         threading.Thread(target=worker, daemon=True).start()
         return {"started": True}
+
+    # ---------- AI（BYOK） ----------
+
+    def ai_get_config(self):
+        """读取 AI 配置，返回脱敏视图 {"ok": True, "config": {...}}（不含明文 Key）。"""
+        return {"ok": True, "config": _ai_public_view(_ai_read_config())}
+
+    def ai_save_config(self, cfg=None):
+        """保存 AI 配置。
+
+        cfg 可含 baseUrl / model / temperature / timeoutSec / maxTokens；
+        apiKey 仅在用户输入了新密钥时传入；clearKey=true 表示清除已存密钥。
+        未传 apiKey 且 clearKey 非真时保留原密钥。返回脱敏视图。"""
+        if not isinstance(cfg, dict):
+            cfg = {}
+        cur = _ai_read_config()
+        for k in ("baseUrl", "model"):
+            if isinstance(cfg.get(k), str):
+                cur[k] = cfg[k].strip()
+        for k in ("temperature", "timeoutSec", "maxTokens"):
+            if k in cfg:
+                try:
+                    cur[k] = type(_AI_DEFAULT_CONFIG[k])(cfg[k])
+                except (TypeError, ValueError):
+                    pass
+        if cfg.get("clearKey"):
+            cur["apiKey"] = ""
+        elif isinstance(cfg.get("apiKey"), str) and cfg["apiKey"].strip():
+            cur["apiKey"] = cfg["apiKey"].strip()
+        _ai_write_config(cur)
+        return {"ok": True, "config": _ai_public_view(cur)}
+
+    def ai_test(self, cfg=None):
+        """测试 AI 连通性。以已保存配置为基础，cfg 可覆盖 baseUrl/apiKey/model
+        （便于「未保存先测」）。立即返回 {"started": True}，结果由 worker 线程通过
+        evaluate_js 调用 window.__inkpadAiTestCb 推送。"""
+        merged = _ai_read_config()
+        if isinstance(cfg, dict):
+            for k in ("baseUrl", "model", "apiKey"):
+                if isinstance(cfg.get(k), str) and cfg[k].strip():
+                    merged[k] = cfg[k].strip()
+            if cfg.get("timeoutSec") is not None:
+                try:
+                    merged["timeoutSec"] = int(cfg["timeoutSec"])
+                except (TypeError, ValueError):
+                    pass
+
+        def worker():
+            result = _do_ai_test(merged)
+            js = "if (window.__inkpadAiTestCb) window.__inkpadAiTestCb(%s);" % json.dumps(result, ensure_ascii=False)
+            try:
+                if self._window:
+                    self._window.evaluate_js(js)
+            except Exception:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+        return {"started": True}
+
+    def ai_chat(self, payload=None):
+        """选中即用助手：向配置的模型发起流式对话。
+
+        payload = {"sessionId": str, "messages": [{"role","content"}],
+                   "overrides": {"temperature","maxTokens","timeoutSec"}}
+        立即返回 {"started": True, "sessionId": str}，不阻塞 UI；
+        增量内容与结束态由 worker 线程通过 evaluate_js 调用
+        window.__inkpadAiChatCb 推送：
+          {sessionId, type:"delta", delta}
+          {sessionId, type:"done"|"stopped"|"error", fullText, error?}
+        单任务并发：发起新会话会先取消既有会话。"""
+        if not isinstance(payload, dict):
+            payload = {}
+        session_id = str(payload.get("sessionId") or "").strip()
+        if not session_id:
+            session_id = "ai-" + str(int(time.time() * 1000))
+        clean = _ai_clean_messages(payload.get("messages"))
+        if not clean:
+            return {"error": "缺少对话内容"}
+
+        cfg = _ai_read_config()
+        ov = payload.get("overrides")
+        if isinstance(ov, dict):
+            for k in ("temperature", "maxTokens", "timeoutSec"):
+                if ov.get(k) is not None:
+                    try:
+                        cfg[k] = type(_AI_DEFAULT_CONFIG[k])(ov[k])
+                    except (TypeError, ValueError):
+                        pass
+        if not str(cfg.get("baseUrl") or "").strip():
+            return {"error": "请先在设置中填写 Base URL"}
+        if not str(cfg.get("apiKey") or ""):
+            return {"error": "请先在设置中填写 API Key"}
+        if not str(cfg.get("model") or "").strip():
+            return {"error": "请先在设置中填写模型名"}
+
+        ev = _ai_begin_session(session_id)
+        window = self._window
+
+        def push(obj):
+            js = "if (window.__inkpadAiChatCb) window.__inkpadAiChatCb(%s);" % json.dumps(obj, ensure_ascii=False)
+            try:
+                if window:
+                    window.evaluate_js(js)
+            except Exception:
+                pass
+
+        def worker():
+            def on_delta(d):
+                if ev.is_set():
+                    return
+                push({"sessionId": session_id, "type": "delta", "delta": d})
+            result = _do_ai_chat(cfg, clean, on_delta, ev)
+            _ai_end_session(session_id)
+            text = result.get("text") or ""
+            if ev.is_set():
+                push({"sessionId": session_id, "type": "stopped", "fullText": text})
+            elif result.get("error"):
+                push({"sessionId": session_id, "type": "error", "error": result["error"], "fullText": text})
+            else:
+                push({"sessionId": session_id, "type": "done", "fullText": text})
+
+        threading.Thread(target=worker, daemon=True).start()
+        return {"started": True, "sessionId": session_id}
+
+    def ai_stop(self, session_id=None):
+        """停止流式生成。session_id 缺省时停止全部会话（单任务并发场景）。"""
+        sid = session_id.strip() if isinstance(session_id, str) and session_id.strip() else None
+        _ai_stop_session(sid)
+        return {"ok": True}
+
+    def ai_diagram(self, payload=None):
+        """AI 图表生成：由选中文本或描述生成 flow/mind 的「结构 JSON」。
+
+        payload = {"sessionId": str, "kind": "flow"|"mind", "text": str,
+                   "overrides": {"temperature","maxTokens","timeoutSec"}}
+        立即返回 {"started": True, "sessionId"}；结果由 worker 线程通过
+        evaluate_js 调用 window.__inkpadAiDiagramCb 推送：
+          {sessionId, type:"done", structure, title}
+          {sessionId, type:"error", error}
+        结构 JSON 不含坐标：坐标一律由前端本地布局器计算（PRD §6「图模型」）。"""
+        if not isinstance(payload, dict):
+            payload = {}
+        kind = str(payload.get("kind") or "").strip()
+        if kind not in ("flow", "mind"):
+            return {"error": "不支持的图表类型"}
+        text = str(payload.get("text") or "").strip()
+        if not text:
+            return {"error": "请先输入用于生成图表的内容"}
+        session_id = str(payload.get("sessionId") or "").strip()
+        if not session_id:
+            session_id = "aid-" + str(int(time.time() * 1000))
+
+        cfg = _ai_read_config()
+        ov = payload.get("overrides")
+        if isinstance(ov, dict):
+            for k in ("temperature", "maxTokens", "timeoutSec"):
+                if ov.get(k) is not None:
+                    try:
+                        cfg[k] = type(_AI_DEFAULT_CONFIG[k])(ov[k])
+                    except (TypeError, ValueError):
+                        pass
+        if not str(cfg.get("baseUrl") or "").strip():
+            return {"error": "请先在设置中填写 Base URL"}
+        if not str(cfg.get("apiKey") or ""):
+            return {"error": "请先在设置中填写 API Key"}
+        if not str(cfg.get("model") or "").strip():
+            return {"error": "请先在设置中填写模型名"}
+
+        ev = _ai_begin_session(session_id)
+        window = self._window
+
+        def push(obj):
+            js = "if (window.__inkpadAiDiagramCb) window.__inkpadAiDiagramCb(%s);" % json.dumps(
+                obj, ensure_ascii=False
+            )
+            try:
+                if window:
+                    window.evaluate_js(js)
+            except Exception:
+                pass
+
+        def worker():
+            result = _do_ai_diagram(cfg, kind, text, ev)
+            _ai_end_session(session_id)
+            if ev.is_set():
+                return  # 已取消：不回推，前端已丢弃该会话
+            if result.get("error"):
+                push({"sessionId": session_id, "type": "error", "error": result["error"]})
+            else:
+                push({"sessionId": session_id, "type": "done",
+                      "structure": result.get("structure"), "title": result.get("title") or ""})
+
+        threading.Thread(target=worker, daemon=True).start()
+        return {"started": True, "sessionId": session_id}
 
     # ---------- 关于 / 检查更新 ----------
 
@@ -1583,6 +1777,612 @@ def _do_translate(text: str, target: str) -> dict:
         except Exception as e:
             last = e
     return {"error": "翻译失败：" + str(last)}
+
+
+# ---------- AI（BYOK）配置与连通性测试 ----------
+# 设计约束：Key 仅存本机 %LOCALAPPDATA%/L.Note/ai-config.json，
+# 前端只拿到脱敏视图；不引入第三方依赖，沿用标准库 urllib。
+
+_AI_CONFIG_NAME = "ai-config.json"
+_AI_DEFAULT_CONFIG = {
+    "version": 1,
+    "baseUrl": "https://api.deepseek.com",
+    "apiKey": "",
+    "model": "deepseek-chat",
+    "temperature": 0.7,
+    "timeoutSec": 60,
+    "maxTokens": 2048,
+}
+
+
+def _ai_config_path() -> str:
+    """AI 配置文件路径（与 debug.log 同目录）。"""
+    return os.path.join(_lnote_data_dir(), _AI_CONFIG_NAME)
+
+
+def _ai_mask_key(key: str) -> str:
+    """密钥脱敏：保留前 3 与后 4 位，中间以 **** 代替。"""
+    k = str(key or "")
+    if not k:
+        return ""
+    if len(k) <= 8:
+        return "****"
+    return k[:3] + "****" + k[-4:]
+
+
+def _ai_read_config() -> dict:
+    """读取 AI 配置并补齐缺省字段（文件不存在或损坏时返回默认值）。"""
+    cfg = dict(_AI_DEFAULT_CONFIG)
+    try:
+        with open(_ai_config_path(), "r", encoding="utf-8") as f:
+            saved = json.load(f)
+        if isinstance(saved, dict):
+            for k in _AI_DEFAULT_CONFIG:
+                if saved.get(k) is not None:
+                    cfg[k] = saved[k]
+    except Exception:
+        pass
+    return cfg
+
+
+def _ai_write_config(cfg: dict) -> None:
+    """写入 AI 配置（原子性由单文件覆盖写入保证）。"""
+    try:
+        os.makedirs(_lnote_data_dir(), exist_ok=True)
+        with open(_ai_config_path(), "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        _debug_log("[ai] write config failed: " + repr(e))
+
+
+def _ai_public_view(cfg: dict) -> dict:
+    """返回可下发前端的脱敏配置视图（永不含明文 Key）。"""
+    key = str(cfg.get("apiKey") or "")
+    return {
+        "baseUrl": cfg.get("baseUrl") or "",
+        "model": cfg.get("model") or "",
+        "temperature": cfg.get("temperature", 0.7),
+        "timeoutSec": cfg.get("timeoutSec", 60),
+        "maxTokens": cfg.get("maxTokens", 2048),
+        "hasKey": bool(key),
+        "keyMasked": _ai_mask_key(key),
+    }
+
+
+def _ai_endpoint(base_url: str) -> str:
+    """由 Base URL 推导 OpenAI 兼容的 chat/completions 端点。"""
+    base = str(base_url or "").strip().rstrip("/")
+    if not base:
+        return ""
+    if base.endswith("/chat/completions"):
+        return base
+    if base.endswith("/v1"):
+        return base + "/chat/completions"
+    return base + "/v1/chat/completions"
+
+
+def _ai_http_error(status: int, detail: str = "") -> str:
+    """把 HTTP 状态码翻译成可读提示（PRD §7 异常态）。
+
+    detail 为响应体原文，用于区分「接口地址错」与「模型名错」——
+    Ollama / 部分网关在模型不存在时同样返回 404，仅凭状态码会误判。"""
+    if status == 401:
+        return "API Key 无效或已过期（401）"
+    if status == 403:
+        return "无权访问该模型（403）"
+    if status == 404:
+        if "model" in str(detail or "").lower():
+            return "模型不存在或未加载（404），请检查模型名"
+        return "接口地址不存在（404），请检查 Base URL"
+    if status == 429:
+        return "请求过于频繁（429），请稍后重试"
+    if status >= 500:
+        return "服务端错误（%d）" % status
+    return "请求失败（%d）" % status
+
+
+def _ai_net_error(e: Exception, has_partial: bool = False) -> str:
+    """把网络层异常翻译成可读提示（PRD §7 异常态）。
+
+    has_partial 为真表示流式响应已收到部分内容后才中断，此时优先提示
+    「网络不稳定」并说明已保留内容，而不是「连不上服务」。"""
+    msg = str(e)
+    low = msg.lower()
+    if isinstance(e, (TimeoutError, socket.timeout)) or "timed out" in low:
+        return "请求超时，网络可能不稳定，请稍后重试"
+    if has_partial:
+        return "网络不稳定，连接已中断（已保留已接收的内容）"
+    if isinstance(e, ConnectionRefusedError) or "refused" in low or "10061" in msg:
+        return "无法连接到模型服务，请检查 Base URL，或确认本地模型（如 Ollama）已启动"
+    if isinstance(e, socket.gaierror) or "getaddrinfo" in low or "name or service not known" in low or "nodename nor servname" in low:
+        return "无法解析服务地址，请检查 Base URL 是否正确"
+    if "certificate" in low or "ssl" in low:
+        return "HTTPS 证书校验失败，请检查 Base URL 或代理设置"
+    return "网络连接失败：" + msg
+
+
+def _do_ai_test(cfg: dict) -> dict:
+    """向配置的端点发一次最小请求，验证 Key / 模型 / 地址是否可用。
+
+    返回 {"ok": True, "latencyMs": 毫秒, "model": 实际模型, "status": 状态码}
+    或 {"error": 可读错误}。"""
+    import urllib.error
+    import urllib.request
+
+    endpoint = _ai_endpoint(cfg.get("baseUrl"))
+    if not endpoint:
+        return {"error": "请先填写 Base URL"}
+    if not str(cfg.get("apiKey") or ""):
+        return {"error": "请先填写 API Key"}
+    if not str(cfg.get("model") or ""):
+        return {"error": "请先填写模型名"}
+    try:
+        timeout = float(cfg.get("timeoutSec") or 60)
+    except (TypeError, ValueError):
+        timeout = 60.0
+    payload = {
+        "model": cfg.get("model"),
+        "messages": [{"role": "user", "content": "ping"}],
+        "max_tokens": 1,
+        "stream": False,
+    }
+    req = urllib.request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + str(cfg.get("apiKey")),
+        },
+    )
+    start = time.time()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            status = int(getattr(resp, "status", 200) or 200)
+    except urllib.error.HTTPError as e:
+        try:
+            detail = e.read().decode("utf-8", errors="replace")
+        except Exception:
+            detail = ""
+        return {"error": _ai_http_error(int(e.code), detail), "status": int(e.code), "detail": detail[:400]}
+    except Exception as e:
+        return {"error": _ai_net_error(e)}
+    elapsed = int((time.time() - start) * 1000)
+    model_echo = cfg.get("model")
+    try:
+        data = json.loads(raw)
+        if isinstance(data, dict) and data.get("model"):
+            model_echo = data.get("model")
+    except Exception:
+        pass
+    return {"ok": True, "latencyMs": elapsed, "model": model_echo, "status": status}
+
+
+_AI_LOCK = threading.Lock()
+_AI_SESSIONS = {}  # sessionId -> threading.Event（用于跨线程取消流式读取）
+
+
+def _ai_clean_messages(messages) -> list:
+    """规整前端传入的对话消息：仅保留 role/content 合法且非空的消息。"""
+    out = []
+    if not isinstance(messages, list):
+        return out
+    for m in messages:
+        if not isinstance(m, dict):
+            continue
+        role = str(m.get("role") or "user")
+        if role not in ("system", "user", "assistant"):
+            role = "user"
+        content = m.get("content")
+        if not isinstance(content, str):
+            continue
+        content = content.strip()
+        if not content:
+            continue
+        if len(content) > 40000:
+            content = content[:40000]
+        out.append({"role": role, "content": content})
+    return out
+
+
+def _ai_begin_session(session_id: str):
+    """登记新会话并返回其取消标记；同时取消既有会话（单任务并发）。"""
+    ev = threading.Event()
+    with _AI_LOCK:
+        for _ev in _AI_SESSIONS.values():
+            _ev.set()
+        _AI_SESSIONS.clear()
+        _AI_SESSIONS[session_id] = ev
+    return ev
+
+
+def _ai_end_session(session_id: str) -> None:
+    """会话结束后从登记表移除。"""
+    with _AI_LOCK:
+        _AI_SESSIONS.pop(session_id, None)
+
+
+def _ai_stop_session(session_id) -> bool:
+    """置位取消标记；session_id 为空时取消全部会话。"""
+    with _AI_LOCK:
+        if session_id:
+            ev = _AI_SESSIONS.get(session_id)
+            if not ev:
+                return False
+            ev.set()
+            return True
+        for ev in _AI_SESSIONS.values():
+            ev.set()
+        _AI_SESSIONS.clear()
+        return True
+
+
+def _do_ai_chat(cfg: dict, messages: list, on_delta, cancel_ev) -> dict:
+    """流式对话：逐块读取 SSE 增量并通过 on_delta 回调。
+
+    返回 {"text": 累积文本} 或 {"error": 可读错误, "text": 已收到的部分文本}。
+    每读一行前检查 cancel_ev，被取消时立即返回已累积文本。"""
+    import urllib.error
+    import urllib.request
+
+    endpoint = _ai_endpoint(cfg.get("baseUrl"))
+    if not endpoint:
+        return {"error": "请先在设置中填写 Base URL"}
+    if not str(cfg.get("apiKey") or ""):
+        return {"error": "请先在设置中填写 API Key"}
+    if not str(cfg.get("model") or "").strip():
+        return {"error": "请先在设置中填写模型名"}
+
+    try:
+        timeout = float(cfg.get("timeoutSec") or 60)
+    except (TypeError, ValueError):
+        timeout = 60.0
+    try:
+        temperature = float(cfg.get("temperature", 0.7))
+    except (TypeError, ValueError):
+        temperature = 0.7
+    try:
+        max_tokens = int(cfg.get("maxTokens") or 2048)
+    except (TypeError, ValueError):
+        max_tokens = 2048
+
+    payload = {
+        "model": cfg.get("model"),
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": True,
+    }
+    req = urllib.request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + str(cfg.get("apiKey")),
+            "Accept": "text/event-stream",
+        },
+    )
+    parts = []
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            while True:
+                if cancel_ev is not None and cancel_ev.is_set():
+                    return {"text": "".join(parts)}
+                raw = resp.readline()
+                if not raw:
+                    break
+                line = raw.decode("utf-8", errors="replace").strip()
+                if not line or not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    obj = json.loads(data)
+                except Exception:
+                    continue
+                delta = ""
+                try:
+                    choices = obj.get("choices") or []
+                    if choices:
+                        delta = (choices[0].get("delta") or {}).get("content") or ""
+                except Exception:
+                    delta = ""
+                if delta:
+                    parts.append(delta)
+                    if on_delta:
+                        on_delta(delta)
+    except urllib.error.HTTPError as e:
+        try:
+            detail = e.read().decode("utf-8", errors="replace")
+        except Exception:
+            detail = ""
+        _debug_log("[ai] chat http error %s: %s" % (getattr(e, "code", "?"), detail[:200]))
+        return {"error": _ai_http_error(int(e.code), detail), "status": int(e.code), "text": "".join(parts)}
+    except Exception as e:
+        _debug_log("[ai] chat failed: " + repr(e))
+        if parts:
+            return {"error": _ai_net_error(e, True), "text": "".join(parts)}
+        return {"error": _ai_net_error(e)}
+    return {"text": "".join(parts)}
+
+
+def _ai_complete_once(cfg: dict, messages: list, cancel_ev) -> dict:
+    """非流式对话：一次性取回完整文本（图表生成需整体拿到 JSON 后才能校验）。
+
+    返回 {"text": 完整文本, "status": 状态码} 或 {"error": 可读错误, "status": 状态码}。"""
+    import urllib.error
+    import urllib.request
+
+    endpoint = _ai_endpoint(cfg.get("baseUrl"))
+    if not endpoint:
+        return {"error": "请先在设置中填写 Base URL"}
+    if not str(cfg.get("apiKey") or ""):
+        return {"error": "请先在设置中填写 API Key"}
+    if not str(cfg.get("model") or "").strip():
+        return {"error": "请先在设置中填写模型名"}
+    if cancel_ev is not None and cancel_ev.is_set():
+        return {"error": "已取消"}
+
+    try:
+        timeout = float(cfg.get("timeoutSec") or 60)
+    except (TypeError, ValueError):
+        timeout = 60.0
+    try:
+        temperature = float(cfg.get("temperature", 0.7))
+    except (TypeError, ValueError):
+        temperature = 0.7
+    try:
+        max_tokens = int(cfg.get("maxTokens") or 2048)
+    except (TypeError, ValueError):
+        max_tokens = 2048
+
+    payload = {
+        "model": cfg.get("model"),
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": False,
+    }
+    req = urllib.request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + str(cfg.get("apiKey")),
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            status = int(getattr(resp, "status", 200) or 200)
+    except urllib.error.HTTPError as e:
+        try:
+            detail = e.read().decode("utf-8", errors="replace")
+        except Exception:
+            detail = ""
+        _debug_log("[ai] diagram http error %s: %s" % (getattr(e, "code", "?"), detail[:200]))
+        return {"error": _ai_http_error(int(e.code), detail), "status": int(e.code)}
+    except Exception as e:
+        _debug_log("[ai] diagram failed: " + repr(e))
+        return {"error": _ai_net_error(e)}
+
+    text = ""
+    try:
+        data = json.loads(raw)
+        choices = data.get("choices") or []
+        if choices:
+            message = choices[0].get("message") or {}
+            text = message.get("content") or ""
+    except Exception:
+        return {"error": "无法解析模型响应", "status": status}
+    if not str(text).strip():
+        return {"error": "模型未返回内容", "status": status}
+    return {"text": text, "status": status}
+
+
+def _ai_extract_json(text: str):
+    """从模型输出中提取首个完整 JSON 对象（容忍 ``` 围栏与前后说明文字）。"""
+    if not text:
+        return None
+    s = text.strip()
+    if s.startswith("```"):
+        nl = s.find("\n")
+        s = s[nl + 1:] if nl != -1 else ""
+        end = s.rfind("```")
+        if end != -1:
+            s = s[:end]
+    start = s.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    in_str = False
+    esc = False
+    for i in range(start, len(s)):
+        c = s[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+        else:
+            if c == '"':
+                in_str = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(s[start:i + 1])
+                    except Exception:
+                        return None
+    return None
+
+
+_FLOW_NODE_TYPES = ("start", "process", "decision", "end")
+_AI_MAX_NODES = 60
+_AI_MAX_MIND_CHILDREN = 12
+_AI_MAX_MIND_DEPTH = 4
+
+
+def _ai_validate_flow(obj):
+    """校验并规范化 flow 结构 JSON；返回 (规范化结构, "") 或 (None, 错误说明)。"""
+    if not isinstance(obj, dict):
+        return None, "根节点不是对象"
+    nodes = obj.get("nodes")
+    if not isinstance(nodes, list) or not nodes:
+        return None, "缺少非空的 nodes 数组"
+    if len(nodes) > _AI_MAX_NODES:
+        return None, "节点数量超过上限 %d" % _AI_MAX_NODES
+    ids = {}
+    norm_nodes = []
+    for i, n in enumerate(nodes):
+        if not isinstance(n, dict):
+            return None, "nodes[%d] 不是对象" % i
+        text = str(n.get("text") or "").strip()
+        if not text:
+            return None, "nodes[%d] 缺少 text" % i
+        nid = str(n.get("id") or "").strip() or ("n%d" % (i + 1))
+        if nid in ids:
+            return None, "节点 id 重复：%s" % nid
+        ids[nid] = True
+        typ = str(n.get("type") or "process").strip().lower()
+        if typ not in _FLOW_NODE_TYPES:
+            typ = "process"
+        norm_nodes.append({"id": nid, "type": typ, "text": text[:60]})
+    edges = obj.get("edges")
+    if edges is None:
+        edges = []
+    if not isinstance(edges, list):
+        return None, "edges 不是数组"
+    norm_edges = []
+    for i, e in enumerate(edges):
+        if not isinstance(e, dict):
+            return None, "edges[%d] 不是对象" % i
+        src = str(e.get("from") or "").strip()
+        dst = str(e.get("to") or "").strip()
+        if not src or not dst:
+            return None, "edges[%d] 缺少 from/to" % i
+        if src not in ids:
+            return None, "edges[%d] 的 from 指向不存在的节点" % i
+        if dst not in ids:
+            return None, "edges[%d] 的 to 指向不存在的节点" % i
+        item = {"from": src, "to": dst}
+        label = str(e.get("text") or "").strip()
+        if label:
+            item["text"] = label[:30]
+        norm_edges.append(item)
+    title = str(obj.get("title") or "").strip()[:60]
+    return {"title": title, "nodes": norm_nodes, "edges": norm_edges}, ""
+
+
+def _ai_validate_mind(obj):
+    """校验并规范化 mind 结构 JSON；返回 (规范化结构, "") 或 (None, 错误说明)。"""
+    if not isinstance(obj, dict):
+        return None, "根节点不是对象"
+    root = obj.get("root")
+    if not isinstance(root, dict):
+        return None, "缺少 root 对象"
+
+    def norm(node, depth):
+        if not isinstance(node, dict):
+            return None
+        text = str(node.get("text") or "").strip()
+        if not text:
+            return None
+        children = node.get("children")
+        if not isinstance(children, list):
+            children = []
+        out = []
+        if depth < _AI_MAX_MIND_DEPTH:
+            for child in children[:_AI_MAX_MIND_CHILDREN]:
+                c = norm(child, depth + 1)
+                if c is not None:
+                    out.append(c)
+        return {"text": text[:60], "children": out}
+
+    nroot = norm(root, 1)
+    if nroot is None:
+        return None, "root 缺少 text"
+    title = str(obj.get("title") or "").strip()[:60] or nroot["text"]
+    return {"title": title, "root": nroot}, ""
+
+
+_AI_DIAGRAM_PROMPTS = {
+    "flow": {
+        "system": (
+            "你是 L.Note 的流程图结构生成器。根据用户提供的内容，输出描述流程的结构化 JSON 对象。"
+            "硬性要求：\n"
+            "1. 只输出一个 JSON 对象，不要输出任何解释文字，不要使用 Markdown 代码块围栏。\n"
+            '2. JSON 结构固定为：{"title":"标题","nodes":[{"id":"n1","type":"start|process|decision|end",'
+            '"text":"节点文本"}],"edges":[{"from":"n1","to":"n2","text":"可选连线标签"}]}。\n'
+            "3. 不要输出任何坐标（x/y）、锚点、颜色或样式字段，布局由客户端计算。\n"
+            "4. nodes 的 id 必须唯一；edges 的 from/to 必须引用已存在的节点 id。\n"
+            "5. 节点总数不超过 60 个，每个节点文本不超过 30 字。\n"
+            "6. 流程需自洽：包含 start 起点与 end 终点，连线方向清晰。"
+        ),
+        "user": "请根据以下内容生成流程图结构：\n\n",
+    },
+    "mind": {
+        "system": (
+            "你是 L.Note 的思维导图结构生成器。根据用户提供的内容，输出层级化的 JSON 对象。"
+            "硬性要求：\n"
+            "1. 只输出一个 JSON 对象，不要输出任何解释文字，不要使用 Markdown 代码块围栏。\n"
+            '2. JSON 结构固定为：{"title":"标题","root":{"text":"中心主题","children":[{"text":"分支",'
+            '"children":[]}]}}。\n'
+            "3. 不要输出 id、坐标、折叠状态或样式字段，这些由客户端补齐。\n"
+            "4. 层级不超过 4 层，每个节点最多 12 个子节点，每个节点文本不超过 30 字。"
+        ),
+        "user": "请根据以下内容生成思维导图结构：\n\n",
+    },
+}
+
+
+def _do_ai_diagram(cfg: dict, kind: str, source: str, cancel_ev) -> dict:
+    """生成图表结构：请求模型 → 提取 JSON → schema 校验；失败带错误重试 1 次。
+
+    返回 {"structure": {...}, "title": str} 或 {"error": 可读错误}。
+    网络/鉴权类错误不重试（PRD §7），仅结构校验失败自动重试 1 次。"""
+    prompt = _AI_DIAGRAM_PROMPTS.get(kind)
+    if not prompt:
+        return {"error": "不支持的图表类型"}
+    validate = _ai_validate_flow if kind == "flow" else _ai_validate_mind
+    messages = [
+        {"role": "system", "content": prompt["system"]},
+        {"role": "user", "content": prompt["user"] + source},
+    ]
+    last_err = "返回内容不是合法 JSON"
+    last_text = ""
+    for attempt in (0, 1):
+        if cancel_ev is not None and cancel_ev.is_set():
+            return {"error": "已取消"}
+        r = _ai_complete_once(cfg, messages, cancel_ev)
+        if r.get("error"):
+            return r  # 网络/鉴权错误不重试（PRD §7）
+        last_text = r.get("text") or ""
+        obj = _ai_extract_json(last_text)
+        if obj is not None:
+            norm, err = validate(obj)
+            if norm is not None:
+                return {"structure": norm, "title": norm.get("title") or ""}
+            last_err = err
+        else:
+            last_err = "返回内容不是合法 JSON"
+        if attempt == 0:
+            messages = [
+                {"role": "system", "content": prompt["system"]},
+                {"role": "user", "content": prompt["user"] + source},
+                {"role": "assistant", "content": last_text[:4000]},
+                {"role": "user", "content": "上面的输出不符合要求（%s）。请严格按要求重新只输出一个合法 JSON 对象，"
+                                            "不要包含任何解释文字或代码块围栏。" % last_err},
+            ]
+    return {"error": "生成结果不是有效的图结构（%s）" % last_err}
 
 
 def _is_image_arg(path: str) -> bool:

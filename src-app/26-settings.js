@@ -10,6 +10,7 @@ import { handleTabKey } from './12-snippet-clip.js';
 import { openSingleModal } from './15-insert.js';
 import { newDoc, newSticky, toast } from './16-doc-ops.js';
 import { frFindNext, openFindModal } from './19-find-replace.js';
+import { loadAiConfig } from './29-ai-config.js';
 
 /* ---------------- 设置：持久化状态 / 默认值 / 快捷键 ---------------- */
 var SETTINGS_KEY = 'inkpad.settings.v1';
@@ -211,7 +212,9 @@ function switchSettingsTab(name) {
   });
   $('settings-pane-general').style.display = name === 'general' ? '' : 'none';
   $('settings-pane-keys').style.display = name === 'keys' ? '' : 'none';
+  $('settings-pane-ai').style.display = name === 'ai' ? '' : 'none';
   if (name === 'keys') renderShortcutList();
+  if (name === 'ai') loadAiConfig();
 }
 function renderShortcutList() {
   var box = $('settings-keys-list');
@@ -299,6 +302,8 @@ function onSettingsRecordKeydown(e) {
 function openSettingsModal() {
   syncSettingsControls();
   renderShortcutList();
+  var activeTab = document.querySelector('.settings-tab.active');
+  switchSettingsTab(activeTab ? activeTab.getAttribute('data-settings-tab') : 'general');
   openSingleModal('settings-modal');
 }
 function closeSettingsModal() {

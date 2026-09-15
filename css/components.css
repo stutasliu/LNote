@@ -242,6 +242,19 @@
 }
 .ink-ctx-menu .ctx-item-danger:hover .ctx-icon { color: #F54A45; }
 .ink-ctx-menu .ctx-item-danger:hover .ctx-shortcut { color: #CB2621; }
+/* v0.22：未配置时 AI 入口置灰（PRD 功能 #8）—— 保留可点击，点击后引导进入设置 */
+.ink-ctx-menu .ctx-item-disabled,
+.ink-ctx-menu .ctx-item-disabled:hover,
+.ink-ctx-menu .ctx-item-disabled:active {
+  background: transparent;
+  color: #B0B6BE;
+  cursor: not-allowed;
+}
+.ink-ctx-menu .ctx-item-disabled .ctx-label,
+.ink-ctx-menu .ctx-item-disabled .ctx-icon,
+.ink-ctx-menu .ctx-item-disabled .ctx-shortcut,
+.ink-ctx-menu .ctx-item-disabled:hover .ctx-icon,
+.ink-ctx-menu .ctx-item-disabled:hover .ctx-shortcut { color: #B0B6BE; }
 .ink-ctx-menu .ctx-divider {
   height: 1px;
   background: #F0EBE5;
@@ -1232,6 +1245,85 @@
   gap: 8px;
   padding: 10px 18px 14px;
   border-top: 1px solid var(--border);
+}
+
+/* ---- AI 助手结果面板（v0.22：M2 选中即用助手 → 浮层流式展示） ---- */
+.ai-panel {
+  position: fixed;
+  right: 16px;
+  top: 64px;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 96px);
+  flex-direction: column;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.18);
+  z-index: 9500;
+  overflow: hidden;
+}
+.ai-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ai-panel-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.ai-panel-meta {
+  padding: 6px 14px 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.ai-panel-meta:empty { display: none; }
+.ai-panel-body {
+  flex: 1;
+  min-height: 80px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+}
+.ai-panel-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ai-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.ai-panel-foot .tool-btn {
+  height: auto;
+  padding: 5px 12px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.ai-panel-foot .tool-btn.primary {
+  border-color: transparent;
+}
+.ai-panel-foot .tool-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ai-panel-foot .tool-btn:disabled:hover {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.ai-panel-foot .tool-btn.primary:hover {
+  background: var(--accent-hover);
 }
 
 /* ---- 输入框（表格/代码块弹窗） ---- */

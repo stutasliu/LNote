@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { newVisualDoc, newRichDoc, ensureRichDiskPath, syncRichDiskPath, _richSaveChain, runRichSaveChain, sanitizeFileName, computeRichFilePath, richChanged, syncFromEditor, docSaveName, richDocSaveFilters, richDocSaveInitialDir, saveDoc, saveNow };
+export { newVisualDoc, newVisualDocFromModel, newRichDoc, ensureRichDiskPath, syncRichDiskPath, _richSaveChain, runRichSaveChain, sanitizeFileName, computeRichFilePath, richChanged, syncFromEditor, docSaveName, richDocSaveFilters, richDocSaveInitialDir, saveDoc, saveNow };
 /* [esm] 导入依赖模块绑定 */
 import { LANGS, bus, els, state } from './01-core.js';
 import { VISUAL_MODULES, cm } from './04-editor-init.js';
@@ -24,6 +24,23 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
     persist();
     openDoc(d.id);
     els.title.focus();
+  }
+
+  // 由外部结构模型新建可视化文档（v0.22：M3 AI 图表生成的「确认落图」）
+  // model 为已补齐坐标/id 的完整 flow/mind 模型，直接序列化为 doc.content
+  function newVisualDocFromModel(kind, model, title) {
+    var d = {
+      id: uid(),
+      title: title || '',
+      kind: kind,
+      lang: 'json',
+      content: JSON.stringify(model),
+      updated: Date.now()
+    };
+    state.docs.push(d);
+    persist();
+    openDoc(d.id);
+    if (!title) els.title.focus();
   }
 
   // 新建富文档（块编辑器 / Notion 风）

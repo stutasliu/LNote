@@ -649,6 +649,7 @@
       <div class="settings-tabs">
         <button class="settings-tab active" data-settings-tab="general">通用</button>
         <button class="settings-tab" data-settings-tab="keys">快捷键</button>
+        <button class="settings-tab" data-settings-tab="ai">AI</button>
       </div>
       <div id="settings-pane-general" class="settings-pane">
         <div class="ts-row">
@@ -678,6 +679,44 @@
       <div id="settings-pane-keys" class="settings-pane" style="display:none">
         <div class="settings-keys-hint">点击右侧快捷键可重新录制组合键 · 按 Esc 取消修改</div>
         <div id="settings-keys-list"></div>
+      </div>
+      <div id="settings-pane-ai" class="settings-pane" style="display:none">
+        <div class="ts-row">
+          <span class="ts-label">服务商</span>
+          <select id="settings-ai-preset" class="tool-select">
+            <option value="deepseek">DeepSeek</option>
+            <option value="openai">OpenAI</option>
+            <option value="moonshot">Moonshot</option>
+            <option value="zhipu">智谱 AI</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+        <div class="ts-row">
+          <span class="ts-label">Base URL</span>
+          <input type="text" id="settings-ai-baseurl" class="ts-input" placeholder="https://api.deepseek.com" spellcheck="false" autocomplete="off">
+        </div>
+        <div class="ts-row">
+          <span class="ts-label">API Key</span>
+          <input type="password" id="settings-ai-key" class="ts-input" placeholder="sk-..." spellcheck="false" autocomplete="off">
+        </div>
+        <div class="ts-row">
+          <span class="ts-label">模型名</span>
+          <input type="text" id="settings-ai-model" class="ts-input" placeholder="deepseek-chat" spellcheck="false" autocomplete="off">
+        </div>
+        <div class="ts-row">
+          <span class="ts-label">连通性</span>
+          <button class="tool-btn" id="settings-ai-test">测试连接</button>
+          <span id="settings-ai-status" class="clip-hint">未测试</span>
+        </div>
+        <div class="ts-row">
+          <span class="ts-label">操作</span>
+          <button class="tool-btn primary" id="settings-ai-save">保存配置</button>
+          <button class="tool-btn" id="settings-ai-clear">清除密钥</button>
+        </div>
+        <div class="ts-row">
+          <span class="ts-label">提示</span>
+          <span class="clip-hint">密钥仅保存在本机（%LOCALAPPDATA%\L.Note\ai-config.json），不会上传；填写后建议先「测试连接」再保存。</span>
+        </div>
       </div>
     </div>
     <div class="modal-foot">
@@ -1331,6 +1370,60 @@ window.__docReady = function (cb) {
   </div>
 </div>
 
+<!-- AI 助手结果面板（v0.22：M2 选中即用助手，独立浮层，不遮挡编辑区） -->
+<div id="ai-panel" class="ai-panel" style="display:none">
+  <div class="ai-panel-head">
+    <span class="ai-panel-title" id="ai-panel-title">AI 助手</span>
+    <button class="icon-btn" id="ai-panel-close" title="关闭">✕</button>
+  </div>
+  <div class="ai-panel-meta" id="ai-panel-meta"></div>
+  <div class="ai-panel-body" id="ai-panel-body"></div>
+  <div class="ai-panel-foot">
+    <button class="tool-btn" id="ai-stop" style="display:none">停止</button>
+    <button class="tool-btn" id="ai-retry" style="display:none">重试</button>
+    <div class="ai-panel-actions">
+      <button class="tool-btn" id="ai-copy" disabled>复制</button>
+      <button class="tool-btn" id="ai-apply-insert" disabled>插入到光标</button>
+      <button class="tool-btn primary" id="ai-apply-replace" disabled>替换选中区</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI 图表生成面板（v0.22：M3 两段式「处理中 → 结构预览 → 确认落图」） -->
+<div id="ai-diagram-panel" class="ai-panel" style="display:none">
+  <div class="ai-panel-head">
+    <span class="ai-panel-title" id="ai-diagram-title">AI 图表</span>
+    <button class="icon-btn" id="ai-diagram-close" title="关闭">✕</button>
+  </div>
+  <div class="ai-panel-meta" id="ai-diagram-meta"></div>
+  <div class="ai-panel-body" id="ai-diagram-body" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px"></div>
+  <div class="ai-panel-foot">
+    <button class="tool-btn" id="ai-diagram-stop" style="display:none">停止</button>
+    <button class="tool-btn" id="ai-diagram-retry" style="display:none">重试</button>
+    <div class="ai-panel-actions">
+      <button class="tool-btn primary" id="ai-diagram-create" disabled>新建为文档</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI 图表生成：未选中文本时的内容描述输入 -->
+<div id="ai-diagram-prompt" class="modal-overlay" style="display:none">
+  <div class="modal-card modal-card-sm">
+    <div class="modal-head">
+      <span class="modal-title" id="ai-diagram-prompt-title">AI 图表</span>
+      <button class="icon-btn" id="ai-diagram-prompt-close" title="关闭">✕</button>
+    </div>
+    <div class="modal-body">
+      <textarea id="ai-diagram-prompt-text" class="tool-input" rows="6" style="width:100%;resize:vertical"
+        placeholder="描述要生成的图表内容，例如：用户注册流程，含邮箱校验与验证码确认"></textarea>
+    </div>
+    <div class="modal-foot">
+      <button class="tool-btn" id="ai-diagram-prompt-cancel">取消</button>
+      <button class="tool-btn primary" id="ai-diagram-prompt-ok">生成</button>
+    </div>
+  </div>
+</div>
+
 <!-- 矢量图标定义（供 md.js 渲染 :icon-xxx: 与图标面板使用） -->
 <script src="js/icons.js"></script>
 <script src="js/block-editor.js"></script>
@@ -1371,6 +1464,38 @@ window.__docReady = function (cb) {
   <div class="ctx-group">
     <button class="ctx-item" data-cmd="translate">
       <span class="ctx-icon">译</span><span class="ctx-label">翻译</span><span class="ctx-shortcut">选中内容</span>
+    </button>
+  </div>
+  <div class="ctx-divider"></div>
+  <div class="ctx-group" id="ctx-group-ai" style="display:none">
+    <div class="ctx-group-title">AI 助手</div>
+    <button class="ctx-item" data-cmd="ai-polish">
+      <span class="ctx-icon">✦</span><span class="ctx-label">润色</span>
+    </button>
+    <button class="ctx-item" data-cmd="ai-continue">
+      <span class="ctx-icon">✎</span><span class="ctx-label">续写</span>
+    </button>
+    <button class="ctx-item" data-cmd="ai-summary">
+      <span class="ctx-icon">☰</span><span class="ctx-label">总结要点</span>
+    </button>
+    <button class="ctx-item" data-cmd="ai-expand">
+      <span class="ctx-icon">⤢</span><span class="ctx-label">扩写</span>
+    </button>
+    <button class="ctx-item" data-cmd="ai-fix">
+      <span class="ctx-icon">✓</span><span class="ctx-label">纠错</span>
+    </button>
+    <button class="ctx-item" data-cmd="ai-outline">
+      <span class="ctx-icon">⊞</span><span class="ctx-label">生成大纲</span>
+    </button>
+  </div>
+  <div class="ctx-divider"></div>
+  <div class="ctx-group" id="ctx-group-ai-diagram" style="display:none">
+    <div class="ctx-group-title">AI 图表</div>
+    <button class="ctx-item" data-cmd="ai-diagram-flow">
+      <span class="ctx-icon">🔀</span><span class="ctx-label">生成流程图</span>
+    </button>
+    <button class="ctx-item" data-cmd="ai-diagram-mind">
+      <span class="ctx-icon">🧠</span><span class="ctx-label">生成思维导图</span>
     </button>
   </div>
   <div class="ctx-divider"></div>
