@@ -223,7 +223,7 @@ git checkout master
 
 - [ ] `python -m py_compile main.py` 成功
 
-- [ ] `npx vitest run tests/unit` 全部通过（当前基线 87 项）
+- [ ] `npx vitest run tests/unit` 全部通过（当前基线 129 项）
 
 - [ ] 本次新增逻辑已补对应单元测试（如 `hasClipboardText`、`revealTarget` 先例）
 
