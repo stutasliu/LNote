@@ -1,7 +1,7 @@
 /* [esm] 导出本模块顶层绑定 */
 export { saveDiskDoc, openEncModal, openCompareWindow, setLang, newDoc, exportDoc, importFile, toastTimer, toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, newSticky, saveSticky, findDoc, saveDocTags, collectAllTags, openStickyEditor, setTagExpiry, clearTagExpiry, cleanupExpiredTags, matchReminder, toLocalInput, fromLocalInput, fmtStamp, revealTarget, revealInFolder };
 /* [esm] 导入依赖模块绑定 */
-import { $, LANGS, els, state } from './01-core.js';
+import { $, DOC_ICONS, LANGS, els, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
 import { activeDoc, persist, uid } from './05-store.js';
 import { openDoc, updatePreviewBtn } from './07-doc-open.js';
@@ -79,7 +79,7 @@ import { openDocFromData } from './24-doc.js';
     cm.setOption('mode', LANGS[lang] ? LANGS[lang].mime : 'text/plain');
     els.langSelect.value = lang;
     els.statLang.textContent = LANGS[lang] ? LANGS[lang].label : '纯文本';
-    els.breadcrumb.textContent = lang === 'mermaid' ? '📊' : '📝';
+    els.breadcrumb.innerHTML = lang === 'mermaid' ? DOC_ICONS.chart : DOC_ICONS.doc;
     syncFromEditor();
     updatePreviewBtn();
     updatePreviewVisibility();

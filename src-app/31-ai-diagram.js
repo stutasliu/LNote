@@ -1,7 +1,7 @@
 /* [esm] 导出本模块顶层绑定 */
 export { runAiDiagram, openAiDiagramPanel, closeAiDiagramPanel, initAiDiagram };
 /* [esm] 导入依赖模块绑定 */
-import { $ } from './01-core.js';
+import { $, DOC_ICONS } from './01-core.js';
 import { activeDoc } from './05-store.js';
 import { cm } from './04-editor-init.js';
 import { getApi, hasApi } from './13-api-path.js';
@@ -20,8 +20,8 @@ import { aiEntryBlocked, isAiAuthError, openAiSettings } from './29-ai-config.js
   var AI_DIAGRAM_MAX_CHARS = 8000;
 
   var DIAG_META = {
-    flow: { label: '流程图', icon: '🔀' },
-    mind: { label: '思维导图', icon: '🧠' }
+    flow: { label: '流程图', icon: DOC_ICONS.flow },
+    mind: { label: '思维导图', icon: DOC_ICONS.mind }
   };
 
   var diagSession = null;   // 运行期单任务会话（不持久化）

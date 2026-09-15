@@ -1,7 +1,7 @@
 /* [esm] 导出本模块顶层绑定 */
 export { updateInfoPanel, goLine, openDoc, updatePreviewBtn, refreshTextDocFromDisk, refreshRichDocFromDisk, refreshDocFromDisk };
 /* [esm] 导入依赖模块绑定 */
-import { LANGS, els, state } from './01-core.js';
+import { DOC_ICONS, LANGS, els, state } from './01-core.js';
 import { richOutline, richOutlineVisible } from './02-rich-outline.js';
 import { cm } from './04-editor-init.js';
 import { activeDoc, persist, saveCursorPos, loadCursorPos, clampCursorPos } from './05-store.js';
@@ -64,8 +64,8 @@ import { updateDocMapUI } from './25-doc-map.js';
       ? ((d.blocks ? d.blocks.length : 0) + ' 块 · ' + chars + ' 字符')
       : (lines + ' 行 · ' + chars + ' 字符');
 
-    // App Bar 模式图标
-    if (els.breadcrumb) els.breadcrumb.textContent = kind === 'diagram' ? '📊' : (kind === 'rich' ? '📝' : '📝');
+    // App Bar 模式图标（innerHTML：图标为 SVG，不能用 textContent）
+    if (els.breadcrumb) els.breadcrumb.innerHTML = kind === 'diagram' ? DOC_ICONS.chart : (kind === 'rich' ? DOC_ICONS.rich : DOC_ICONS.doc);
 
     // 大纲卡片：经典文档显示行大纲；富文档由底部飞书式大纲接管（清空）
     var outlineCard = document.getElementById('outlineCard');
@@ -196,7 +196,7 @@ import { updateDocMapUI } from './25-doc-map.js';
 
     if (kind === 'rich') {
       els.previewPane.style.display = 'none';
-      els.breadcrumb.textContent = '📝';
+      els.breadcrumb.innerHTML = DOC_ICONS.rich;
       els.statLang.textContent = '块编辑器';
       els.statCursor.textContent = '';
       els.btnInsertImage.style.display = 'none';
@@ -238,7 +238,7 @@ import { updateDocMapUI } from './25-doc-map.js';
 
     if (kind === 'pdf') {
       els.previewPane.style.display = 'none';
-      els.breadcrumb.textContent = '📕';
+      els.breadcrumb.innerHTML = DOC_ICONS.pdf;
       els.statLang.textContent = 'PDF 文档';
       els.statCursor.textContent = '';
       renderList();
@@ -248,7 +248,7 @@ import { updateDocMapUI } from './25-doc-map.js';
 
     if (kind === 'doc') {
       els.previewPane.style.display = 'none';
-      els.breadcrumb.textContent = '📘';
+      els.breadcrumb.innerHTML = DOC_ICONS.word;
       els.statLang.textContent = 'Word 文档';
       els.statCursor.textContent = '';
       renderList();
@@ -272,7 +272,7 @@ import { updateDocMapUI } from './25-doc-map.js';
     els.langSelect.value = d.lang || 'plaintext';
 
     var isDiagram = d.lang === 'mermaid';
-    els.breadcrumb.textContent = isDiagram ? '📊' : '📝';
+    els.breadcrumb.innerHTML = isDiagram ? DOC_ICONS.chart : DOC_ICONS.doc;
     els.statLang.textContent = LANGS[d.lang] ? LANGS[d.lang].label : '纯文本';
     els.btnTogglePreview.classList.toggle('active', isDiagram && state.previewOn);
 

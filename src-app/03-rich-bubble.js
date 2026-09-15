@@ -1,6 +1,7 @@
 /* [esm] 导出本模块顶层绑定 */
 export { bubbleMenu, richBubbleTypeLabel, BUBBLE_BLOCK_ITEMS, BUBBLE_BLOCK_FLYOUT, BUBBLE_TEXT_COLORS, BUBBLE_BG_COLORS, BUBBLE_COLORS, BUBBLE_AI_ICONS, ensureBubbleRoot, makeBubbleSep, showRichBubble, repositionBubbleForPanel, hideRichBubble, toggleBubbleDropdown, hideBubbleDropdown, toggleBubbleLinkInput, hideBubbleLinkInput, toggleBubbleColorBar, hideBubbleColorBar, toggleBubbleAiMenu, hideBubbleAiMenu, runBubbleInline, bindRichBubble };
 /* [esm] 导入依赖模块绑定 */
+import { DOC_ICONS } from './01-core.js';
 import { toast } from './16-doc-ops.js';
 import { AI_INSTRUCTIONS, runAiInstruction } from './30-ai-assistant.js';
 import { runAiDiagram } from './31-ai-diagram.js';
@@ -288,8 +289,8 @@ import { isAiConfigured, onAiConfigChanged, refreshAiConfigState } from './29-ai
     aiSep.className = 'ink-bubble-ai-sep';
     aiMenu.appendChild(aiSep);
     [
-      { kind: 'flow', mark: '🔀', label: '生成流程图', tip: '按选中内容生成流程图' },
-      { kind: 'mind', mark: '🧠', label: '生成思维导图', tip: '按选中内容生成思维导图' }
+      { kind: 'flow', mark: DOC_ICONS.flow, label: '生成流程图', tip: '按选中内容生成流程图' },
+      { kind: 'mind', mark: DOC_ICONS.mind, label: '生成思维导图', tip: '按选中内容生成思维导图' }
     ].forEach(function (item) {
       var drow = document.createElement('div');
       drow.className = 'ink-bubble-ai-item';

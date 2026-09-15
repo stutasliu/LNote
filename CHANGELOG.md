@@ -2,6 +2,36 @@
 
 本项目所有值得记录的变更均会收录在此文件中。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## \[v0.24.0] - 2026-09-15
+
+### 新增
+
+- **9 类文档类型图标全彩化（统一单色线性风格）**：把新建菜单、侧栏文档列表、顶栏面包屑、富文档浮动工具条与右键「AI 图表」菜单里原先的 emoji 图标，全部替换为统一线性风格的 SVG 图标，并按文档类型各赋一种颜色——文档（灰蓝）/ 富文档（紫）/ Word（深蓝）/ 思维笔记（品红）/ 便利贴（琥珀）/ 图表（青）/ 流程图（蓝）/ 思维导图（绿）/ PDF（红）。每类保留独占的轮廓特征（页面右上折角、矩形→箭头→菱形、根节点 + 扇形分支 + 圆点、圆点列 + 等长横线、右下卷角等），在 16px 下仍可区分。
+
+- **「打开文件夹」「导入文件」两个菜单动作图标加入配色**：新建菜单中与 6 个新建项同列的这两个动作项同样换为线性图标并上色——「打开文件夹」取冷色青绿（`#0E9C9C`）表示本地 / 外部来源，「导入文件」取暖色橙棕（`#D2683C`）表示汇入，与相邻行的 6 类新建项色相拉开，避免同列出现重复颜色。
+
+### 变更
+
+- **图标配色抽为 CSS 变量双层实现**：`css/base.css` 新增 11 个 `--ico-*` 变量与 11 条 `.ico-*` 规则；颜色挂在 svg 自身的类上，svg 内 `stroke` 走 `currentColor`，因此列表 / 面包屑 / 新建菜单 / AI 图表菜单共用同一套色，无需各处重复声明。深色模式（`prefers-color-scheme: dark`）下自动切换为同色相的提亮值，保证深底上仍可辨。
+
+- **置灰态统一覆盖类型色**：回收站中的文档图标（`css/layout.css`）与富文档 AI 菜单禁用态（`css/inkpad-rich.css`）以更高优先级覆盖 svg 自身的 `color`，避免有色图标在「不可用」状态下仍然显色。
+
+- **图标定义集中到 `src-app/01-core.js`**：新增 `ICON_ATTR`、`svgIcon()`、`DOC_ICONS` 与兼容别名 `MINDMAP_ICON`；各调用点（`03-rich-bubble` / `04-editor-init` / `06-doc-list` / `07-doc-open` / `08-visual` / `16-doc-ops` / `31-ai-diagram`）改为引用 `DOC_ICONS.<type>`，不再各处硬编码 emoji 字符串。
+
+- **面包屑图标渲染方式改为 `innerHTML`**：面包屑由 emoji 文本改为 SVG 后，`els.breadcrumb` 的赋值由 `textContent` 改为 `innerHTML`，否则会显示成标签源码。
+
+### 修复
+
+- **自动更新安装期间不再无任何反馈**：自动更新调用安装器由 `/VERYSILENT` 改为 `/SILENT`，保留 Inno 原生安装进度窗口，并追加 `/NOCANCEL` 防止误点取消中断原地升级；此前主程序在下载完成后立即销毁自身窗口、安装器又不显示进度窗，用户在整个安装期间屏幕上没有任何反馈（commit c483ec9）。
+
+### 测试
+
+- 前端构建通过（`node tools/build-app.js` + `npx vite build`，dist-web 同步更新）；Python 语法检查通过。
+
+- 单元测试通过（`npx vitest run tests/unit`，129 项）。
+
+- PyInstaller 打包成功（`dist\L.Note.exe`，17,502,808 B）；Inno Setup 安装包编译成功（`release\L.Note-setup-v0.24.0.exe`，19,224,757 B）。
+
 ## \[v0.23.2] - 2026-09-15
 
 ### 变更

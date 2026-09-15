@@ -23,6 +23,20 @@
   --on-primary-container: #1A3B80;
   --ai: #E73391;
   --danger: #EB5757;
+  /* ===== 文档类型图标配色（9 类）===== */
+  --ico-doc: #6E7B8F;
+  --ico-rich: #7E5BEF;
+  --ico-word: #2B579A;
+  --ico-note: #E73391;
+  --ico-sticky: #E8A33D;
+  --ico-chart: #0FA3A3;
+  --ico-flow: #3370FF;
+  --ico-mind: #2BA471;
+  --ico-pdf: #E5484D;
+  /* 菜单动作图标配色（2 类：打开文件夹 / 导入文件，与上面 6 类在新建菜单里同列，
+     取「冷色 = 本地/外部来源、暖色 = 汇入」的对照，且与相邻 6 类色相拉开） */
+  --ico-folder: #0E9C9C;
+  --ico-import: #D2683C;
   --radius: 10px;
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -36,6 +50,41 @@
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", Helvetica, Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, "Courier New", monospace;
+}
+
+/* ===== 文档类型图标配色（9 类）=====
+ * 颜色挂在 svg 自身的 .ico-<type> 类上（而非父元素），svg 内 stroke 走 currentColor，
+ * 因此图标随类上色；需要整体置灰的状态（回收站 / AI 菜单禁用）在
+ * layout.css 与 inkpad-rich.css 里用更高优先级覆盖 svg 自身的 color。 */
+.ico-doc { color: var(--ico-doc); }
+.ico-rich { color: var(--ico-rich); }
+.ico-word { color: var(--ico-word); }
+.ico-note { color: var(--ico-note); }
+.ico-sticky { color: var(--ico-sticky); }
+.ico-chart { color: var(--ico-chart); }
+.ico-flow { color: var(--ico-flow); }
+.ico-mind { color: var(--ico-mind); }
+.ico-pdf { color: var(--ico-pdf); }
+
+/* 菜单动作图标（打开文件夹 / 导入文件）同样挂类上色，hover 时按钮自身的 color 不影响 svg */
+.ico-folder { color: var(--ico-folder); }
+.ico-import { color: var(--ico-import); }
+
+/* 深色模式下 9 类色提亮，保证在深底上仍可辨（与全彩模式同一套色相） */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ico-doc: #9AA7BC;
+    --ico-rich: #A08CFF;
+    --ico-word: #6E9BE8;
+    --ico-note: #F060A8;
+    --ico-sticky: #F2BC63;
+    --ico-chart: #3FC7C7;
+    --ico-flow: #5B8DFF;
+    --ico-mind: #3FBF85;
+    --ico-pdf: #F8716F;
+    --ico-folder: #35BFBF;
+    --ico-import: #E58A5C;
+  }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

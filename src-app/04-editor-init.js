@@ -1,23 +1,26 @@
 /* [esm] 导出本模块顶层绑定 */
 export { KIND_META, VISUAL_MODULES, docIcon, cm };
 /* [esm] 导入依赖模块绑定 */
-import { els } from './01-core.js';
+import { els, DOC_ICONS } from './01-core.js';
 import { execEditorCmd, formatCurrent } from './11-format-tools.js';
 import { handleTabKey } from './12-snippet-clip.js';
 import { frFindNext, openFindModal } from './19-find-replace.js';
   /* ---------------- 可视化文档类型 ---------------- */
   var KIND_META = {
-    flow: { icon: '🔀', label: '流程图' },
-    mind: { icon: '🧠', label: '思维导图' },
-    note: { icon: '📋', label: '思维笔记' },
-    sticky: { icon: '🗒️', label: '便利贴' },
-    pdf: { icon: '📕', label: 'PDF 文档' }
+    flow: { icon: DOC_ICONS.flow, label: '流程图' },
+    mind: { icon: DOC_ICONS.mind, label: '思维导图' },
+    note: { icon: DOC_ICONS.note, label: '思维笔记' },
+    sticky: { icon: DOC_ICONS.sticky, label: '便利贴' },
+    pdf: { icon: DOC_ICONS.pdf, label: 'PDF 文档' }
   };
   var VISUAL_MODULES = { flow: 'InkpadFlow', mind: 'InkpadMind', note: 'InkpadNote' };
 
   function docIcon(d) {
     if (d.kind && KIND_META[d.kind]) return KIND_META[d.kind].icon;
-    return d.lang === 'mermaid' ? '📊' : '📝';
+    if (d.kind === 'rich') return DOC_ICONS.rich;
+    if (d.kind === 'doc') return DOC_ICONS.word;
+    if (d.lang === 'mermaid') return DOC_ICONS.chart;
+    return DOC_ICONS.doc;
   }
 
   /* ---------------- 初始化 CodeMirror ---------------- */

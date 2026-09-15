@@ -564,6 +564,8 @@
 .ink-bubble-ai-item-disabled .ink-bubble-ai-mark,
 .ink-bubble-ai-item-disabled .ink-bubble-ai-text b,
 .ink-bubble-ai-item-disabled .ink-bubble-ai-text small { color: #bbb; }
+/* 禁用态下流程图/思维导图的类型色也要跟着置灰 */
+.ink-bubble-ai-item-disabled .ink-bubble-ai-mark .doc-svg { color: #bbb; }
 
 @media (prefers-color-scheme: dark) {
   #ink-bubble { background: #25252a; color: #e6e6ea; border-color: #3a3a44; box-shadow: 0 4px 18px rgba(0,0,0,0.5); }
@@ -599,6 +601,7 @@
   .ink-bubble-ai-item-disabled .ink-bubble-ai-mark,
   .ink-bubble-ai-item-disabled .ink-bubble-ai-text b,
   .ink-bubble-ai-item-disabled .ink-bubble-ai-text small { color: #6a6a72; }
+  .ink-bubble-ai-item-disabled .ink-bubble-ai-mark .doc-svg { color: #6a6a72; }
 }
 
 /* 【v0.19.0】图片灯箱（双击图片放大查看） */

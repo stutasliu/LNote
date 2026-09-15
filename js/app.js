@@ -19,6 +19,50 @@
   };
   var SAMPLE_DIAGRAM = "flowchart TD\n    A([\u5F00\u59CB]) --> B{\u6761\u4EF6\u5224\u65AD}\n    B -- \u662F --> C[\u5904\u7406\u6570\u636E]\n    B -- \u5426 --> D[\u8BB0\u5F55\u65E5\u5FD7]\n    C --> E[(\u5199\u5165\u6570\u636E\u5E93)]\n    D --> E\n    E --> F([\u7ED3\u675F])\n";
   var SAMPLE_MINDMAP = "mindmap\n  root((\u9879\u76EE\u89C4\u5212))\n    \u524D\u7AEF\n      \u754C\u9762\u8BBE\u8BA1\n      \u4EA4\u4E92\u903B\u8F91\n    \u540E\u7AEF\n      API \u8BBE\u8BA1\n      \u6570\u636E\u5E93\n    \u6D4B\u8BD5\n      \u5355\u5143\u6D4B\u8BD5\n      \u96C6\u6210\u6D4B\u8BD5\n";
+  var ICON_ATTR = 'fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"';
+  function svgIcon(body, key) {
+    return '<svg viewBox="0 0 24 24" class="doc-svg' + (key ? " ico-" + key : "") + '" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" ' + ICON_ATTR + ">" + body + "</svg>";
+  }
+  var DOC_ICONS = {
+    doc: svgIcon(
+      '<path d="M6 3h7.5L18 7.5V21H6Z"/><path d="M13.5 3v4.5H18"/><path d="M9 12.4h6"/><path d="M9 15.6h6"/><path d="M9 18.8h3.6"/>',
+      "doc"
+    ),
+    rich: svgIcon(
+      '<path d="M6 3h7.5L18 7.5V21H6Z"/><path d="M13.5 3v4.5H18"/><rect x="9" y="12.4" width="6" height="6.4" rx="1.1" fill="currentColor" stroke="none"/>',
+      "rich"
+    ),
+    word: svgIcon(
+      '<path d="M6 3h7.5L18 7.5V21H6Z"/><path d="M13.5 3v4.5H18"/><path d="M8.6 12.6l1.5 5.4 1.9-3.8 1.9 3.8 1.5-5.4"/>',
+      "word"
+    ),
+    flow: svgIcon(
+      '<rect x="7.8" y="2.8" width="8.4" height="4.4" rx="1.2"/><path d="M12 7.2v2.1"/><path d="M10.8 8.2 12 9.3l1.2-1.1"/><path d="M12 11.4 16 15.4 12 19.4 8 15.4Z"/>',
+      "flow"
+    ),
+    /* 思维导图：变体 1 · 扇形（分支取短版，曲线端点正好落在圆点左边缘） */
+    mind: svgIcon(
+      '<rect x="4.6" y="9.2" width="5.4" height="5.6" rx="1.8"/><path d="M10 12c2.9 0 2.7-5.6 5.6-5.6"/><path d="M10 12h5.6"/><path d="M10 12c2.9 0 2.7 5.6 5.6 5.6"/><circle cx="17.4" cy="6.4" r="1.8"/><circle cx="17.4" cy="12" r="1.8"/><circle cx="17.4" cy="17.6" r="1.8"/>',
+      "mind"
+    ),
+    note: svgIcon(
+      '<circle cx="4.8" cy="6.4" r="1.3" fill="currentColor" stroke="none"/><circle cx="4.8" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="4.8" cy="17.6" r="1.3" fill="currentColor" stroke="none"/><path d="M8.6 6.4h10.8"/><path d="M8.6 12h10.8"/><path d="M8.6 17.6h10.8"/>',
+      "note"
+    ),
+    sticky: svgIcon(
+      '<path d="M4.6 4.2h14.8v10.2l-5.2 5.4H4.6Z"/><path d="M14.2 19.8v-5.4h5.2"/>',
+      "sticky"
+    ),
+    pdf: svgIcon(
+      '<path d="M3.6 6.4h13.2l3.6 3.6V18H3.6Z"/><path d="M16.8 6.4v3.6h3.6"/><path d="M7 13.4h7"/><path d="M7 16.2h4.4"/>',
+      "pdf"
+    ),
+    chart: svgIcon(
+      '<path d="M4.8 19.6v-7.2"/><path d="M12 19.6V4.8"/><path d="M19.2 19.6v-4.8"/>',
+      "chart"
+    )
+  };
+  var MINDMAP_ICON = DOC_ICONS.mind;
   var $ = function(id) {
     return document.getElementById(id);
   };
@@ -2027,7 +2071,7 @@
       if (cm) {
         cm.setValue("");
       }
-      els.breadcrumb.textContent = "\u{1F4DD}";
+      els.breadcrumb.innerHTML = DOC_ICONS.doc;
     }
     renderList();
     toast3("\u5DF2\u79FB\u5165\u56DE\u6536\u7AD9\uFF1A" + (d.title || "\u65E0\u6807\u9898"));
@@ -2119,7 +2163,7 @@
       if (cm) {
         cm.setValue("");
       }
-      els.breadcrumb.textContent = "\u{1F4DD}";
+      els.breadcrumb.innerHTML = DOC_ICONS.doc;
     }
     return count;
   }
@@ -2541,7 +2585,7 @@
     mod.init(els.visualCanvas, model, onVisualChange);
     mod.renderToolbar(els.visualToolbar);
     buildVisualExportMenu(els.visualToolbar, kind);
-    els.breadcrumb.textContent = meta.icon;
+    els.breadcrumb.innerHTML = meta.icon;
     els.statLang.textContent = meta.label;
     els.statCursor.textContent = "";
     updateVisualStatus();
@@ -4018,8 +4062,8 @@
   // src-app/31-ai-diagram.js
   var AI_DIAGRAM_MAX_CHARS = 8e3;
   var DIAG_META = {
-    flow: { label: "\u6D41\u7A0B\u56FE", icon: "\u{1F500}" },
-    mind: { label: "\u601D\u7EF4\u5BFC\u56FE", icon: "\u{1F9E0}" }
+    flow: { label: "\u6D41\u7A0B\u56FE", icon: DOC_ICONS.flow },
+    mind: { label: "\u601D\u7EF4\u5BFC\u56FE", icon: DOC_ICONS.mind }
   };
   var diagSession = null;
   var diagSeq = 0;
@@ -4648,8 +4692,8 @@
     aiSep.className = "ink-bubble-ai-sep";
     aiMenu.appendChild(aiSep);
     [
-      { kind: "flow", mark: "\u{1F500}", label: "\u751F\u6210\u6D41\u7A0B\u56FE", tip: "\u6309\u9009\u4E2D\u5185\u5BB9\u751F\u6210\u6D41\u7A0B\u56FE" },
-      { kind: "mind", mark: "\u{1F9E0}", label: "\u751F\u6210\u601D\u7EF4\u5BFC\u56FE", tip: "\u6309\u9009\u4E2D\u5185\u5BB9\u751F\u6210\u601D\u7EF4\u5BFC\u56FE" }
+      { kind: "flow", mark: DOC_ICONS.flow, label: "\u751F\u6210\u6D41\u7A0B\u56FE", tip: "\u6309\u9009\u4E2D\u5185\u5BB9\u751F\u6210\u6D41\u7A0B\u56FE" },
+      { kind: "mind", mark: DOC_ICONS.mind, label: "\u751F\u6210\u601D\u7EF4\u5BFC\u56FE", tip: "\u6309\u9009\u4E2D\u5185\u5BB9\u751F\u6210\u601D\u7EF4\u5BFC\u56FE" }
     ].forEach(function(item) {
       var drow = document.createElement("div");
       drow.className = "ink-bubble-ai-item";
@@ -8150,16 +8194,19 @@
 
   // src-app/04-editor-init.js
   var KIND_META = {
-    flow: { icon: "\u{1F500}", label: "\u6D41\u7A0B\u56FE" },
-    mind: { icon: "\u{1F9E0}", label: "\u601D\u7EF4\u5BFC\u56FE" },
-    note: { icon: "\u{1F4CB}", label: "\u601D\u7EF4\u7B14\u8BB0" },
-    sticky: { icon: "\u{1F5D2}\uFE0F", label: "\u4FBF\u5229\u8D34" },
-    pdf: { icon: "\u{1F4D5}", label: "PDF \u6587\u6863" }
+    flow: { icon: DOC_ICONS.flow, label: "\u6D41\u7A0B\u56FE" },
+    mind: { icon: DOC_ICONS.mind, label: "\u601D\u7EF4\u5BFC\u56FE" },
+    note: { icon: DOC_ICONS.note, label: "\u601D\u7EF4\u7B14\u8BB0" },
+    sticky: { icon: DOC_ICONS.sticky, label: "\u4FBF\u5229\u8D34" },
+    pdf: { icon: DOC_ICONS.pdf, label: "PDF \u6587\u6863" }
   };
   var VISUAL_MODULES = { flow: "InkpadFlow", mind: "InkpadMind", note: "InkpadNote" };
   function docIcon(d) {
     if (d.kind && KIND_META[d.kind]) return KIND_META[d.kind].icon;
-    return d.lang === "mermaid" ? "\u{1F4CA}" : "\u{1F4DD}";
+    if (d.kind === "rich") return DOC_ICONS.rich;
+    if (d.kind === "doc") return DOC_ICONS.word;
+    if (d.lang === "mermaid") return DOC_ICONS.chart;
+    return DOC_ICONS.doc;
   }
   var cm = CodeMirror.fromTextArea(els.editor, {
     lineNumbers: true,
@@ -8536,7 +8583,7 @@
     cm.setOption("mode", LANGS[lang] ? LANGS[lang].mime : "text/plain");
     els.langSelect.value = lang;
     els.statLang.textContent = LANGS[lang] ? LANGS[lang].label : "\u7EAF\u6587\u672C";
-    els.breadcrumb.textContent = lang === "mermaid" ? "\u{1F4CA}" : "\u{1F4DD}";
+    els.breadcrumb.innerHTML = lang === "mermaid" ? DOC_ICONS.chart : DOC_ICONS.doc;
     syncFromEditor();
     updatePreviewBtn();
     updatePreviewVisibility();
@@ -9636,7 +9683,7 @@
     if (pChars) pChars.textContent = chars;
     if (metaFormat) metaFormat.textContent = shownFmt;
     if (metaStat) metaStat.textContent = kind === "rich" ? (d.blocks ? d.blocks.length : 0) + " \u5757 \xB7 " + chars + " \u5B57\u7B26" : lines + " \u884C \xB7 " + chars + " \u5B57\u7B26";
-    if (els.breadcrumb) els.breadcrumb.textContent = kind === "diagram" ? "\u{1F4CA}" : kind === "rich" ? "\u{1F4DD}" : "\u{1F4DD}";
+    if (els.breadcrumb) els.breadcrumb.innerHTML = kind === "diagram" ? DOC_ICONS.chart : kind === "rich" ? DOC_ICONS.rich : DOC_ICONS.doc;
     var outlineCard = document.getElementById("outlineCard");
     if (outlineCard) {
       if (kind === "rich") {
@@ -9742,7 +9789,7 @@
     }
     if (kind === "rich") {
       els.previewPane.style.display = "none";
-      els.breadcrumb.textContent = "\u{1F4DD}";
+      els.breadcrumb.innerHTML = DOC_ICONS.rich;
       els.statLang.textContent = "\u5757\u7F16\u8F91\u5668";
       els.statCursor.textContent = "";
       els.btnInsertImage.style.display = "none";
@@ -9792,7 +9839,7 @@
     }
     if (kind === "pdf") {
       els.previewPane.style.display = "none";
-      els.breadcrumb.textContent = "\u{1F4D5}";
+      els.breadcrumb.innerHTML = DOC_ICONS.pdf;
       els.statLang.textContent = "PDF \u6587\u6863";
       els.statCursor.textContent = "";
       renderList();
@@ -9801,7 +9848,7 @@
     }
     if (kind === "doc") {
       els.previewPane.style.display = "none";
-      els.breadcrumb.textContent = "\u{1F4D8}";
+      els.breadcrumb.innerHTML = DOC_ICONS.word;
       els.statLang.textContent = "Word \u6587\u6863";
       els.statCursor.textContent = "";
       renderList();
@@ -9822,7 +9869,7 @@
     restoreCursor(d, d.content || "");
     els.langSelect.value = d.lang || "plaintext";
     var isDiagram = d.lang === "mermaid";
-    els.breadcrumb.textContent = isDiagram ? "\u{1F4CA}" : "\u{1F4DD}";
+    els.breadcrumb.innerHTML = isDiagram ? DOC_ICONS.chart : DOC_ICONS.doc;
     els.statLang.textContent = LANGS[d.lang] ? LANGS[d.lang].label : "\u7EAF\u6587\u672C";
     els.btnTogglePreview.classList.toggle("active", isDiagram && state.previewOn);
     updatePreviewVisibility();
@@ -11129,7 +11176,7 @@
   }
 
   // src-app/27-about.js
-  var APP_VERSION = "0.23.2";
+  var APP_VERSION = "0.24.0";
   var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
   var APP_HOME_URL = "https://stutasliu.github.io/LNote/";
   function versionGreater(a, b) {

@@ -1,7 +1,7 @@
 /* [esm] 导出本模块顶层绑定 */
 export { renderList, pendingDelId, openDocDelConfirm, closeDocDelConfirm, deleteDoc, shortTime, fullTime, toggleBatchMode, refreshBatchCount, getBatchSelectedIds, batchDelete, batchDestroy, batchExport, openDocMenu, closeDocMenu, renameDocId, renderSideSub, openTagEditModal, closeTagEditModal, openStickyEditModal, closeStickyEditModal, tagAddFromInput, stickyEditSave, syncSortButton, toggleSortGroup };
 /* [esm] 导入依赖模块绑定 */
-import { $, bus, els, state } from './01-core.js';
+import { $, DOC_ICONS, bus, els, state } from './01-core.js';
 import { cm, docIcon } from './04-editor-init.js';
 import { persist } from './05-store.js';
 import { openDoc } from './07-doc-open.js';
@@ -690,7 +690,7 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
       els.statEnc.textContent = '';
       els.statEditSep.style.display = 'none';
       if (cm) { cm.setValue(''); }
-      els.breadcrumb.textContent = '📝';
+      els.breadcrumb.innerHTML = DOC_ICONS.doc;
     }
     renderList();
     toast('已移入回收站：' + (d.title || '无标题'));
@@ -778,7 +778,7 @@ import { toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePi
       els.statEnc.textContent = '';
       els.statEditSep.style.display = 'none';
       if (cm) { cm.setValue(''); }
-      els.breadcrumb.textContent = '📝';
+      els.breadcrumb.innerHTML = DOC_ICONS.doc;
     }
     return count;
   }

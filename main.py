@@ -40,7 +40,7 @@ _runtime_pending_files = []
 _runtime_frontend_ready = False
 
 # 版本号（与 js/app.js 页脚保持一致）
-APP_VERSION = "0.23.2"
+APP_VERSION = "0.24.0"
 
 
 def resource_path(rel: str) -> str:

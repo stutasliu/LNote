@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, $, els, bus, state };
+export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, DOC_ICONS, MINDMAP_ICON, $, els, bus, state };
   var STORAGE_KEY = 'inkpad.docs.v1';
   var ACTIVE_KEY = 'inkpad.active.v1';
 
@@ -39,6 +39,91 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, $, els,
     '    测试\n' +
     '      单元测试\n' +
     '      集成测试\n';
+
+  /* ---------------- 文档类型图标（统一线性风格） ----------------
+   * 单色线性图标：stroke 取 currentColor，随父级文字颜色与字号走（1em），
+   * 不依赖额外 CSS。文档列表 / 回收站 / 面包屑 / 新建菜单 / 右键菜单 / AI 图表菜单共用。
+   * 每个类型保留一个独占的轮廓特征，保证 16px 下仍可区分：
+   *   文档 = 竖版页面 + 右上折角 + 3 行   ｜ 富文档 = 页面 + 实心内容块 ｜ Word = 页面 + W
+   *   流程图 = 矩形 → 箭头 → 菱形         ｜ 思维导图 = 根节点 + 扇形曲线分支 + 圆点
+   *   思维笔记 = 圆点列 + 等长横线         ｜ 便利贴 = 右下卷角
+   *   PDF = 横版页面 + 折角 + 2 行         ｜ 图表 = 三根柱状
+   * 颜色：每类挂 .ico-<type> 类型色（9 色 token 见 css/base.css），列表 / 面包屑 /
+   * 新建菜单 / AI 图表菜单共用同一套色，无需各处重复声明。 */
+  var ICON_ATTR = 'fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"';
+
+  /* key = 类型名，挂上 .ico-<key> 类型色（token 见 css/base.css 的 --ico-*）。
+   * stroke 仍取 currentColor，所以需要整体置灰的状态（回收站 / AI 菜单禁用态）
+   * 只要在对应状态选择器里覆盖 svg 自身的 color 即可，不必改图标本身。 */
+  function svgIcon(body, key) {
+    return '<svg viewBox="0 0 24 24" class="doc-svg' + (key ? ' ico-' + key : '') + '" ' +
+      'style="width:1em;height:1em;vertical-align:-0.15em" ' +
+      'aria-hidden="true" ' + ICON_ATTR + '>' + body + '</svg>';
+  }
+
+  var DOC_ICONS = {
+    doc: svgIcon(
+      '<path d="M6 3h7.5L18 7.5V21H6Z"/>' +
+      '<path d="M13.5 3v4.5H18"/>' +
+      '<path d="M9 12.4h6"/><path d="M9 15.6h6"/><path d="M9 18.8h3.6"/>',
+      'doc'
+    ),
+    rich: svgIcon(
+      '<path d="M6 3h7.5L18 7.5V21H6Z"/>' +
+      '<path d="M13.5 3v4.5H18"/>' +
+      '<rect x="9" y="12.4" width="6" height="6.4" rx="1.1" fill="currentColor" stroke="none"/>',
+      'rich'
+    ),
+    word: svgIcon(
+      '<path d="M6 3h7.5L18 7.5V21H6Z"/>' +
+      '<path d="M13.5 3v4.5H18"/>' +
+      '<path d="M8.6 12.6l1.5 5.4 1.9-3.8 1.9 3.8 1.5-5.4"/>',
+      'word'
+    ),
+    flow: svgIcon(
+      '<rect x="7.8" y="2.8" width="8.4" height="4.4" rx="1.2"/>' +
+      '<path d="M12 7.2v2.1"/>' +
+      '<path d="M10.8 8.2 12 9.3l1.2-1.1"/>' +
+      '<path d="M12 11.4 16 15.4 12 19.4 8 15.4Z"/>',
+      'flow'
+    ),
+    /* 思维导图：变体 1 · 扇形（分支取短版，曲线端点正好落在圆点左边缘） */
+    mind: svgIcon(
+      '<rect x="4.6" y="9.2" width="5.4" height="5.6" rx="1.8"/>' +
+      '<path d="M10 12c2.9 0 2.7-5.6 5.6-5.6"/>' +
+      '<path d="M10 12h5.6"/>' +
+      '<path d="M10 12c2.9 0 2.7 5.6 5.6 5.6"/>' +
+      '<circle cx="17.4" cy="6.4" r="1.8"/>' +
+      '<circle cx="17.4" cy="12" r="1.8"/>' +
+      '<circle cx="17.4" cy="17.6" r="1.8"/>',
+      'mind'
+    ),
+    note: svgIcon(
+      '<circle cx="4.8" cy="6.4" r="1.3" fill="currentColor" stroke="none"/>' +
+      '<circle cx="4.8" cy="12" r="1.3" fill="currentColor" stroke="none"/>' +
+      '<circle cx="4.8" cy="17.6" r="1.3" fill="currentColor" stroke="none"/>' +
+      '<path d="M8.6 6.4h10.8"/><path d="M8.6 12h10.8"/><path d="M8.6 17.6h10.8"/>',
+      'note'
+    ),
+    sticky: svgIcon(
+      '<path d="M4.6 4.2h14.8v10.2l-5.2 5.4H4.6Z"/>' +
+      '<path d="M14.2 19.8v-5.4h5.2"/>',
+      'sticky'
+    ),
+    pdf: svgIcon(
+      '<path d="M3.6 6.4h13.2l3.6 3.6V18H3.6Z"/>' +
+      '<path d="M16.8 6.4v3.6h3.6"/>' +
+      '<path d="M7 13.4h7"/><path d="M7 16.2h4.4"/>',
+      'pdf'
+    ),
+    chart: svgIcon(
+      '<path d="M4.8 19.6v-7.2"/><path d="M12 19.6V4.8"/><path d="M19.2 19.6v-4.8"/>',
+      'chart'
+    )
+  };
+
+  /* 兼容既有引用：思维导图图标与 DOC_ICONS.mind 同一个 SVG */
+  var MINDMAP_ICON = DOC_ICONS.mind;
 
   /* ---------------- DOM 引用 ---------------- */
   var $ = function (id) { return document.getElementById(id); };
