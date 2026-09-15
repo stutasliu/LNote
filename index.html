@@ -186,34 +186,34 @@
     <div class="logo"><img src="resource/app_512.png" alt="L.Note"></div>
     <h1>L.Note</h1>
     <p class="tagline">本地 Notion 风文本编辑器 —— 语法高亮 · Markdown 预览 · Mermaid 图表 · JSON/XML 工具</p>
-    <div class="badge">免费 · 纯本地运行 · 无需联网 · 安装版 / 便携版可选 · <b>v0.21.17</b></div>
+    <div class="badge">免费 · 纯本地运行 · 无需联网 · 安装版 / 便携版可选 · <b>v0.23.2</b></div>
   </header>
 
   <div class="dl-grid">
     <div class="dl-card">
       <div class="dl-tag">推荐 · 安装版</div>
-      <a class="dl-btn" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v0.21.17/L.Note-setup-v0.21.17.exe" download>
+      <a class="dl-btn" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v0.23.2/L.Note-setup-v0.23.2.exe" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        下载安装版 v0.21.17
+        下载安装版 v0.23.2
       </a>
       <div class="dl-meta">
         安装向导 · 约 18.3 MB · Windows 10/11（x64）<br>
         可选注册 .md / .markdown / 图片文件关联，含卸载程序<br>
         SHA256（可复制核对）：<br>
-        <code class="hash">56A5CB65F92D7C06EACCBFEC9F235808A42A8327883065E7DACFBD76ADF6CDF2</code>
+        <code class="hash">58D6AB1156C40A7FC44E2AE465C67227B8F7673ADDE71ABF392188AC35378216</code>
       </div>
     </div>
     <div class="dl-card">
       <div class="dl-tag alt">免安装 · 便携版</div>
-      <a class="dl-btn alt" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v0.21.17/L.Note-v0.21.17-win64.exe" download>
+      <a class="dl-btn alt" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v0.23.2/L.Note-v0.23.2-win64.exe" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        下载便携版 v0.21.17
+        下载便携版 v0.23.2
       </a>
       <div class="dl-meta">
         免安装 · 约 18 MB · Windows 10/11（x64）<br>
         双击直接运行；需要文件关联时用 register-file-assoc.ps1<br>
         SHA256（可复制核对）：<br>
-        <code class="hash">FB3FADE778880A5241620374ECA05BE0668F41AE7E38DBCF446540C43A5A2065</code>
+        <code class="hash">1894A37CB4DABB0CCC2DB70A0AF7DB9FF7E9B462B5F60C7FB800FC97001CA37E</code>
       </div>
     </div>
   </div>
@@ -305,8 +305,8 @@
       <div class="panel">
         <h3>安装与运行</h3>
         <ul>
-          <li><b>安装版（推荐）：</b>双击 L.Note-setup-v0.21.17.exe，按向导完成安装；勾选「注册文件关联」后，.md / .markdown / 图片文件即可双击用 L.Note 打开</li>
-          <li><b>便携版：</b>双击 L.Note-v0.21.17-win64.exe，免安装直接运行</li>
+          <li><b>安装版（推荐）：</b>双击 L.Note-setup-v0.23.2.exe，按向导完成安装；勾选「注册文件关联」后，.md / .markdown / 图片文件即可双击用 L.Note 打开</li>
+          <li><b>便携版：</b>双击 L.Note-v0.23.2-win64.exe，免安装直接运行</li>
           <li>依赖 Edge WebView2 运行时（Win11 自带，Win10 一般已预装）</li>
           <li>数据保存在本机浏览器存储，卸载/换机前请先导出备份</li>
         </ul>
@@ -316,8 +316,8 @@
         <ul>
           <li>复制上方对应文件的 SHA256 值</li>
           <li>在 exe 所在目录执行：</li>
-          <li><b>certutil -hashfile L.Note-setup-v0.21.17.exe SHA256</b></li>
-          <li><b>certutil -hashfile L.Note-v0.21.17-win64.exe SHA256</b></li>
+          <li><b>certutil -hashfile L.Note-setup-v0.23.2.exe SHA256</b></li>
+          <li><b>certutil -hashfile L.Note-v0.23.2-win64.exe SHA256</b></li>
           <li>比对输出哈希是否一致</li>
         </ul>
       </div>
@@ -326,6 +326,12 @@
 
   <section>
     <h2>更新日志</h2>
+    <div class="changelog">
+      <div class="v">v0.23.2</div>
+      <ul>
+        <li>**新增 AI 助手（自备密钥 BYOK）**：在「设置 → AI 助手」填入自己的 API Key（OpenAI 兼容接口，默认 DeepSeek）即可使用；密钥仅保存在本机配置文件，不写入任何文档、不上传第三方，界面只展示脱敏信息。，**选中即用 AI 助手**：在正文中选中文本后，文本编辑器右键菜单 / 富文档浮动工具条会出现「AI 助手」，提供润色、续写、总结要点、扩写、纠错、生成大纲六种指令；结果在独立浮层流式输出，可随时停止，并支持「替换原文 / 插入到光标处 / 复制」。，**AI 图表生成**：选中文本后可一键生成流程图 / 思维导图；AI 只产出结构与连线，节点坐标全部由本地布局器计算，确认后另建独立文档，不覆盖原文档。，**未配置引导与边界保护**：未配置密钥时点击 AI 入口会引导前往设置；空选区、超长文本等场景给出明确提示；同一时刻只运行一个 AI 任务，切换文档或关闭面板会自动取消。，**左侧文档列表支持左键拖动排序**：左键按住任意文档即可上下拖动调整顺序（4 px 阈值，不干扰单击打开文档与右键菜单），排序结果本地持久化。，**自动更新竞态修复**：修复静默更新时安装器 `[Run]` 与守卫进程重复启动新版 exe 的问题（commit 90e0c01）。</li>
+      </ul>
+    </div>
     <div class="changelog">
       <div class="v">v0.21.17</div>
       <ul>
