@@ -1625,7 +1625,8 @@ def _run_update_guard(argv):
     由主程序在下载完成后以独立进程启动（打包模式下是 %TEMP% 中的 exe 副本）：
       1) 等待旧主实例退出（窗口销毁后进程结束；超时不阻塞，安装器
          CloseApplications=force 会兜底关闭仍在运行的旧进程）；
-      2) 静默运行安装器，显式 /DIR 指向当前 exe 目录做「原地升级」并 /LOG 留痕；
+      2) 静默运行安装器（/SILENT 会保留 Inno 原生安装进度窗口，用户可见），
+         显式 /DIR 指向当前 exe 目录做「原地升级」并 /LOG 留痕；
       3) 安装成功 → 写结果标记并启动新版本；失败 → 写失败标记并尽力恢复旧 exe。
     """
     def arg(name, default=None):
@@ -1653,10 +1654,15 @@ def _run_update_guard(argv):
     except Exception:
         pass
 
-    # 2) 静默安装：/DIR 原地升级 + /LOG 留痕
+    # 2) 静默安装：/DIR 原地升级 + /LOG 留痕。
+    #    用 /SILENT 而非 /VERYSILENT：Inno 的 /SILENT 会保留原生「安装进度窗口」，
+    #    /VERYSILENT 连进度窗都不显示；此前应用窗口已销毁，两者叠加会让用户
+    #    在 10~40s 内在屏幕上完全看不到任何反馈。/NOCANCEL 禁掉进度窗的取消
+    #    按钮，避免误点中断原地升级。/SUPPRESSMSGBOXES 抑制错误弹框，失败仍由
+    #    退出码判定并写 update-result.json，用户体验不变。
     log_path = os.path.join(_lnote_data_dir(), "update-install-%s.log" % tag)
     cmd = [
-        target, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-",
+        target, "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/NOCANCEL",
         "/DIR=%s" % install_dir, "/LOG=%s" % log_path,
     ]
     _debug_log("[guard] run installer: " + repr(cmd))
