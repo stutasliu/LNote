@@ -27,7 +27,7 @@ import { toast } from './16-doc-ops.js';
     }
     if (els.btnRichOutline) {
       els.btnRichOutline.classList.toggle('primary', v);
-      els.btnRichOutline.title = v ? '收起大纲（飞书式侧栏）' : '富文档大纲 / 目录（飞书式侧栏）';
+      els.btnRichOutline.title = v ? '收起大纲（文档软件式侧栏）' : '富文档大纲 / 目录（文档软件式侧栏）';
     }
     if (v && window.InkpadBlocks) {
       // 显示时立即要求一次大纲 + 启动 observer

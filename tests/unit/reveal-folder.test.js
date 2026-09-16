@@ -37,7 +37,7 @@ describe('revealTarget（打开所在文件夹 - 路径判定）', () => {
   });
 
   it('有 diskPath 的磁盘文档 → 返回真实路径', () => {
-    const p = 'D:/Notes/InkpadRich/abc.md';
+    const p = 'D:/Notes/L.NoteRich/abc.md';
     expect(H.revealTarget({ id: 'a', diskPath: p })).toEqual({ path: p, error: null });
   });
 });

@@ -43,7 +43,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
     if (!title) els.title.focus();
   }
 
-  // 新建富文档（块编辑器 / Notion 风）
+  // 新建富文档（块编辑器）
   function newRichDoc() {
     var d = {
       id: uid(),
@@ -126,7 +126,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
       els.statSaved.textContent = '已保存到磁盘';
       els.statSaved.style.color = '#0f7b0f';
     }).catch(function (err) {
-      console.warn('[inkpad] 富文档保存失败：', err);
+      console.warn('[L.Note] 富文档保存失败：', err);
       els.statSaved.textContent = '保存失败';
       els.statSaved.style.color = 'var(--danger)';
     });
@@ -234,7 +234,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
 
   // 富文档「另存为」的过滤器（pywebview 接收 (描述, 模式) 元组序列）
   function richDocSaveFilters() {
-    return ['Inkpad 富文档 (*.json)', 'JSON 格式 (*.json)', '所有文件 (*.*)'];
+    return ['L.Note 富文档 (*.json)', 'JSON 格式 (*.json)', '所有文件 (*.*)'];
   }
 
   // 富文档「另存为」弹出对话框时建议的初始目录。

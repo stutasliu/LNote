@@ -1,15 +1,15 @@
-# L.Note（Inkpad）
+# L.Note本地笔记编辑软件
 
-本地 Notion 风文本编辑器 —— 语法高亮 / Markdown 实时预览 / Mermaid 图表 / JSON·XML 格式化，数据全部保存在浏览器本地存储（localStorage），纯本地运行、无需联网。
+L.Note本地笔记编辑软件 —— 语法高亮 / Markdown 实时预览 / Mermaid 图表 / JSON·XML 格式化，数据全部保存在浏览器本地存储（localStorage），纯本地运行、无需联网。
 
-> 版本：v0.20.44　|　许可证：MIT
+> 版本：v1.0.0　|　许可证：MIT
 
 ---
 
 ## ⬇️ 下载与安装
 
 - 最新版下载页：`release/download.html`（或访问仓库 `release/` 目录）
-- 便携版（免安装）：`release/L.Note-v0.20.44-win64.exe`，双击即用
+- 便携版（免安装）：`release/L.Note-v1.0.0-win64.exe`，双击即用
 - 校验和：`release/SHA256SUMS.txt`
 - 发布说明：`release/RELEASE-NOTES.md`
 
@@ -27,7 +27,7 @@
 **文档与预览**
 - Markdown 实时预览（marked 渲染 + highlight.js 代码高亮 + KaTeX 数学公式）
 - Mermaid 流程图 / 思维导图实时渲染与缩放
-- 思维笔记（InkpadNote 富文档）与飞书式左侧大纲（TOC + 搜索）
+- 思维笔记（富文档）与左侧大纲（TOC + 搜索）
 - 富文档 bubble menu（选中文本浮出工具条）
 
 **工具**
@@ -53,7 +53,7 @@
 | 编辑器 | CodeMirror 5 |
 | 渲染 | marked · mermaid · highlight.js · KaTeX · diff |
 | 构建 | Vite + esbuild（Node.js） |
-| 打包 | PyInstaller（`Inkpad.spec`） |
+| 打包 | PyInstaller（`LNote.spec`） |
 | 测试 | Vitest + CDP（Node 内置 WebSocket，零额外下载） |
 
 ---
@@ -68,13 +68,13 @@ notion-editor/
 ├── image_viewer.html     # 图片查看器窗口
 ├── src-app/              # 前端源码（20 个真实 ES Modules）
 ├── src-vendor/main.js    # npm 依赖打包入口
-├── css/                  # 分层样式（base / layout / components / inkpad-rich）
+├── css/                  # 分层样式（base / layout / components / lnote-rich）
 ├── tools/                # 构建与迁移工具
 ├── tests/                # 测试（unit + e2e + helpers）
 ├── js/                   # 构建产物（app.js / vendor-bundle.js）
 ├── dist-web/             # Vite 生产打包产物（PyInstaller 输入）
 ├── reports/              # 构建报告与测试产物归档
-├── Inkpad.spec           # PyInstaller 打包配置
+├── LNote.spec           # PyInstaller 打包配置
 └── vite.config.js        # Vite 构建配置
 ```
 
@@ -120,7 +120,7 @@ npm run build:app        # 重新打包 src-app（js/app.js）
 
 ```bash
 npm run build            # 先产出 dist-web/
-pyinstaller Inkpad.spec  # 按配置打包（输出 dist/L.Note.exe）
+pyinstaller LNote.spec  # 按配置打包（输出 dist/L.Note.exe）
 ```
 
 ### 测试
@@ -141,7 +141,7 @@ npm run test:e2e         # 仅 E2E（自动启动 headless Edge）
 src-app/*.js（ESM）─esbuild→ js/app.js（IIFE，传统 script）
 src-vendor/main.js ─esbuild→ js/vendor-bundle.js（IIFE）
 Vite 合并 CSS/字体 → dist-web/（index.html + assets/ + js/ + vendor/）
-PyInstaller 按 Inkpad.spec 打包 → L.Note.exe
+PyInstaller 按 LNote.spec 打包 → L.Note.exe
 ```
 
 产物保持传统 script + 相对路径，兼容 `file://` 加载（pywebview 打包场景），详见 `reports/build-report.md`。
@@ -158,4 +158,4 @@ PyInstaller 按 Inkpad.spec 打包 → L.Note.exe
 
 ## 📄 许可证
 
-[MIT](LICENSE) © 2026 小先生
+[MIT](LICENSE) © 2026 刘云杰

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* =========================================================
- * build-app.js —— Inkpad(L.Note) 前端源码构建脚本（真实 ESM）
+ * build-app.js —— L.Note 前端源码构建脚本（真实 ESM）
  *
  * 背景：src-app/*.js 已是真实 ES Modules（显式 import/export），
  * 不再是「同 IIFE 闭包的片段」。本脚本用 esbuild 以

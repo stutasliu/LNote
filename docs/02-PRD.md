@@ -1,4 +1,4 @@
-# L.Note（Inkpad）产品需求文档（PRD）
+# L.Note产品需求文档（PRD）
 
 > 阶段二：PRD 撰写　|　版本：v0.20.44　|　状态：已实现（需求回溯归档）　|　更新日期：2026-08-12
 > 需求描述遵循 **EARS 原则**（Ubiquitous / Event-driven / Unwanted / State-driven / Optional）撰写。

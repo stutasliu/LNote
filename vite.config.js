@@ -10,7 +10,7 @@
  *  - base: './' 使产物资源使用相对路径，兼容 file:// 打包加载。
  * ========================================================= */
 const { defineConfig } = require('vite');
-const inkpadPlugin = require('./tools/vite-plugin-inkpad');
+const lNotePlugin = require('./tools/vite-plugin-lnote');
 
 module.exports = defineConfig({
   root: __dirname,
@@ -34,5 +34,5 @@ module.exports = defineConfig({
     minify: 'esbuild',
     target: 'es2017'
   },
-  plugins: [inkpadPlugin()]
+  plugins: [lNotePlugin()]
 });

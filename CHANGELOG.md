@@ -2,6 +2,22 @@
 
 本项目所有值得记录的变更均会收录在此文件中。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## \[v1.0.0] - 2026-09-16
+
+### 变更
+
+- **正式版本号转正 V1.0.0**：代码（`main.py` / `package.json` / 关于面板）、安装包、发布页、README 与软著材料（源程序 PDF 页眉、操作说明书登记版本号）统一对齐到 V1.0.0。
+
+- **品牌标识全面更名 Inkpad → L.Note**：源码中残留的旧品牌字样统一改为 L.Note——前端全局对象 `InkpadApi` → `LNoteApi`，Python 侧私有属性 `__inkpad*` → `__lnote*`；构建配置改名为 `LNote.spec` / `LNoteMac.spec` / `LNoteDebug.spec`，Vite 插件改名为 `tools/vite-plugin-lnote.js`，样式表由 `css/inkpad-rich.css` 改为 `css/lnote-rich.css`，界面文案与文档不再出现旧品牌。
+
+- **旧版富文档目录一次性平滑迁移**：富文档自动存储目录由旧名改为 `L.NoteRich`；首次使用时若检测到旧的 `InkpadRich` 目录，会自动同盘 rename 迁移（O(1) 操作），迁移失败（文件被占用等）时回退继续使用旧目录，老用户数据不丢。
+
+- **对外协议标识保持不变，升级无感**：localStorage 键（`inkpad.docs.v1` / `inkpad.active.v1` / `inkpad.content.*` / `inkpad.settings.v1` 等）、富文档标记 `<!-- inkpad:rich -->` 与剪贴板类型 `application/x-inkpad-mind` 全部保持原样，升级后既有笔记、便签、图片与剪贴板内容均照常读取。
+
+- **软著源程序文档消除「?」占位**：`_gen_src_pdf.py` 新增符号字体回退机制——基准字体（宋体）缺字形时，自动从 Symbol / Emoji 字体中挑出覆盖率最高者并分段绘制；源程序 PDF 中不再把无法显示的字形落成问号，残留问号仅剩源码本身自带的半角问号。
+
+- **软著材料与发布文档同步**：源程序 PDF 页眉版本号更新为 V1.0.0，操作说明书登记版本号、安装包 / 便携版文件名、发布说明、下载页与 CHANGELOG 同步到本版。
+
 ## \[v0.24.0] - 2026-09-15
 
 ### 新增
@@ -14,7 +30,7 @@
 
 - **图标配色抽为 CSS 变量双层实现**：`css/base.css` 新增 11 个 `--ico-*` 变量与 11 条 `.ico-*` 规则；颜色挂在 svg 自身的类上，svg 内 `stroke` 走 `currentColor`，因此列表 / 面包屑 / 新建菜单 / AI 图表菜单共用同一套色，无需各处重复声明。深色模式（`prefers-color-scheme: dark`）下自动切换为同色相的提亮值，保证深底上仍可辨。
 
-- **置灰态统一覆盖类型色**：回收站中的文档图标（`css/layout.css`）与富文档 AI 菜单禁用态（`css/inkpad-rich.css`）以更高优先级覆盖 svg 自身的 `color`，避免有色图标在「不可用」状态下仍然显色。
+- **置灰态统一覆盖类型色**：回收站中的文档图标（`css/layout.css`）与富文档 AI 菜单禁用态（`css/lnote-rich.css`）以更高优先级覆盖 svg 自身的 `color`，避免有色图标在「不可用」状态下仍然显色。
 
 - **图标定义集中到 `src-app/01-core.js`**：新增 `ICON_ATTR`、`svgIcon()`、`DOC_ICONS` 与兼容别名 `MINDMAP_ICON`；各调用点（`03-rich-bubble` / `04-editor-init` / `06-doc-list` / `07-doc-open` / `08-visual` / `16-doc-ops` / `31-ai-diagram`）改为引用 `DOC_ICONS.<type>`，不再各处硬编码 emoji 字符串。
 
@@ -156,7 +172,7 @@
 
 ### 修复
 
-- **修复安装后打开软件显示官网下载页而非编辑器的问题**：此前主窗口加载的是根目录 `index.html`（该文件同时是官网下载页发布源），v0.21.11 起 `index.html` 被下载页模板占用，导致安装版 / 便携版打开后窗口内容变成 `https://stutasliu.github.io/LNote/` 的下载页面而非本地编辑器。本次将主窗口入口解耦为独立的 `app.html`（编辑器壳，从历史版本恢复），`main.py` 主窗口改为加载 `app.html`，PyInstaller 打包清单（`Inkpad.spec` / `InkpadDebug.spec`）同步改为打包 `app.html`；官网 `index.html` 下载页保持不动，两者互不干扰。
+- **修复安装后打开软件显示官网下载页而非编辑器的问题**：此前主窗口加载的是根目录 `index.html`（该文件同时是官网下载页发布源），v0.21.11 起 `index.html` 被下载页模板占用，导致安装版 / 便携版打开后窗口内容变成 `https://stutasliu.github.io/LNote/` 的下载页面而非本地编辑器。本次将主窗口入口解耦为独立的 `app.html`（编辑器壳，从历史版本恢复），`main.py` 主窗口改为加载 `app.html`，PyInstaller 打包清单（`LNote.spec` / `LNoteDebug.spec`）同步改为打包 `app.html`；官网 `index.html` 下载页保持不动，两者互不干扰。
 
 ### 测试
 
@@ -194,7 +210,7 @@
 
 - **思维导图批量删除子孙**：Ctrl+Delete / Ctrl+Backspace 一键删除选中节点的所有子孙节点。
 
-- **单实例运行时接力（「打开方式」直达已运行实例）**：主编辑器启动后在 `127.0.0.1:47331` 后台监听 IPC（socket + 4 字节长度前缀 JSON）；再次通过文件关联 /「打开方式」/ 命令行传文档启动时，若已有实例在运行，不再创建第二个主窗口，而是把文档路径转发给已运行实例，由前端 `window.__inkpadOpenExternalFiles` 处理器在**当前窗口**打开（复用磁盘文件打开链路）。前端初始化完成前到达的文档先入队，`frontend_ready()` 就绪握手后自动冲刷打开；接力成功后自动把主窗口还原到前台（Windows：还原最小化 + `SetForegroundWindow`）。图片文件仍走独立图片编辑窗口流程，不参与接力。
+- **单实例运行时接力（「打开方式」直达已运行实例）**：主编辑器启动后在 `127.0.0.1:47331` 后台监听 IPC（socket + 4 字节长度前缀 JSON）；再次通过文件关联 /「打开方式」/ 命令行传文档启动时，若已有实例在运行，不再创建第二个主窗口，而是把文档路径转发给已运行实例，由前端 `window.__lnoteOpenExternalFiles` 处理器在**当前窗口**打开（复用磁盘文件打开链路）。前端初始化完成前到达的文档先入队，`frontend_ready()` 就绪握手后自动冲刷打开；接力成功后自动把主窗口还原到前台（Windows：还原最小化 + `SetForegroundWindow`）。图片文件仍走独立图片编辑窗口流程，不参与接力。
 
 - **Windows 安装版（Inno Setup 6）**：新增 `installer/LNote.iss` 安装脚本，`_build_exe.bat` 在 PyInstaller 打包成功后自动调用 ISCC 生成安装包（`release\L.Note-setup-v0.21.11.exe`，约 18.3 MB）。安装向导默认安装到 `%LOCALAPPDATA%\Programs\L.Note`，提供桌面 / 开始菜单快捷方式，可选注册 `.md/.markdown` 与常见图片文件关联，含卸载程序；`download.html` / `index.html` / `RELEASE-NOTES.md` / `SHA256SUMS.txt` 同步新增安装版下载入口与校验和。
 

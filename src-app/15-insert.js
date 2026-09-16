@@ -243,7 +243,7 @@ import { closeFindModal } from './19-find-replace.js';
   // 把 `![alt](data:xxx;base64,XXXXX)` 中的 base64 区段折叠成 `🖼 嵌入图片 · mime · 24.5 KB`
   // 的小卡片，原文本保持完整（保存/复制/搜索都拿回真实 base64），
   // 折叠只影响编辑器渲染，由 markText({collapsed:true}) 实现。
-  // 守卫：mark 必须带 __inkpadDataUriFold 标志，避免清掉无关 mark
+  // 守卫：mark 必须带 __lnoteDataUriFold 标志，避免清掉无关 mark
   function scheduleFoldDataUris() {
     if (!cm) return;
     if (scheduleFoldDataUris._t) return;
@@ -259,7 +259,7 @@ import { closeFindModal } from './19-find-replace.js';
     try {
       var marks = cm.getAllMarks();
       for (var i = 0; i < marks.length; i++) {
-        if (marks[i].__inkpadDataUriFold) marks[i].clear();
+        if (marks[i].__lnoteDataUriFold) marks[i].clear();
       }
     } catch (e) { /* getAllMarks 偶尔抛错，无害 */ }
 
@@ -300,7 +300,7 @@ import { closeFindModal } from './19-find-replace.js';
           inclusiveRight: false,
           clearWhenEmpty: false
         });
-        mk.__inkpadDataUriFold = true;
+        mk.__lnoteDataUriFold = true;
         // 点击 toggle：清掉再重 fold（让用户能看到原 base64 一瞬间）
         (function (mref) {
           widget.addEventListener('click', function (ev) {
@@ -367,7 +367,7 @@ import { closeFindModal } from './19-find-replace.js';
   // 万一上游传入对象也不会再产生 `[object Object]`
   function buildDataUri(mime, b64) {
     if (typeof b64 !== 'string') {
-      console.warn('[inkpad] buildDataUri: b64 is not string, got', typeof b64, b64);
+      console.warn('[L.Note] buildDataUri: b64 is not string, got', typeof b64, b64);
       b64 = '';
     }
     return 'data:' + (mime || 'image/png') + ';base64,' + b64;

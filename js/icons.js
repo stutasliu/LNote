@@ -78,5 +78,140 @@ window.InkpadIcons = (function () {
       'role="img" aria-label="' + name + '">' + inner + '</svg>';
   }
 
-  return { VECTOR: VECTOR, EMOJI: EMOJI, svg: svg, names: Object.keys(VECTOR) };
+  /* ---------------------------------------------------------
+   * UI —— 界面（chrome）线性图标集
+   * 与 VECTOR 明确区分，避免两套混用：
+   *   VECTOR  = Markdown 正文内嵌图标（:icon-x:），stroke 2 + role=img + aria-label
+   *   UI      = 应用界面控件图标，stroke 1.6 + 1em + aria-hidden（语义由相邻文字承担）
+   * 沿用 src-app/01-core.js 的 DOC_ICONS 设计语言：24x24 网格、轮廓留白 3~21、
+   * fill=none + currentColor，因此同样随字号缩放、随 color 变色。
+   * 注意：本集合不并入 VECTOR / names，否则会污染「矢量图标」面板。
+   * --------------------------------------------------------- */
+  var UI = {
+    /* -------- 通用控件 -------- */
+    close: '<path d="M18 6 6 18M6 6l12 12"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    minus: '<path d="M5 12h14"/>',
+    check: '<path d="m5 12.5 4.5 4.5L19 7"/>',
+    'check-circle': '<circle cx="12" cy="12" r="8.4"/><path d="m8.4 12.2 2.4 2.4 4.8-5.4"/>',
+    info: '<circle cx="12" cy="12" r="8.4"/><path d="M12 11.2v4.8"/><path d="M12 7.8h.01"/>',
+    more: '<circle cx="5.4" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18.6" cy="12" r="1.4" fill="currentColor" stroke="none"/>',
+    trash: '<path d="M4 6.5h16"/><path d="M9.4 6.5V4.4A1.4 1.4 0 0 1 10.8 3h2.4A1.4 1.4 0 0 1 14.6 4.4v2.1"/><path d="M6.4 6.5 7.3 20a1.4 1.4 0 0 0 1.4 1.3h6.6a1.4 1.4 0 0 0 1.4-1.3l.9-13.5"/><path d="M10.2 10.4v7.2M13.8 10.4v7.2"/>',
+    hash: '<path d="M9.4 3.6 7.6 20.4M16.4 3.6l-1.8 16.8"/><path d="M3.8 8.6h16.4M3 15.4h16.4"/>',
+    save: '<path d="M19 20.6H5A1.6 1.6 0 0 1 3.4 19V5A1.6 1.6 0 0 1 5 3.4h10.6L20.6 8.4V19a1.6 1.6 0 0 1-1.6 1.6Z"/><path d="M16.6 20.6v-7.4H7.4v7.4"/><path d="M7.4 3.4v4.6h7"/>',
+    refresh: '<path d="M20.4 12a8.4 8.4 0 1 1-2.6-6.1"/><path d="M20.4 4.2v5h-5"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m20.4 20.4-4.1-4.1"/>',
+    update: '<circle cx="12" cy="12" r="8.4"/><path d="M12 16.4V7.8"/><path d="m8.4 11.4 3.6-3.6 3.6 3.6"/>',
+    star: '<path d="m12 3.4 2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.8Z"/>',
+    'star-filled': '<path d="m12 3.4 2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.8Z" fill="currentColor" stroke="none"/>',
+    quote: '<path d="M9.4 7.2H6.2v3.2c0 3 .8 4.6 3.2 6.4"/><path d="M17.8 7.2h-3.2v3.2c0 3 .8 4.6 3.2 6.4"/>',
+    link: '<path d="M10.2 13.4a4.4 4.4 0 0 0 6.3.3l2.6-2.6a4.4 4.4 0 0 0-6.2-6.2l-1.5 1.5"/><path d="M13.8 10.6a4.4 4.4 0 0 0-6.3-.3l-2.6 2.6a4.4 4.4 0 0 0 6.2 6.2l1.5-1.5"/>',
+    'link-off': '<path d="M9.6 9.6 5.6 13.6a4.4 4.4 0 0 0 6.2 6.2l1.6-1.6"/><path d="M14.4 14.4l4-4a4.4 4.4 0 0 0-6.2-6.2l-1.6 1.6"/><path d="M3.6 3.6l16.8 16.8"/>',
+    ban: '<circle cx="12" cy="12" r="8.4"/><path d="m6.1 6.1 11.8 11.8"/>',
+    lightbulb: '<path d="M9.4 18.4h5.2"/><path d="M10.4 21h3.2"/><path d="M12 3.4a5.8 5.8 0 0 0-3.4 10.5c.6.5 1 1.2 1 2h4.8c0-.8.4-1.5 1-2A5.8 5.8 0 0 0 12 3.4Z"/>',
+    warning: '<path d="M12 3.8 21.1 19.6a1 1 0 0 1-.9 1.4H3.8a1 1 0 0 1-.9-1.4Z"/><path d="M12 9.4v4.4"/><path d="M12 17.2h.01"/>',
+    book: '<path d="M4.2 19.4A2.4 2.4 0 0 1 6.6 17h13.2"/><path d="M6.6 2.6h13.2v18.8H6.6A2.4 2.4 0 0 1 4.2 19v-14A2.4 2.4 0 0 1 6.6 2.6Z"/>',
+    note: '<path d="M12 3.4H5.4a2 2 0 0 0-2 2v13.2a2 2 0 0 0 2 2h13.2a2 2 0 0 0 2-2V12"/><path d="M17.9 2.8a2.1 2.1 0 0 1 3 3L12.4 14.3l-4 1 1-4Z"/>',
+    image: '<rect x="3.4" y="3.4" width="17.2" height="17.2" rx="2.2"/><circle cx="9" cy="9" r="1.8"/><path d="m20.6 15.6-3.8-3.8a2 2 0 0 0-2.8 0l-8 8"/>',
+    chart: '<path d="M4.8 19.6v-7.2"/><path d="M12 19.6V4.8"/><path d="M19.2 19.6v-4.8"/>',
+    target: '<circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="4.4"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>',
+    globe: '<circle cx="12" cy="12" r="8.4"/><path d="M3.6 12h16.8"/><path d="M12 3.6c2.2 2.4 3.3 5.2 3.3 8.4s-1.1 6-3.3 8.4c-2.2-2.4-3.3-5.2-3.3-8.4S9.8 6 12 3.6Z"/>',
+    smile: '<circle cx="12" cy="12" r="8.4"/><path d="M8.6 14.2s1.4 1.8 3.4 1.8 3.4-1.8 3.4-1.8"/><path d="M9.4 9.4h.01M14.6 9.4h.01"/>',
+    mouse: '<rect x="6.4" y="2.6" width="11.2" height="18.8" rx="5.6"/><path d="M12 6.8v3.4"/>',
+
+    /* -------- 方向 / 折叠 -------- */
+    'arrow-up': '<path d="M12 20V4"/><path d="m6 10 6-6 6 6"/>',
+    'arrow-down': '<path d="M12 4v16"/><path d="m6 14 6 6 6-6"/>',
+    'arrow-left': '<path d="M20 12H4"/><path d="m10 6-6 6 6 6"/>',
+    'arrow-right': '<path d="M4 12h16"/><path d="m14 6 6 6-6 6"/>',
+    'arrow-up-right': '<path d="M7 17 17 7"/><path d="M8.4 7H17v8.6"/>',
+    'arrow-into': '<path d="M12 3.6v9"/><path d="m8.2 8.8 3.8 3.8 3.8-3.8"/><path d="M4 18.4h16"/>',
+    'chevron-up': '<path d="m6 15 6-6 6 6"/>',
+    'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+    'chevron-left': '<path d="m15 6-6 6 6 6"/>',
+    'chevron-right': '<path d="m9 6 6 6-6 6"/>',
+    'chevrons-left': '<path d="m11.5 6-6 6 6 6"/><path d="m18.5 6-6 6 6 6"/>',
+    fold: '<path d="m7 3.6 5 5 5-5"/><path d="m7 20.4 5-5 5 5"/>',
+    unfold: '<path d="m7 20.4 5-5 5 5"/><path d="m7 3.6 5 5 5-5"/>',
+
+    /* -------- 编辑 / 剪贴板 -------- */
+    undo: '<path d="M9 14.5 4 9.5l5-5"/><path d="M4 9.5h10.4a5.6 5.6 0 0 1 0 11.2H11"/>',
+    redo: '<path d="m15 14.5 5-5-5-5"/><path d="M20 9.5H9.6a5.6 5.6 0 0 0 0 11.2H13"/>',
+    cut: '<circle cx="6.2" cy="6.2" r="2.6"/><circle cx="6.2" cy="17.8" r="2.6"/><path d="M20 4.4 8.2 16.2M14.6 14.6 20 20M8.3 8.3 12 12"/>',
+    copy: '<rect x="9" y="9" width="11.6" height="11.6" rx="2.1"/><path d="M15 5.4V5a2 2 0 0 0-2-2H5.4a2 2 0 0 0-2 2V13a2 2 0 0 0 2 2h.4"/>',
+    paste: '<path d="M16 4.4h1.6a2 2 0 0 1 2 2v13.2a2 2 0 0 1-2 2H6.4a2 2 0 0 1-2-2V6.4a2 2 0 0 1 2-2H8"/><rect x="8" y="2.6" width="8" height="3.8" rx="1.2"/>',
+    selectall: '<rect x="3.4" y="3.4" width="17.2" height="17.2" rx="2.4"/><path d="m8.4 12.2 2.6 2.6 5-6"/>',
+    edit: '<path d="M16.6 3.6a2.6 2.6 0 0 1 3.8 3.7L7.6 20.1 3.4 21.1l1-4.2Z"/><path d="m14.6 5.6 3.8 3.8"/>',
+    apply: '<path d="M20 4.4v6.6a3.6 3.6 0 0 1-3.6 3.6H4.4"/><path d="m9.4 10.2-5 4.4 5 4.4"/>',
+    replace: '<path d="m11.4 6.4-6 5.6 6 5.6"/><path d="m18.6 6.4-6 5.6 6 5.6"/>',
+    translate: '<path d="M4 5.4h9"/><path d="M8.5 3.4v2"/><path d="m5.4 13.4 4-8 4 8"/><path d="M6.8 10.6h5.2"/><path d="M14 11.4h6.6"/><path d="m15.4 20.6 3-8 3 8"/><path d="M16.6 17.8h4.2"/>',
+    comment: '<path d="M9.6 4 6.4 20"/><path d="M17.6 4l-3.2 16"/>',
+    indent: '<path d="M3.4 5h17.2M3.4 19h17.2"/><path d="M3.4 12h9.2"/><path d="m16.4 8.8 3.4 3.2-3.4 3.2"/>',
+    outdent: '<path d="M3.4 5h17.2M3.4 19h17.2"/><path d="M11.4 12h9.2"/><path d="m7.6 8.8-3.4 3.2 3.4 3.2"/>',
+    'list-ul': '<path d="M9 6.4h11M9 12h11M9 17.6h11"/><path d="M4.6 6.4h.01M4.6 12h.01M4.6 17.6h.01"/>',
+    'list-ol': '<path d="M9.6 6.4h10.4M9.6 12h10.4M9.6 17.6h10.4"/><path d="M4 4.6h1.2v3.6"/><path d="M4 11.2h1.6l-1.6 2.4h1.6"/><path d="M4 16.6h1.6v1.6H4v1.4h1.6"/>',
+
+    /* -------- 大小写 -------- */
+    upper: '<path d="M4.4 17.6 8.4 8.2l4 9.4"/><path d="M5.9 14.4h5"/><path d="M17.6 18.8V7.6"/><path d="m15.2 10 2.4-2.4 2.4 2.4"/>',
+    lower: '<path d="M4.4 20.2 8.4 10.8l4 9.4"/><path d="M5.9 17h5"/><path d="M17.6 10.4v11.2"/><path d="m15.2 19 2.4 2.4 2.4-2.4"/>',
+
+    /* -------- 文稿类型（文件树 / 查看器） -------- */
+    file: '<path d="M13.4 3.4H6.6a2.2 2.2 0 0 0-2.2 2.2v12.8a2.2 2.2 0 0 0 2.2 2.2h10.8a2.2 2.2 0 0 0 2.2-2.2V9.2Z"/><path d="M13.4 3.4v5.8h6.2"/>',
+    'file-text': '<path d="M13.4 3.4H6.6a2.2 2.2 0 0 0-2.2 2.2v12.8a2.2 2.2 0 0 0 2.2 2.2h10.8a2.2 2.2 0 0 0 2.2-2.2V9.2Z"/><path d="M13.4 3.4v5.8h6.2"/><path d="M8.2 13.2h7.6M8.2 16.8h5.2"/>',
+    'file-pdf': '<path d="M13.4 3.4H6.6a2.2 2.2 0 0 0-2.2 2.2v12.8a2.2 2.2 0 0 0 2.2 2.2h10.8a2.2 2.2 0 0 0 2.2-2.2V9.2Z"/><path d="M13.4 3.4v5.8h6.2"/><path d="M8.6 18.2V13h1.7a1.5 1.5 0 0 1 0 3H8.6"/>',
+    'file-doc': '<path d="M13.4 3.4H6.6a2.2 2.2 0 0 0-2.2 2.2v12.8a2.2 2.2 0 0 0 2.2 2.2h10.8a2.2 2.2 0 0 0 2.2-2.2V9.2Z"/><path d="M13.4 3.4v5.8h6.2"/><path d="M8.4 13.2l1.3 5 1.6-3.6 1.6 3.6 1.3-5"/>',
+    'file-image': '<path d="M13.4 3.4H6.6a2.2 2.2 0 0 0-2.2 2.2v12.8a2.2 2.2 0 0 0 2.2 2.2h10.8a2.2 2.2 0 0 0 2.2-2.2V9.2Z"/><path d="M13.4 3.4v5.8h6.2"/><circle cx="10.6" cy="14.6" r="1.1"/><path d="M8 18.4l2.6-3 1.8 2 1.4-1.5 2.6 2.5"/>',
+    folder: '<path d="M4.4 6.6a2.2 2.2 0 0 1 2.2-2.2h3.1l1.9 2.6h6a2.2 2.2 0 0 1 2.2 2.2v8a2.2 2.2 0 0 1-2.2 2.2H6.6a2.2 2.2 0 0 1-2.2-2.2Z"/>',
+    'folder-open': '<path d="M4.4 18.6V6.6a2.2 2.2 0 0 1 2.2-2.2h3.1l1.9 2.6h6a2.2 2.2 0 0 1 2.2 2.2v1.4"/><path d="M4.4 18.6l2.5-6.5A1.6 1.6 0 0 1 8.4 11h11.6l-2.5 6.5a1.6 1.6 0 0 1-1.5 1.1Z"/>',
+    sticky: '<path d="M4.6 4.2h14.8v10.2l-5.2 5.4H4.6Z"/><path d="M14.2 19.8v-5.4h5.2"/>',
+
+    /* -------- AI 动作（与 #ctx-menu 的 AI 组同源） -------- */
+    sparkles: '<path d="M11.6 3.4 13.2 8 17.8 9.6 13.2 11.2 11.6 15.8 10 11.2 5.4 9.6 10 8Z"/><path d="M18.4 14.4l.9 2.5 2.5.9-2.5.9-.9 2.5-.9-2.5-2.5-.9 2.5-.9Z"/>',
+    'ai-polish': '<path d="M11.6 3.4 13.2 8 17.8 9.6 13.2 11.2 11.6 15.8 10 11.2 5.4 9.6 10 8Z"/><path d="M18.4 14.4l.9 2.5 2.5.9-2.5.9-.9 2.5-.9-2.5-2.5-.9 2.5-.9Z"/>',
+    'ai-continue': '<path d="M16.6 3.6a2.6 2.6 0 0 1 3.8 3.7L7.6 20.1 3.4 21.1l1-4.2Z"/><path d="m14.6 5.6 3.8 3.8"/>',
+    'ai-summary': '<path d="M4 6.4h16"/><path d="M4 12h16"/><path d="M4 17.6h9.6"/>',
+    'ai-expand': '<path d="M14.6 3.4h6v6"/><path d="M9.4 20.6h-6v-6"/><path d="M20.6 3.4 14 10"/><path d="M3.4 20.6 10 14"/>',
+    'ai-fix': '<path d="m5 12.5 4.5 4.5L19 7"/>',
+    'ai-outline': '<rect x="3.4" y="3.4" width="7" height="7" rx="1.6"/><rect x="13.6" y="3.4" width="7" height="7" rx="1.6"/><rect x="3.4" y="13.6" width="7" height="7" rx="1.6"/><rect x="13.6" y="13.6" width="7" height="7" rx="1.6"/>',
+
+    /* -------- JSON / 转换工具 -------- */
+    'json-format': '<path d="M8.6 3.4H7.2A2.2 2.2 0 0 0 5 5.6V9a2.2 2.2 0 0 1-2.2 2.2A2.2 2.2 0 0 1 5 13.4V16.8A2.2 2.2 0 0 0 7.2 19h1.4"/><path d="M15.4 3.4h1.4A2.2 2.2 0 0 1 19 5.6V9a2.2 2.2 0 0 0 2.2 2.2A2.2 2.2 0 0 0 19 13.4V16.8a2.2 2.2 0 0 1-2.2 2.2h-1.4"/>',
+    'json-compress': '<path d="M4 14.4h5.6V20"/><path d="M20 9.6h-5.6V4"/><path d="M9.6 14.4 3.4 20.6"/><path d="M20.6 3.4 14.4 9.6"/>',
+    escape: '<path d="M15.4 4 8.6 20"/>',
+    unescape: '<path d="M14.8 4.6 9.2 19.4"/><path d="M4.4 5 19.6 19"/>',
+    'unicode-zh': '<path d="M12 3.4v2"/><path d="M4.6 8h14.8"/><path d="m6.8 12.6 10.4 8.4"/><path d="m17.2 12.6-10.4 8.4"/>',
+    'zh-unicode': '<path d="M6.6 4.4v8.4a5.4 5.4 0 0 0 10.8 0V4.4"/>',
+    merge: '<path d="M4 12h16"/><path d="m8.4 8-4 4 4 4"/><path d="m15.6 8 4 4-4 4"/>',
+    sort: '<path d="M17 4.4v15.2"/><path d="m13.4 15.8 3.6 3.8 3.6-3.8"/><path d="M7 19.6V4.4"/><path d="m3.4 8.2 3.6-3.8 3.6 3.8"/>',
+    'dup-clear': '<rect x="9.4" y="3.4" width="11.2" height="11.2" rx="2"/><path d="M15.4 17.9v1.7a2 2 0 0 1-2 2H5.4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1.7"/><path d="m12.4 7.4 4.6 4.6"/><path d="m17 7.4-4.6 4.6"/>',
+    'sol-clear': '<path d="M4.4 3.4v17.2"/><path d="M8.6 7.4h10.8M8.6 12h10.8M8.6 16.6h10.8"/>',
+    'eol-clear': '<path d="M19.6 3.4v17.2"/><path d="M4.6 7.4h10.8M4.6 12h10.8M4.6 16.6h10.8"/>',
+    'line-del': '<path d="M4 6.6h16M4 17.4h16"/><path d="M4 12h5.2"/><path d="m15 8.6 5.4 6.8M20.4 8.6 15 15.4"/>',
+
+    /* -------- 查看器 / 缩放 -------- */
+    fit: '<path d="M8.4 3.4H5.4a2 2 0 0 0-2 2v3"/><path d="M15.6 3.4h3a2 2 0 0 1 2 2v3"/><path d="M3.4 15.6v3a2 2 0 0 0 2 2h3"/><path d="M20.6 15.6v3a2 2 0 0 1-2 2h-3"/>',
+    'zoom-in': '<circle cx="11" cy="11" r="7"/><path d="m16.2 16.2 4.4 4.4"/><path d="M11 8.2v5.6M8.2 11h5.6"/>',
+    'zoom-out': '<circle cx="11" cy="11" r="7"/><path d="m16.2 16.2 4.4 4.4"/><path d="M8.2 11h5.6"/>',
+    download: '<path d="M20.6 15v3.6a2 2 0 0 1-2 2H5.4a2 2 0 0 1-2-2V15"/><path d="M7.6 11.4 12 15.8l4.4-4.4"/><path d="M12 15.8V3.6"/>'
+  };
+
+  var UI_ATTR = 'fill="none" stroke="currentColor" stroke-width="1.6" ' +
+    'stroke-linecap="round" stroke-linejoin="round"';
+  var UI_STYLE = 'style="width:1em;height:1em;vertical-align:-0.15em"';
+
+  function ui(name, cls) {
+    var inner = UI[name];
+    if (!inner) return '';
+    return '<svg viewBox="0 0 24 24" class="ui-svg' + (cls ? ' ' + cls : '') + '" ' +
+      UI_STYLE + ' aria-hidden="true" ' + UI_ATTR + '>' + inner + '</svg>';
+  }
+
+  return {
+    VECTOR: VECTOR,
+    EMOJI: EMOJI,
+    svg: svg,
+    names: Object.keys(VECTOR),
+    UI: UI,
+    ui: ui
+  };
 })();

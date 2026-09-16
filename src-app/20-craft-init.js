@@ -600,6 +600,6 @@ import { openDocDelConfirm, closeDocDelConfirm, deleteDoc, toggleBatchMode, refr
   initAiDiagram();     // v0.22：AI 图表生成面板（结构预览 → 确认落图）事件绑定
 
   // 全部初始化完成后才向后端宣告就绪（单实例接力）：
-  // 安装 window.__inkpadOpenExternalFiles 处理器 + 调用 frontend_ready()，
+  // 安装 window.__lnoteOpenExternalFiles 处理器 + 调用 frontend_ready()，
   // 使第二个实例转发来的文档能在此窗口打开，就绪前入队的文件也会被冲刷。
   initRuntimeHandoff();

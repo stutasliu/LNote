@@ -2,7 +2,7 @@
 # macOS 打包配置：生成 L.Note.app
 # 前置：前端产物 dist-web/ 已生成（Windows 上 npm run build 后拷贝整个仓库到 Mac，
 #       或 Mac 上自行 npm install && npm run build）。
-# 用法：python3 -m PyInstaller --clean -y InkpadMac.spec
+# 用法：python3 -m PyInstaller --clean -y LNoteMac.spec
 # 说明：target_arch='universal2' 需使用官方 universal2 版 Python；
 #       仅打单架构时删除该行（继承当前 Python 架构）。
 
@@ -53,8 +53,8 @@ app = BUNDLE(
     bundle_identifier='com.xiansheng.lnote',
     info_plist={
         'CFBundleDisplayName': 'L.Note',
-        'CFBundleShortVersionString': '0.20.44',
-        'CFBundleVersion': '0.20.44',
+        'CFBundleShortVersionString': '1.0.0',
+        'CFBundleVersion': '1.0.0',
         'LSMinimumSystemVersion': '11.0',
         'NSHighResolutionCapable': True,
         'NSRequiresAquaSystemAppearance': False,

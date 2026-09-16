@@ -17,7 +17,7 @@ echo "==> 生成 .icns 图标"
 python3 tools/gen_icns.py
 
 echo "==> PyInstaller 打包 .app"
-python3 -m PyInstaller --clean -y InkpadMac.spec
+python3 -m PyInstaller --clean -y LNoteMac.spec
 
 APP="dist/L.Note.app"
 [ -d "$APP" ] || { echo "打包失败：未找到 $APP"; exit 1; }

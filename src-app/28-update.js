@@ -122,7 +122,7 @@ function startUpdate() {
   setUpdStatus('', '');
   _setUpdProgressView();
   _setUpdProgress(-1);
-  window.__inkpadUpdateCb = _onUpdateCb;
+  window.__lnoteUpdateCb = _onUpdateCb;
   api.start_update(tag).then(function (r) {
     if (!r) return;
     if (r.error) _failUpdate(r.error);

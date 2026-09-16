@@ -109,7 +109,7 @@ import { openDoc } from './07-doc-open.js';
   function ensureWikiOverlay() {
     if (_overlayOn || !cm || !cm.addOverlay) return;
     _overlayOn = true;
-    try { cm.addOverlay({ token: wikiToken }); } catch (e) { console.warn('[inkpad] wikilink overlay failed', e); }
+    try { cm.addOverlay({ token: wikiToken }); } catch (e) { console.warn('[L.Note] wikilink overlay failed', e); }
   }
 
   // 光标 ch 落在哪段 [[...]] 区间内 → 返回 inner（「标题」或「标题|别名」）；不在任何区间则 null

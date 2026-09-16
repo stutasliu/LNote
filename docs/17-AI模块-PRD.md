@@ -217,5 +217,5 @@ graph TD
 ## 后续流转提醒
 
 - 本 PRD 待设计研发评审确认，重点确认 [Assumption]：选区长度上限、并发单任务、插入位置、中断丢弃、本地计数口径、8 处待确认项。
-- 技术评审要点（供评审记录使用）：沿用 translate 的 worker + `evaluate_js` 回调通道；InkpadApi 新增 `ai_get_config / ai_save_config / ai_test / ai_chat / ai_stop`；纯标准库 urllib 实现 SSE 流式读取；设置弹窗新增 AI 页签；编辑器选区分别走 `cm.getSelection()` 与块编辑器选区封装；布局器为纯函数模块，输入结构 JSON 输出完整 model。
+- 技术评审要点（供评审记录使用）：沿用 translate 的 worker + `evaluate_js` 回调通道；LNoteApi 新增 `ai_get_config / ai_save_config / ai_test / ai_chat / ai_stop`；纯标准库 urllib 实现 SSE 流式读取；设置弹窗新增 AI 页签；编辑器选区分别走 `cm.getSelection()` 与块编辑器选区封装；布局器为纯函数模块，输入结构 JSON 输出完整 model。
 - 评审通过后进入研发实现，建议按 M1 设置 → M2 助手 → M3 图表生成顺序交付。

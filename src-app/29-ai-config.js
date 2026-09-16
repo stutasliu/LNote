@@ -7,7 +7,7 @@ import { toast } from './16-doc-ops.js';
 import { openSettingsModal } from './26-settings.js';
 
   /* ---------------- AI（BYOK）配置面板（v0.22：设置弹窗「AI」页签） ----------------
-   * 后端：main.py InkpadApi.ai_get_config / ai_save_config / ai_test
+   * 后端：main.py LNoteApi.ai_get_config / ai_save_config / ai_test
    * 约束：明文 Key 只经 ai_save_config 单向提交到本机文件，回读一律脱敏；
    *       连通性测试走 worker 线程 + evaluate_js 回调（与翻译一致）。 */
 
@@ -188,7 +188,7 @@ import { openSettingsModal } from './26-settings.js';
   }
 
   // Python 端测试完成后的回调入口（worker 线程 evaluate_js 推送）
-  window.__inkpadAiTestCb = function (r) {
+  window.__lnoteAiTestCb = function (r) {
     if (!aiTestPending) return;
     aiTestPending = false;
     if (aiTestTimer) { clearTimeout(aiTestTimer); aiTestTimer = null; }

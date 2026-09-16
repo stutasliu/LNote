@@ -55,7 +55,7 @@
 /* ===== 文档类型图标配色（9 类）=====
  * 颜色挂在 svg 自身的 .ico-<type> 类上（而非父元素），svg 内 stroke 走 currentColor，
  * 因此图标随类上色；需要整体置灰的状态（回收站 / AI 菜单禁用）在
- * layout.css 与 inkpad-rich.css 里用更高优先级覆盖 svg 自身的 color。 */
+ * layout.css 与 lnote-rich.css 里用更高优先级覆盖 svg 自身的 color。 */
 .ico-doc { color: var(--ico-doc); }
 .ico-rich { color: var(--ico-rich); }
 .ico-word { color: var(--ico-word); }

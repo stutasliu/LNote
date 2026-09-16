@@ -15,7 +15,7 @@ $ErrorActionPreference = 'Stop'
 $exe = Join-Path $PSScriptRoot 'dist\L.Note.exe'
 if (-not (Test-Path -LiteralPath $exe)) {
     Write-Host "[ERROR] EXE not found: $exe" -ForegroundColor Red
-    Write-Host "Build it first: python -m PyInstaller Inkpad.spec --noconfirm" -ForegroundColor Yellow
+    Write-Host "Build it first: python -m PyInstaller LNote.spec --noconfirm" -ForegroundColor Yellow
     exit 1
 }
 

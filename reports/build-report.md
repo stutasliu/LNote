@@ -22,7 +22,7 @@
 |---|---|---|
 | Phase 1 | 巨型文件拆分 | `app.js` 5676 行 IIFE 按职责拆为 `src-app/` 20 个模块；`tools/build-app.js` 构建期拼接，运行时逐字等价 |
 | Phase 2 | 状态管理重构 | 集中式 `state` 对象（docs/activeId/previewOn/currentVisual）＋ `bus` 事件总线（pub/sub），数据变更统一 `docs:changed` 事件驱动刷新 |
-| Phase 3 | 构建工具链 | Vite dev server（`tools/vite-plugin-inkpad.js` 自动重拼 + 热刷新）＋ CSS/字体合并压缩管线 |
+| Phase 3 | 构建工具链 | Vite dev server（`tools/vite-plugin-lnote.js` 自动重拼 + 热刷新）＋ CSS/字体合并压缩管线 |
 | Phase 4 | 自动化测试 | Vitest 单测（源码级函数提取，`tests/helpers/extract-fn.js`）＋ CDP 驱动 headless Edge E2E（`tests/helpers/cdp.js`，零额外下载） |
 | Phase 5 | CSS 分层整理 | `style.css` 2155 行 → `css/base.css`/`layout.css`/`components.css` 按层拆分，产物 hash 逐字节一致 |
 | 阶段 6 | vendor 迁移 npm | 35 个 `vendor/*.js` → 6 个 npm 依赖（esbuild 打包单文件 IIFE `js/vendor-bundle.js`）；`vendor/` 仅剩 CSS/字体静态资源 |
@@ -57,7 +57,7 @@ notion-editor/
 | `npm run verify:app` | 构建并校验无错误 |
 | `npm test` / `test:unit` / `test:e2e` | 全量 / 单测 / E2E 测试 |
 
-构建链：`src-app/*.js`（ESM）→ esbuild（IIFE，传统 script）→ `js/app.js`；`src-vendor/main.js` → esbuild（IIFE）→ `js/vendor-bundle.js`；Vite 合并 CSS/字体 → `dist-web/`；PyInstaller 按 `Inkpad.spec` 打包（`dist-web/index.html` + `js/` + `vendor/` 静态资源 + `css/` + `icons/`）。
+构建链：`src-app/*.js`（ESM）→ esbuild（IIFE，传统 script）→ `js/app.js`；`src-vendor/main.js` → esbuild（IIFE）→ `js/vendor-bundle.js`；Vite 合并 CSS/字体 → `dist-web/`；PyInstaller 按 `LNote.spec` 打包（`dist-web/index.html` + `js/` + `vendor/` 静态资源 + `css/` + `icons/`）。
 
 ## 5. 测试体系（47/47 通过）
 

@@ -1,4 +1,4 @@
-# macOS 打包方案（L.Note / Inkpad）
+# macOS 打包方案（L.Note）
 
 > 目标：把 L.Note 打包为 macOS 可运行的 `.app`（dmg 分发），保持与 Windows 版一致的功能。
 
@@ -39,7 +39,7 @@ python3 tools/gen_icns.py
 ### 2. 用 macOS spec 打包
 
 ```bash
-python3 -m PyInstaller --clean -y InkpadMac.spec
+python3 -m PyInstaller --clean -y LNoteMac.spec
 ```
 
 产物：`dist/L.Note.app`（完整 .app bundle）。可先双击验证。
@@ -84,7 +84,7 @@ xcrun stapler staple dist/L.Note.app
 
 | 目标 | 命令 | 说明 |
 |---|---|---|
-| 仅 Apple Silicon (arm64) | `python3 -m PyInstaller --clean -y InkpadMac.spec`（Python 为 arm64） | 文件最小 |
+| 仅 Apple Silicon (arm64) | `python3 -m PyInstaller --clean -y LNoteMac.spec`（Python 为 arm64） | 文件最小 |
 | 仅 Intel (x86_64) | 同上（Python 为 x86_64） | 老 Mac |
 | **通用（推荐）** | Python 用官方 **universal2** 安装包，spec 中 `target_arch='universal2'` | 一份 .app 两端都能跑 |
 
@@ -97,7 +97,7 @@ xcrun stapler staple dist/L.Note.app
 | 渲染内核 | Edge WebView2 | 系统 WKWebView | 无需改动 |
 | localStorage 持久化 | `private_mode=False` 已持久 | 同样支持（WKWebsiteDataStore 持久存储） | 无需改动，需实机验证 |
 | 文件对话框 `file_types=("所有文件 (*.*)",)` | 原生 | pywebview 跨平台统一解析该格式，`(*.*)` 视为全部文件 | 若实机异常，去掉该参数即可 |
-| 富文档目录 | `~/Documents/InkpadRich` | 同（`~` = `/Users/xxx`） | 无需改动 |
+| 富文档目录 | `~/Documents/L.NoteRich` | 同（`~` = `/Users/xxx`） | 无需改动 |
 | 路径分隔符 | 反斜杠 | 正斜杠 | 前端 `normPath()` 已统一处理 |
 | 菜单栏 | 无 | 系统菜单栏 | pywebview 默认菜单，可后续定制 |
 | 窗口行为 | 无标题栏按钮差异 | 红绿灯按钮 | `create_window` 参数通用 |
@@ -108,7 +108,7 @@ xcrun stapler staple dist/L.Note.app
 - [ ] 新建文档 → 重启应用 → 文档还在（localStorage 持久化）
 - [ ] 「导入文件」「打开文件夹」原生对话框正常
 - [ ] Ctrl+S 改等价快捷键（macOS 惯用 Cmd+S，当前是否绑定需在 Mac 上确认；没有则提示）
-- [ ] 富文档：新建 → 插图片 → 重启后图片仍在（落盘 `~/Documents/InkpadRich`）
+- [ ] 富文档：新建 → 插图片 → 重启后图片仍在（落盘 `~/Documents/L.NoteRich`）
 - [ ] Markdown 预览 / Mermaid / KaTeX 渲染正常
 - [ ] 文件比较窗口、图片查看器窗口可打开
 - [ ] 中文输入法在编辑器内正常
@@ -140,7 +140,7 @@ hdiutil create -volname "L.Note" -srcfolder dist/L.Note.app -ov -format UDZO dis
 
 | 文件 | 说明 |
 |---|---|
-| `InkpadMac.spec` | macOS 版 PyInstaller 配置（.app bundle） |
+| `LNoteMac.spec` | macOS 版 PyInstaller 配置（.app bundle） |
 | `build_mac.sh` | 一键构建脚本（依赖 + 图标 + 打包 + 可选签名/公证） |
 | `tools/gen_icns.py` | 从 1024px PNG 生成 .icns 图标 |
 | `docs/13-macos打包方案.md` | 本文档 |

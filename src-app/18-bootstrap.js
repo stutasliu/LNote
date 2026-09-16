@@ -75,13 +75,13 @@ import { initDocMap } from './25-doc-map.js';
       renderList();
     } catch (e) {
       dbgLog('initApp main error: ' + (e && e.message));
-      console.warn('[inkpad] initApp main init error, continue', e);
+      console.warn('[L.Note] initApp main init error, continue', e);
     }
 
     // 【v0.18 新增】富文档大纲（飞书式侧栏）：按钮 + splitter + IntersectionObserver
     bindRichOutline();
 
-    // 【v0.18.1 新增】启动时清理 InkpadRich 目录下的 orphan .json 文件
+    // 【v0.18.1 新增】启动时清理富文档目录下的 orphan .json 文件
     // （v0.17 标题跟随 bug 会在改标题过程中残留多份同内容副本）
     setTimeout(function () { cleanupRichOrphans(); }, 800);
 
@@ -91,7 +91,7 @@ import { initDocMap } from './25-doc-map.js';
     // 【v0.20.x 新增】文档地图（右侧小地图）：恢复开关状态并绑定渲染/跳转事件
     try { initDocMap(); } catch (e) {
       dbgLog('initDocMap error: ' + (e && e.message));
-      console.warn('[inkpad] initDocMap error', e);
+      console.warn('[L.Note] initDocMap error', e);
     }
   }
 
@@ -136,7 +136,7 @@ import { initDocMap } from './25-doc-map.js';
       }
     }).catch(function (e) {
       dbgLog('openPendingExternal failed: ' + (e && e.message));
-      console.warn('[inkpad] open pending file failed', e);
+      console.warn('[L.Note] open pending file failed', e);
       openDoc(state.activeId);
     });
   }
@@ -150,12 +150,12 @@ import { initDocMap } from './25-doc-map.js';
       var skp = (res.skipped || []).length;
       if (del > 0) toast('已清理 ' + del + ' 个历史残留富文档文件（忽略 ' + skp + ' 个非富文档 JSON）', 'success');
       else if (skp > 0) {} // 用户自己的 .json 不打扰
-    }).catch(function (e) { console.warn('[inkpad] cleanup orphans failed', e); });
+    }).catch(function (e) { console.warn('[L.Note] cleanup orphans failed', e); });
   }
 
   // 【单实例接力】运行时「打开方式」文件处理器（第二实例转发 → 本窗口打开）。
   // 后端 IPC 线程收到第二个实例转发来的文档路径后，通过 evaluate_js 调用
-  // window.__inkpadOpenExternalFiles 在当前界面打开文件（复用 openDiskFile）。
+  // window.__lnoteOpenExternalFiles 在当前界面打开文件（复用 openDiskFile）。
   // 处理器安装完成后调用 api.frontend_ready() 通知后端：就绪前入队的文件
   // 会由后端一次性冲刷过来（见 main.py frontend_ready）。
   var runtimeHandoffBusy = false;
@@ -163,8 +163,8 @@ import { initDocMap } from './25-doc-map.js';
     if (runtimeHandoffBusy) return;
     runtimeHandoffBusy = true;
     dbgLog('initRuntimeHandoff enter');
-    window.__inkpadOpenExternalFiles = function (items) {
-      dbgLog('__inkpadOpenExternalFiles: ' + JSON.stringify(items));
+    window.__lnoteOpenExternalFiles = function (items) {
+      dbgLog('__lnoteOpenExternalFiles: ' + JSON.stringify(items));
       (items || []).forEach(function (it) {
         try {
           if (!it || !it.path) return;
@@ -174,7 +174,7 @@ import { initDocMap } from './25-doc-map.js';
           openDiskFile(p, name);
         } catch (e) {
           dbgLog('runtime open external error: ' + (e && e.message));
-          console.warn('[inkpad] runtime open external failed', e);
+          console.warn('[L.Note] runtime open external failed', e);
         }
       });
     };
@@ -184,7 +184,7 @@ import { initDocMap } from './25-doc-map.js';
         getApi().frontend_ready();
       } catch (e) {
         dbgLog('frontend_ready error: ' + (e && e.message));
-        console.warn('[inkpad] frontend_ready failed', e);
+        console.warn('[L.Note] frontend_ready failed', e);
       }
     };
     if (!hasApi()) {

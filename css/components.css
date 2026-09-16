@@ -378,7 +378,7 @@
   word-break: break-all;
 }
 
-/* ---- CodeMirror 主题覆写（Notion 风） ---- */
+/* ---- CodeMirror 主题覆写 ---- */
 .CodeMirror {
   flex: 1;
   height: 100%;
@@ -400,7 +400,7 @@
 .CodeMirror-selected { background: rgba(62, 155, 220, 0.12) !important; }
 .CodeMirror-activeline-background { background: rgba(0, 0, 0, 0.025); }
 .CodeMirror-matchingbracket { color: var(--accent) !important; font-weight: 700; text-decoration: none; }
-/* 语法着色（偏柔和，贴近 Notion 代码块观感） */
+/* 语法着色（偏柔和，贴近常见代码块观感） */
 .cm-keyword  { color: #d73a49; }
 .cm-string   { color: #032f62; }
 .cm-string-2 { color: #032f62; }
@@ -1025,7 +1025,7 @@
 ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); border: 2px solid transparent; background-clip: content-box; }
 ::-webkit-scrollbar-track { background: transparent; }
 
-/* ---- Markdown 预览（Notion 风排版） ---- */
+/* ---- Markdown 预览（文档化排版） ---- */
 #md-out {
   width: 100%;
   max-width: 760px;
@@ -1894,6 +1894,7 @@
   border-color: #FF7D00;
   background: #FFF7E8;
 }
+.fr-btn-icon.star.on .ui-svg { fill: currentColor; }
 .fr-spacer { width: 8px; height: 30px; flex-shrink: 0; }
 
 /* 主按钮 */
@@ -3175,15 +3176,12 @@
 .about-logo {
   width: 64px;
   height: 64px;
-  border-radius: 16px;
-  background: var(--primary-container);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32px;
   margin-bottom: 8px;
-  box-shadow: var(--shadow-sm);
 }
+.about-logo img { width: 100%; height: 100%; display: block; }
 .about-name { font-size: 17px; font-weight: 700; color: var(--text); }
 .about-version {
   font-size: 12.5px;

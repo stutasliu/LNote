@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Inkpad 桌面版入口
+L.Note 桌面版入口
 用 pywebview（Edge WebView2 内核）加载本地编辑器页面，
 并通过 js_api 向前端暴露原生文件保存对话框。
 """
@@ -40,7 +40,13 @@ _runtime_pending_files = []
 _runtime_frontend_ready = False
 
 # 版本号（与 js/app.js 页脚保持一致）
-APP_VERSION = "0.24.0"
+APP_VERSION = "1.0.0"
+
+# 主窗口标题（软件登记全称，与说明书、源代码文档、界面截图保持同名）
+APP_TITLE = "L.Note本地笔记编辑软件"
+
+# 富文档（块编辑器）自动存储目录名
+RICH_DIRNAME = "L.NoteRich"
 
 
 def resource_path(rel: str) -> str:
@@ -524,19 +530,19 @@ def _read_text_file(path: str, encoding=None):
     """读取文本文件并探测编码（供两个 API 类共用）。"""
     with open(path, "rb") as f:
         raw = f.read()
-    enc = encoding if encoding else InkpadApi._detect_encoding(raw)
+    enc = encoding if encoding else LNoteApi._detect_encoding(raw)
     try:
         content = raw.decode(enc)
     except (UnicodeDecodeError, LookupError):
         content = raw.decode("utf-8", errors="replace")
     return {
         "content": content,
-        "encoding": InkpadApi._ui_enc(enc),
+        "encoding": LNoteApi._ui_enc(enc),
         "size": len(raw),
     }
 
 
-class InkpadApi:
+class LNoteApi:
     """暴露给前端 window.pywebview.api 的原生能力。"""
 
     def __init__(self):
@@ -557,7 +563,7 @@ class InkpadApi:
     def frontend_ready(self):
         """主编辑器前端初始化完成回调（单实例接力）。
 
-        前端安装 window.__inkpadOpenExternalFiles 后调用本方法：
+        前端安装 window.__lnoteOpenExternalFiles 后调用本方法：
         1) 告知后端前端已就绪，可以直接 evaluate_js 推送文件；
         2) 把就绪前第二个实例转发来、已入队的文件一次性冲刷到前端打开。
         """
@@ -684,18 +690,46 @@ class InkpadApi:
             f.write(data)
         return path
 
+    LEGACY_RICH_DIRNAMES = ("Ink" + "pad" + "Rich",)
+
     def get_rich_dir(self):
         """返回富文档（块编辑器）的自动存储目录，首次调用时创建。
 
         富文档可能内嵌多张 base64 图片，体积远超 localStorage 的 ~5MB 上限，
         因此统一自动落盘到该目录（JSON 文件），避免内容丢失。
+
+        目录名曾用旧品牌命名，首次调用时做一次性迁移（同盘 rename，O(1)）；
+        迁移失败（文件被占用等）时回退到旧目录，保证老用户数据不丢。
         """
         import os
-        candidates = [
-            os.path.join(os.path.expanduser("~"), "Documents", "InkpadRich"),
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "InkpadRich"),
+        home = os.path.expanduser("~")
+        app_dir = os.path.dirname(os.path.abspath(__file__))
+        current = [
+            os.path.join(home, "Documents", RICH_DIRNAME),
+            os.path.join(app_dir, RICH_DIRNAME),
         ]
-        for base in candidates:
+        for base in current:
+            if os.path.exists(base):
+                return base
+        legacy = [
+            os.path.join(home, "Documents", name)
+            for name in self.LEGACY_RICH_DIRNAMES
+        ] + [
+            os.path.join(app_dir, name)
+            for name in self.LEGACY_RICH_DIRNAMES
+        ]
+        for old in legacy:
+            if not os.path.exists(old):
+                continue
+            new = os.path.join(os.path.dirname(old), RICH_DIRNAME)
+            try:
+                os.replace(old, new)
+                _debug_log("[api] 旧数据目录已迁移：" + old + " -> " + new)
+                return new
+            except Exception as exc:  # noqa: BLE001
+                _debug_log("[api] 旧数据目录迁移失败，继续使用：" + old + " (" + str(exc) + ")")
+                return old
+        for base in current:
             try:
                 os.makedirs(base, exist_ok=True)
                 return base
@@ -753,7 +787,7 @@ class InkpadApi:
             return {"error": str(e)}
 
     def list_rich_orphans(self):
-        """列出 InkpadRich 目录下未被 docs 注册占用的 .json 文件（orphan）。
+        """列出富文档目录下未被 docs 注册占用的 .json 文件（orphan）。
 
         返回 {"files": ["绝对路径1", ...]} ；无目录/无 API 时返回 {"files": []}。
         JS 端会在启动时拿这个列表跟 docs 里的 diskPath 比对，清理掉孤儿文件。
@@ -782,7 +816,7 @@ class InkpadApi:
             return {"files": []}
 
     def cleanup_rich_orphans(self, occupied_paths=None):
-        """清理 InkpadRich 目录下「不在 JS 传过来的占用列表里」的 .json orphan 文件。
+        """清理富文档目录下「不在 JS 传过来的占用列表里」的 .json orphan 文件。
 
         v0.17 标题跟随功能有竞态 bug，会在改标题过程中残留多份同内容副本。
         启动时调用这个函数可一次清理掉它们。
@@ -889,7 +923,7 @@ class InkpadApi:
         try:
             cmp_api = CmpApi()
             win = webview.create_window(
-                "Inkpad 文件比较",
+                "L.Note 文件比较",
                 resource_path("compare.html"),
                 js_api=cmp_api,
                 width=1180,
@@ -920,7 +954,7 @@ class InkpadApi:
         try:
             imv_api = ImvApi()
             win = webview.create_window(
-                "Inkpad 图片查看器",
+                "L.Note 图片查看器",
                 resource_path("image_viewer.html"),
                 js_api=imv_api,
                 width=1000,
@@ -1013,7 +1047,7 @@ class InkpadApi:
 
     def translate(self, text: str, target: str = "auto"):
         """翻译文本（在线，需联网）。立即返回 {"started": True}，不阻塞 UI；
-        结果由 worker 线程通过 evaluate_js 调用 window.__inkpadTranslateCb 回调推送。
+        结果由 worker 线程通过 evaluate_js 调用 window.__lnoteTranslateCb 回调推送。
         target 取 "zh"/"en"/"ja"/"ko" 等，缺省 "auto" 按文本内容自动判断。"""
         if not text or not str(text).strip():
             return {"error": "没有可翻译的内容"}
@@ -1025,7 +1059,7 @@ class InkpadApi:
 
         def worker():
             result = _do_translate(text, target)
-            js = "if (window.__inkpadTranslateCb) window.__inkpadTranslateCb(%s);" % json.dumps(result, ensure_ascii=False)
+            js = "if (window.__lnoteTranslateCb) window.__lnoteTranslateCb(%s);" % json.dumps(result, ensure_ascii=False)
             try:
                 if self._window:
                     self._window.evaluate_js(js)
@@ -1069,7 +1103,7 @@ class InkpadApi:
     def ai_test(self, cfg=None):
         """测试 AI 连通性。以已保存配置为基础，cfg 可覆盖 baseUrl/apiKey/model
         （便于「未保存先测」）。立即返回 {"started": True}，结果由 worker 线程通过
-        evaluate_js 调用 window.__inkpadAiTestCb 推送。"""
+        evaluate_js 调用 window.__lnoteAiTestCb 推送。"""
         merged = _ai_read_config()
         if isinstance(cfg, dict):
             for k in ("baseUrl", "model", "apiKey"):
@@ -1083,7 +1117,7 @@ class InkpadApi:
 
         def worker():
             result = _do_ai_test(merged)
-            js = "if (window.__inkpadAiTestCb) window.__inkpadAiTestCb(%s);" % json.dumps(result, ensure_ascii=False)
+            js = "if (window.__lnoteAiTestCb) window.__lnoteAiTestCb(%s);" % json.dumps(result, ensure_ascii=False)
             try:
                 if self._window:
                     self._window.evaluate_js(js)
@@ -1100,7 +1134,7 @@ class InkpadApi:
                    "overrides": {"temperature","maxTokens","timeoutSec"}}
         立即返回 {"started": True, "sessionId": str}，不阻塞 UI；
         增量内容与结束态由 worker 线程通过 evaluate_js 调用
-        window.__inkpadAiChatCb 推送：
+        window.__lnoteAiChatCb 推送：
           {sessionId, type:"delta", delta}
           {sessionId, type:"done"|"stopped"|"error", fullText, error?}
         单任务并发：发起新会话会先取消既有会话。"""
@@ -1133,7 +1167,7 @@ class InkpadApi:
         window = self._window
 
         def push(obj):
-            js = "if (window.__inkpadAiChatCb) window.__inkpadAiChatCb(%s);" % json.dumps(obj, ensure_ascii=False)
+            js = "if (window.__lnoteAiChatCb) window.__lnoteAiChatCb(%s);" % json.dumps(obj, ensure_ascii=False)
             try:
                 if window:
                     window.evaluate_js(js)
@@ -1170,7 +1204,7 @@ class InkpadApi:
         payload = {"sessionId": str, "kind": "flow"|"mind", "text": str,
                    "overrides": {"temperature","maxTokens","timeoutSec"}}
         立即返回 {"started": True, "sessionId"}；结果由 worker 线程通过
-        evaluate_js 调用 window.__inkpadAiDiagramCb 推送：
+        evaluate_js 调用 window.__lnoteAiDiagramCb 推送：
           {sessionId, type:"done", structure, title}
           {sessionId, type:"error", error}
         结构 JSON 不含坐标：坐标一律由前端本地布局器计算（PRD §6「图模型」）。"""
@@ -1206,7 +1240,7 @@ class InkpadApi:
         window = self._window
 
         def push(obj):
-            js = "if (window.__inkpadAiDiagramCb) window.__inkpadAiDiagramCb(%s);" % json.dumps(
+            js = "if (window.__lnoteAiDiagramCb) window.__lnoteAiDiagramCb(%s);" % json.dumps(
                 obj, ensure_ascii=False
             )
             try:
@@ -1291,7 +1325,7 @@ class InkpadApi:
 
         tag 为 check_update 返回的 latest（如 "v0.21.13"），留空则自动先查一次。
         立即返回 {"started": True, "tag": ...}，下载进度与结果通过
-        window.__inkpadUpdateCb(payload) 回调推送：
+        window.__lnoteUpdateCb(payload) 回调推送：
         {"state": "downloading", "percent": 0-100| -1 未知, "received", "total"}
         → {"state": "ready", "path"} → {"state": "installing"}；
         任一步失败推 {"ok": False, "error": ...}。"""
@@ -1305,7 +1339,7 @@ class InkpadApi:
             return {"error": "已有更新任务进行中，请稍候"}
 
         def push(payload):
-            js = "if (window.__inkpadUpdateCb) window.__inkpadUpdateCb(%s);" % json.dumps(
+            js = "if (window.__lnoteUpdateCb) window.__lnoteUpdateCb(%s);" % json.dumps(
                 payload, ensure_ascii=False
             )
             try:
@@ -1419,11 +1453,11 @@ class InkpadApi:
 
     @staticmethod
     def _ui_enc(codec: str) -> str:
-        return InkpadApi._UI_ENCS.get(codec, codec)
+        return LNoteApi._UI_ENCS.get(codec, codec)
 
     @staticmethod
     def _codec_from_ui(ui: str) -> str:
-        for codec, label in InkpadApi._UI_ENCS.items():
+        for codec, label in LNoteApi._UI_ENCS.items():
             if label == ui or codec == ui:
                 return codec
         return "utf-8"
@@ -2495,10 +2529,10 @@ def _dispatch_open_paths(api, paths):
 
 
 def _push_open_to_frontend(api, items):
-    """通过 evaluate_js 调用前端 window.__inkpadOpenExternalFiles 打开文件。"""
+    """通过 evaluate_js 调用前端 window.__lnoteOpenExternalFiles 打开文件。"""
     js = (
-        "if (window.__inkpadOpenExternalFiles) "
-        "window.__inkpadOpenExternalFiles(%s);"
+        "if (window.__lnoteOpenExternalFiles) "
+        "window.__lnoteOpenExternalFiles(%s);"
         % json.dumps(items, ensure_ascii=False)
     )
     try:
@@ -2634,7 +2668,7 @@ def main():
     if pending_open_file is None:
         _debug_log("[main] no pending open file")
 
-    api = InkpadApi()
+    api = LNoteApi()
     # 单实例 IPC：尽早绑定端口、成为主编辑器实例（端口被占用则说明已有
     # 主实例在运行，属转发竞态，本进程直接退出避免出现重复窗口）。
     if not _start_ipc_server(api):
@@ -2642,7 +2676,7 @@ def main():
         return
     main_page = resource_path("app.html")
     window = webview.create_window(
-        title="L.Note",
+        title=APP_TITLE,
         url=main_page,
         js_api=api,
         width=1280,

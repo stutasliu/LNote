@@ -236,7 +236,7 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, DOC_ICO
     },
     emit: function (ev, data) {
       var a = this._map[ev];
-      if (a) a.slice().forEach(function (fn) { try { fn(data); } catch (e) { console.warn('[inkpad] bus handler error on ' + ev, e); } });
+      if (a) a.slice().forEach(function (fn) { try { fn(data); } catch (e) { console.warn('[L.Note] bus handler error on ' + ev, e); } });
       return this;
     }
   };

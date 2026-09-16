@@ -337,7 +337,7 @@
 
     var themeXml =
       '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-      '<a:theme xmlns:a="' + NS_A + '" name="Inkpad"><a:themeElements>' +
+      '<a:theme xmlns:a="' + NS_A + '" name="L.Note"><a:themeElements>' +
       '<a:clrScheme name="Office">' +
       '<a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>' +
       '<a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>' +
@@ -448,7 +448,7 @@
     }];
     return zipStore([
       { name: 'content.json', data: strToU8(JSON.stringify(content, null, 2)) },
-      { name: 'metadata.json', data: strToU8(JSON.stringify({ creator: { name: 'Inkpad', version: '1.0.0' } })) },
+      { name: 'metadata.json', data: strToU8(JSON.stringify({ creator: { name: 'L.Note', version: '1.0.0' } })) },
       { name: 'manifest.json', data: strToU8(JSON.stringify({ 'file-entries': { 'content.json': {}, 'metadata.json': {} } })) }
     ]);
   }

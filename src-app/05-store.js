@@ -22,6 +22,50 @@ import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
         if (c != null) d.content = c;
       } catch (e) {}
     });
+    // 迁移（v0.24.0）：内置示例文档创建于更早版本，标题与正文里的旧品牌名
+    // （Inkpad）和第三方产品名（Notion）表述已统一为登记全称口径。老用户
+    // 的 localStorage 里存的是旧文案，此处就地替换，避免升级后仍看到过期内容。
+    // 文案历史上出现过多种写法（间距 / 「风」与「风格的」混用），故按变体枚举。
+    var WELCOME_REPLACEMENTS = [
+      ['一个纯本地的 Notion 风文本编辑器。', '一款纯本地的笔记编辑软件。'],
+      ['一个纯本地的Notion风文本编辑器。', '一款纯本地的笔记编辑软件。'],
+      ['一个纯本地的 Notion 风文本编辑器', '一款纯本地的笔记编辑软件'],
+      ['一个纯本地的Notion风文本编辑器', '一款纯本地的笔记编辑软件'],
+      ['一个纯本地的 Notion 风格的文本编辑器。', '一款纯本地的笔记编辑软件。'],
+      ['一个纯本地的Notion风格的文本编辑器。', '一款纯本地的笔记编辑软件。'],
+      ['本地 Notion 风文本编辑器', '本地笔记编辑软件'],
+      ['本地Notion风文本编辑器', '本地笔记编辑软件'],
+      ['Notion 风文本编辑器', '笔记编辑软件'],
+      ['Notion风文本编辑器', '笔记编辑软件'],
+      ['Notion 风格的文本编辑器', '笔记编辑软件'],
+      ['Notion风格的文本编辑器', '笔记编辑软件'],
+      ['Inkpad', 'L.Note']
+    ];
+    var replaceAll = function (src, replacements) {
+      var out = src;
+      for (var i = 0; i < replacements.length; i++) {
+        if (out.indexOf(replacements[i][0]) >= 0) out = out.split(replacements[i][0]).join(replacements[i][1]);
+      }
+      return out;
+    };
+    var welcomeMigrated = false;
+    state.docs.forEach(function (d) {
+      if (!d || !d.id) return;
+      var isWelcome = typeof d.title === 'string' && d.title.indexOf('欢迎使用') >= 0;
+      if (typeof d.title === 'string' && d.title !== replaceAll(d.title, WELCOME_REPLACEMENTS)) {
+        d.title = replaceAll(d.title, WELCOME_REPLACEMENTS);
+        isWelcome = true;
+        welcomeMigrated = true;
+      }
+      if (typeof d.content !== 'string') return;
+      if (!isWelcome && d.content.indexOf('Notion') < 0 && d.content.indexOf('欢迎使用 Inkpad') < 0) return;
+      var migrated = replaceAll(d.content, WELCOME_REPLACEMENTS);
+      if (migrated !== d.content) {
+        d.content = migrated;
+        welcomeMigrated = true;
+      }
+    });
+    if (welcomeMigrated) persist();
     state.activeId = null;
     try { state.activeId = localStorage.getItem(ACTIVE_KEY); } catch (e) {}
     if (!state.docs.length && !had) {
@@ -30,7 +74,7 @@ import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
         title: '欢迎使用 L.Note',
         lang: 'markdown',
         content: '# 欢迎使用 L.Note 🖋️\n\n' +
-          '一个纯本地的 Notion 风文本编辑器。\n\n' +
+          '一款纯本地的笔记编辑软件。\n\n' +
           '## 它能做什么\n\n' +
           '- **语法高亮** —— 支持 Markdown / JSON / XML / JS / Python 等十余种语言\n' +
           '- **一键格式化** —— 工具栏点 `{ } JSON 格式化` 或 `< / > XML 格式化`\n' +
@@ -85,11 +129,11 @@ import { ACTIVE_KEY, STORAGE_KEY, state } from './01-core.js';
         return o;
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(index));
-    } catch (e) { console.warn('[inkpad] 索引持久化失败', e); }
+    } catch (e) { console.warn('[L.Note] 索引持久化失败', e); }
     // 标签过期时间元数据持久化
     try {
       localStorage.setItem(TAGMETA_KEY, JSON.stringify(state.tagMeta || {}));
-    } catch (e) { console.warn('[inkpad] 标签元数据持久化失败', e); }
+    } catch (e) { console.warn('[L.Note] 标签元数据持久化失败', e); }
     // 2) 正文逐文档存储（单个超限不影响列表；富文档大正文改为依赖磁盘文件）
     var seen = {};
     state.docs.forEach(function (d) {

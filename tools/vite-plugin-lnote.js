@@ -1,5 +1,5 @@
 /* =========================================================
- * vite-plugin-inkpad.js —— 把 src-app 拼接流程接入 Vite
+ * vite-plugin-lnote.js —— 把 src-app 拼接流程接入 Vite
  *
  * 背景：前端源码按职责拆在 src-app/*.js（同闭包片段），
  * 由 tools/build-app.js 拼回 js/app.js。本插件让 Vite 在
@@ -21,9 +21,9 @@ function rebuild() {
   execSync('node tools/build-app.js', { cwd: ROOT, stdio: 'inherit' });
 }
 
-module.exports = function inkpadPlugin() {
+module.exports = function lNotePlugin() {
   return {
-    name: 'inkpad-build',
+    name: 'lnote-build',
     enforce: 'pre',
     // dev/build 启动时确保 js/app.js 由 src-app 最新拼接生成
     buildStart() {
@@ -40,7 +40,7 @@ module.exports = function inkpadPlugin() {
           try {
             rebuild();
           } catch (e) {
-            console.error('[inkpad] rebuild failed:', e.message);
+            console.error('[L.Note] rebuild failed:', e.message);
             return;
           }
           server.ws.send({ type: 'full-reload' });
@@ -62,7 +62,7 @@ module.exports = function inkpadPlugin() {
         html = html.replace(/\scrossorigin(="[^"]*")?/gi, '');
         fs.writeFileSync(htmlPath, html);
       }
-      console.log('[inkpad] 已复制 js/ vendor/ 到 dist-web/ 并移除 crossorigin');
+      console.log('[L.Note] 已复制 js/ vendor/ 到 dist-web/ 并移除 crossorigin');
     }
   };
 };

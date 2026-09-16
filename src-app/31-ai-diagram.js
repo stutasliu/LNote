@@ -11,7 +11,7 @@ import { closeAiPanel } from './30-ai-assistant.js';
 import { aiEntryBlocked, isAiAuthError, openAiSettings } from './29-ai-config.js';
 
   /* ---------------- AI 图表生成（v0.22：M3） ----------------
-   * 后端：main.py InkpadApi.ai_diagram（结构 JSON + schema 校验失败重试 1 次）
+   * 后端：main.py LNoteApi.ai_diagram（结构 JSON + schema 校验失败重试 1 次）
    * 入口：文本右键菜单「AI 图表」/ 富文档浮动气泡 AI 菜单
    * 流程：两段式「处理中 → 结构预览 → 确认落图」
    * 约束：AI 不产出坐标；坐标一律由本地布局器计算（PRD §6）；
@@ -274,7 +274,7 @@ import { aiEntryBlocked, isAiAuthError, openAiSettings } from './29-ai-config.js
   }
 
   // Python 端回调入口（worker 线程 evaluate_js 推送）
-  window.__inkpadAiDiagramCb = function (msg) {
+  window.__lnoteAiDiagramCb = function (msg) {
     if (!msg || !msg.sessionId || !diagSession) return;
     if (msg.sessionId !== diagSession.sessionId) return;   // 丢弃过期会话回调
     if (diagSession.status !== 'streaming') return;

@@ -72,7 +72,7 @@ import { toast } from './16-doc-ops.js';
   }
 
   // Python 端翻译完成后的回调入口（worker 线程 evaluate_js 推送）
-  window.__inkpadTranslateCb = function (r) {
+  window.__lnoteTranslateCb = function (r) {
     if (__trCb) { var cb = __trCb; __trCb = null; if (__trTimer) clearTimeout(__trTimer); cb(r || { error: '翻译结果为空' }); }
   };
 

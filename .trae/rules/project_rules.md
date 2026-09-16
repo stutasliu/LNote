@@ -107,7 +107,7 @@ git checkout master
 
 - 单元测试：`npx vitest run tests/unit`
 
-- 打包 exe：`python -m PyInstaller Inkpad.spec --noconfirm` → `dist\L.Note.exe`（exe 被 .gitignore 忽略，仅作本地产物分发，不入库）
+- 打包 exe：`python -m PyInstaller LNote.spec --noconfirm` → `dist\L.Note.exe`（exe 被 .gitignore 忽略，仅作本地产物分发，不入库）
 
 ## 迭代开发防回归规范（吸取历史教训）
 
@@ -135,7 +135,7 @@ git checkout master
 
 ### 三、修改后：完整验证再交付
 
-1. **任何改动（哪怕一个字符）都要跑完整构建链**：`node tools/build-app.js; npx vite build` → `python -m py_compile main.py` → `npx vitest run tests/unit` → `python -m PyInstaller Inkpad.spec --noconfirm`，缺一不可，不得跳过。
+1. **任何改动（哪怕一个字符）都要跑完整构建链**：`node tools/build-app.js; npx vite build` → `python -m py_compile main.py` → `npx vitest run tests/unit` → `python -m PyInstaller LNote.spec --noconfirm`，缺一不可，不得跳过。
 2. **PyInstaller 打包前先关闭运行中的 exe**：`dist\L.Note.exe` 被占用会报 `PermissionError: [WinError 5]`。打包前先确认没有 `L.Note.exe` 进程在运行，必要时先关闭再打包。
 3. **交付前确认产物是最新构建**：核对 `dist\L.Note.exe` 的时间戳晚于本次修改时间，并明确告知用户"请重新打开新的 L.Note.exe"。用户反复反馈"没变"，多因仍在使用旧构建产物。
 
@@ -231,7 +231,7 @@ git checkout master
 
 - [ ] 执行 `Get-Process L.Note -ErrorAction SilentlyContinue` 确认无运行中的 exe
 
-- [ ] 有残留进程则先关闭，再执行 `python -m PyInstaller Inkpad.spec --noconfirm`
+- [ ] 有残留进程则先关闭，再执行 `python -m PyInstaller LNote.spec --noconfirm`
 
 - [ ] 打包命令退出码为 0，且无 `PermissionError`/`WinError 5`
 

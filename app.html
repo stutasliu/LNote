@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>L.Note · 本地文本编辑器</title>
+<title>L.Note本地笔记编辑软件</title>
 <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
 <link rel="stylesheet" href="vendor/codemirror/addon/dialog/dialog.css">
 <link rel="stylesheet" href="vendor/codemirror/addon/fold/foldgutter.css">
@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/layout.css">
 <link rel="stylesheet" href="css/components.css">
-<link rel="stylesheet" href="css/inkpad-rich.css">
+<link rel="stylesheet" href="css/lnote-rich.css">
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
 <link rel="stylesheet" href="vendor/highlight/github-dark.min.css">
 </head>
@@ -69,7 +69,7 @@
       <!-- 便签模块：标签区（默认折叠） -->
       <div class="sb-subsection collapsed" id="sb-tag-section">
         <div class="sb-subsection-head" id="sb-tag-head" title="标签">
-          <span class="sb-sub-arrow">▸</span>
+          <span class="sb-sub-arrow"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
           <span class="sb-sub-title">标签</span>
           <span class="sb-sub-count" id="sb-tag-count"></span>
         </div>
@@ -131,7 +131,7 @@
         <input type="file" id="file-input" accept=".txt,.md,.json,.xml,.html,.js,.py,.css,.sql,.yaml,.yml,.sh,.mmd,.mermaid,.pdf" hidden>
       </div>
       <button class="fab-extended" id="fabNewDoc" title="新建文档">
-        <span class="fab-plus">＋</span>
+        <span class="fab-plus"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
         <span class="fab-text">新建文档</span>
       </button>
     </div>
@@ -203,7 +203,7 @@
             <button class="menu-item" data-ab="encoding">编码转换</button>
             <button class="menu-item" data-ab="compare">文件比较</button>
             <button class="menu-item" data-ab="xml">XML 格式化</button>
-            <button class="menu-item ab-trigger" data-ab="json" aria-expanded="false">JSON 工具<span class="submenu-arrow">▾</span></button>
+            <button class="menu-item ab-trigger" data-ab="json" aria-expanded="false">JSON 工具<span class="submenu-arrow"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></button>
             <div class="ab-sub" data-ab-sub="json" style="display:none">
               <button class="menu-item ab-sub-item" data-tool="format">JSON 格式化</button>
               <button class="menu-item ab-sub-item" data-tool="compress">JSON 压缩</button>
@@ -212,7 +212,7 @@
               <div class="menu-divider"></div>
               <button class="menu-item ab-sub-item" data-tool="copy">复制</button>
             </div>
-            <button class="menu-item ab-trigger" data-ab="convert" aria-expanded="false">转换工具<span class="submenu-arrow">▾</span></button>
+            <button class="menu-item ab-trigger" data-ab="convert" aria-expanded="false">转换工具<span class="submenu-arrow"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></button>
             <div class="ab-sub" data-ab-sub="convert" style="display:none">
               <button class="menu-item ab-sub-item" data-tool="unicode-zh">Unicode → 中文</button>
               <button class="menu-item ab-sub-item" data-tool="zh-unicode">中文 → Unicode</button>
@@ -226,7 +226,7 @@
               <div class="menu-divider"></div>
               <button class="menu-item ab-sub-item" data-tool="ts-convert">时间戳转换…</button>
             </div>
-            <button class="menu-item ab-trigger" data-ab="texttools" aria-expanded="false">文本工具<span class="submenu-arrow">▾</span></button>
+            <button class="menu-item ab-trigger" data-ab="texttools" aria-expanded="false">文本工具<span class="submenu-arrow"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></button>
             <div class="ab-sub" data-ab-sub="texttools" style="display:none">
               <div class="ab-sub-label">大小写</div>
               <button class="menu-item ab-sub-item" data-tt="upper">转大写</button>
@@ -262,7 +262,7 @@
               <button class="menu-item ab-sub-item" data-tt="snippet">插入代码段…</button>
               <button class="menu-item ab-sub-item" data-tt="clipboard">剪贴板历史…</button>
             </div>
-            <button class="menu-item ab-trigger" data-ab="insert" aria-expanded="false">插入块<span class="submenu-arrow">▾</span></button>
+            <button class="menu-item ab-trigger" data-ab="insert" aria-expanded="false">插入块<span class="submenu-arrow"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span></button>
             <div class="ab-sub" data-ab-sub="insert" style="display:none">
               <button class="menu-item ab-sub-item" data-insert="code">代码块</button>
               <button class="menu-item ab-sub-item" data-insert="image">图片</button>
@@ -321,7 +321,7 @@
       <button class="tool-btn" id="btn-compare" title="文件比较"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>比较</button>
       <button class="tool-btn" id="btn-format-xml" title="自动格式化并校验 XML"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M8 6l-6 6 6 6"/><path d="M16 6l6 6-6 6"/><path d="M13 4l-2 16"/></svg>XML 格式化</button>
       <div class="tool-menu-wrap" id="tools-wrap">
-        <button class="tool-btn" id="btn-tools" title="JSON 处理 / 转义 / 复制"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/><path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/></svg>JSON工具 ▾</button>
+        <button class="tool-btn" id="btn-tools" title="JSON 处理 / 转义 / 复制"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/><path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/></svg>JSON工具 <svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
         <div class="tool-menu" id="tool-menu" style="display:none">
           <button class="menu-item" data-tool="format">JSON 格式化</button>
           <button class="menu-item" data-tool="compress">JSON 压缩</button>
@@ -332,7 +332,7 @@
         </div>
       </div>
       <div class="tool-menu-wrap" id="tools-wrap3">
-        <button class="tool-btn" id="btn-convert" title="编码 / 转义 / 时间戳"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M21 21v-5h-5"/></svg>转换工具 ▾</button>
+        <button class="tool-btn" id="btn-convert" title="编码 / 转义 / 时间戳"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M21 21v-5h-5"/></svg>转换工具 <svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
         <div class="tool-menu" id="convert-menu" style="display:none">
           <button class="menu-item" data-tool="unicode-zh">Unicode → 中文</button>
           <button class="menu-item" data-tool="zh-unicode">中文 → Unicode</button>
@@ -348,9 +348,9 @@
         </div>
       </div>
       <div class="tool-menu-wrap" id="tools-wrap2">
-        <button class="tool-btn" id="btn-texttools" title="文本处理工具"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h7"/><path d="M17 15l3 3-3 3"/></svg>文本工具 ▾</button>
+        <button class="tool-btn" id="btn-texttools" title="文本处理工具"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h7"/><path d="M17 15l3 3-3 3"/></svg>文本工具 <svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
         <div class="tool-menu" id="texttool-menu" style="display:none">
-          <div class="menu-item submenu-trigger">大小写<span class="submenu-arrow">▸</span>
+          <div class="menu-item submenu-trigger">大小写<span class="submenu-arrow"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
             <div class="submenu">
               <button class="menu-item" data-tt="upper">转大写</button>
               <button class="menu-item" data-tt="lower">转小写</button>
@@ -358,13 +358,13 @@
               <button class="menu-item" data-tt="swap">反转大小写</button>
             </div>
           </div>
-          <div class="menu-item submenu-trigger">全半角<span class="submenu-arrow">▸</span>
+          <div class="menu-item submenu-trigger">全半角<span class="submenu-arrow"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
             <div class="submenu">
               <button class="menu-item" data-tt="full2half">全角 半角</button>
               <button class="menu-item" data-tt="half2full">半角 全角</button>
             </div>
           </div>
-          <div class="menu-item submenu-trigger">删除行<span class="submenu-arrow">▸</span>
+          <div class="menu-item submenu-trigger">删除行<span class="submenu-arrow"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
             <div class="submenu">
               <button class="menu-item" data-tt="del-empty">删除空行</button>
               <button class="menu-item" data-tt="del-dup">删除重复行</button>
@@ -375,7 +375,7 @@
               <button class="menu-item" data-tt="del-to-eol">删除到行尾</button>
             </div>
           </div>
-          <div class="menu-item submenu-trigger">行操作<span class="submenu-arrow">▸</span>
+          <div class="menu-item submenu-trigger">行操作<span class="submenu-arrow"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
             <div class="submenu">
               <button class="menu-item" data-tt="sort">行排序</button>
               <button class="menu-item" data-tt="sort-len">按长度排序</button>
@@ -384,7 +384,7 @@
               <button class="menu-item" data-tt="reindent">重新缩进</button>
             </div>
           </div>
-          <div class="menu-item submenu-trigger">折叠<span class="submenu-arrow">▸</span>
+          <div class="menu-item submenu-trigger">折叠<span class="submenu-arrow"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>
             <div class="submenu">
               <button class="menu-item" data-tt="fold-all">折叠全部</button>
               <button class="menu-item" data-tt="unfold-all">展开全部</button>
@@ -402,7 +402,7 @@
       </div>
       <button class="tool-btn" id="btn-toggle-preview" title="预览开关"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>预览</button>
       <div class="tool-menu-wrap" id="insert-wrap">
-        <button class="tool-btn" id="btn-insert" title="插入块（类似语雀的文档组件）"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M12 5v14M5 12h14"/></svg>插入 ▾</button>
+        <button class="tool-btn" id="btn-insert" title="插入块（文档组件）"><svg viewBox="0 0 24 24" class="tb-ico"><path d="M12 5v14M5 12h14"/></svg>插入 <svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
         <div class="tool-menu" id="insert-menu" style="display:none">
           <button class="menu-item" data-insert="code">代码块</button>
           <button class="menu-item" data-insert="image">图片</button>
@@ -431,13 +431,13 @@
 
     <!-- 编辑区 + 预览区 -->
     <div id="editor-wrap">
-      <!-- 富文档左侧大纲面板（飞书 / Notion 式） -->
+      <!-- 富文档左侧大纲面板（文档软件式） -->
       <aside id="rich-outline" aria-label="文档大纲" style="display:none">
         <div class="outline-head">
           <span class="outline-title">大纲</span>
           <span id="outline-count" class="outline-count">0</span>
           <span class="outline-spacer"></span>
-          <button class="icon-btn outline-x" id="btn-close-outline" title="收起大纲">«</button>
+          <button class="icon-btn outline-x" id="btn-close-outline" title="收起大纲"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m11.5 6-6 6 6 6"/><path d="m18.5 6-6 6 6 6"/></svg></button>
         </div>
         <div class="outline-search-row">
           <input id="outline-search" class="outline-search" placeholder="搜索标题…" spellcheck="false" autocomplete="off">
@@ -446,9 +446,9 @@
           <div class="outline-empty" id="outline-empty">暂无标题<br><small>用「+」插入一级/二/三级标题</small></div>
         </div>
         <div class="outline-foot" id="outline-foot" style="display:none">
-          <button class="icon-btn" id="btn-outline-up" title="上一个标题">▲</button>
-          <button class="icon-btn" id="btn-outline-down" title="下一个标题">▼</button>
-          <button class="icon-btn" id="btn-outline-reload" title="刷新大纲">↻</button>
+          <button class="icon-btn" id="btn-outline-up" title="上一个标题"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg></button>
+          <button class="icon-btn" id="btn-outline-down" title="下一个标题"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+          <button class="icon-btn" id="btn-outline-reload" title="刷新大纲"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.4 12a8.4 8.4 0 1 1-2.6-6.1"/><path d="M20.4 4.2v5h-5"/></svg></button>
         </div>
       </aside>
       <div id="rich-outline-splitter" class="side-splitter" style="display:none"></div>
@@ -461,7 +461,7 @@
         <div id="visual-toolbar"></div>
         <div id="visual-canvas"></div>
       </div>
-      <!-- 富文档（块编辑器 / Notion 风） -->
+      <!-- 富文档（块编辑器） -->
       <div id="rich-pane" style="display:none">
         <div id="rich-canvas"></div>
       </div>
@@ -477,7 +477,7 @@
           <div id="html-out" style="display:none"><iframe id="html-frame" sandbox="allow-same-origin allow-scripts"></iframe></div>
           <div id="mermaid-out" style="display:none"></div>
           <div id="preview-empty" class="preview-empty">
-            <div class="preview-empty-icon">📊</div>
+            <div class="preview-empty-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 19.6v-7.2"/><path d="M12 19.6V4.8"/><path d="M19.2 19.6v-4.8"/></svg></div>
             <p>在左侧输入 Mermaid 代码<br>这里会实时渲染图表</p>
             <button class="tool-btn" id="btn-insert-sample">插入示例</button>
           </div>
@@ -581,7 +581,7 @@
   <div class="modal-card">
     <div class="modal-head">
       <span class="modal-title">剪贴板历史</span>
-      <button class="icon-btn" id="clip-close" title="关闭">✕</button>
+      <button class="icon-btn" id="clip-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div id="clip-list"></div>
@@ -598,7 +598,7 @@
   <div class="modal-card">
     <div class="modal-head">
       <span class="modal-title">插入代码段</span>
-      <button class="icon-btn" id="snippet-close" title="关闭">✕</button>
+      <button class="icon-btn" id="snippet-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div id="snippet-list"></div>
@@ -611,7 +611,7 @@
   <div class="modal-card">
     <div class="modal-head">
       <span class="modal-title">编码转换</span>
-      <button class="icon-btn" id="enc-close" title="关闭">✕</button>
+      <button class="icon-btn" id="enc-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="ts-row">
@@ -631,8 +631,8 @@
         <span class="clip-hint">GB18030 兼容 GBK，中文文件建议选它</span>
       </div>
       <div class="ts-row">
-        <button class="tool-btn primary" id="enc-reload" title="磁盘文件按目标编码重新读取（乱码修复）">↻ 按此编码重新读取</button>
-        <button class="tool-btn primary" id="enc-saveas" title="当前内容以目标编码另存为文件">💾 另存为此编码…</button>
+        <button class="tool-btn primary" id="enc-reload" title="磁盘文件按目标编码重新读取（乱码修复）"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.4 12a8.4 8.4 0 1 1-2.6-6.1"/><path d="M20.4 4.2v5h-5"/></svg> 按此编码重新读取</button>
+        <button class="tool-btn primary" id="enc-saveas" title="当前内容以目标编码另存为文件"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 20.6H5A1.6 1.6 0 0 1 3.4 19V5A1.6 1.6 0 0 1 5 3.4h10.6L20.6 8.4V19a1.6 1.6 0 0 1-1.6 1.6Z"/><path d="M16.6 20.6v-7.4H7.4v7.4"/><path d="M7.4 3.4v4.6h7"/></svg> 另存为此编码…</button>
       </div>
     </div>
   </div>
@@ -643,7 +643,7 @@
   <div class="modal-card modal-card-sm">
     <div class="modal-head">
       <span class="modal-title">设置</span>
-      <button class="icon-btn" id="settings-close" title="关闭">✕</button>
+      <button class="icon-btn" id="settings-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="settings-tabs">
@@ -731,14 +731,14 @@
   <div class="modal-card modal-card-sm">
     <div class="modal-head">
       <span class="modal-title">关于 L.Note</span>
-      <button class="icon-btn" id="about-close" title="关闭">✕</button>
+      <button class="icon-btn" id="about-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="about-hero">
-        <div class="about-logo">📝</div>
+        <div class="about-logo"><img src="icons/L.NOTE/icon-L.NOTE.svg" alt="L.Note"></div>
         <div class="about-name">L.Note</div>
         <div class="about-version" id="about-version">版本 --</div>
-        <div class="about-desc">轻量级本地笔记与文档编辑工具</div>
+        <div class="about-desc">一款纯本地的笔记编辑软件</div>
       </div>
       <div class="about-update">
         <div class="about-update-status" id="about-status">点击「检查更新」获取最新版本信息</div>
@@ -760,11 +760,11 @@
   <div class="modal-card modal-card-sm">
     <div class="modal-head">
       <span class="modal-title">发现新版本</span>
-      <button class="icon-btn" id="update-close" title="关闭">✕</button>
+      <button class="icon-btn" id="update-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="update-hero">
-        <div class="update-ico">⬆️</div>
+        <div class="update-ico"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.4"/><path d="M12 16.4V7.8"/><path d="m8.4 11.4 3.6-3.6 3.6 3.6"/></svg></div>
         <div class="update-title" id="update-title">L.Note 新版本可用</div>
         <div class="update-versions" id="update-versions"></div>
         <div class="update-desc">是否立即下载并安装最新版本？安装完成后将自动重启到新版本。</div>
@@ -789,14 +789,14 @@
 <div id="image-modal" class="modal-overlay image-modal" style="display:none">
   <div class="image-viewer">
     <div class="image-viewer-bar">
-      <span class="image-viewer-ico">🖼️</span>
+      <span class="image-viewer-ico"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="2.2"/><circle cx="9" cy="9" r="1.8"/><path d="m20.6 15.6-3.8-3.8a2 2 0 0 0-2.8 0l-8 8"/></svg></span>
       <span id="image-name" class="image-name"></span>
       <span class="toolbar-spacer"></span>
-      <button class="tool-btn" id="img-zoom-out" title="缩小">－</button>
+      <button class="tool-btn" id="img-zoom-out" title="缩小"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg></button>
       <button class="tool-btn" id="img-zoom-reset" title="重置缩放">100%</button>
-      <button class="tool-btn" id="img-zoom-in" title="放大">＋</button>
-      <button class="tool-btn" id="img-fit" title="适应窗口">⤢ 适应</button>
-      <button class="icon-btn" id="img-close" title="关闭 (Esc)">✕</button>
+      <button class="tool-btn" id="img-zoom-in" title="放大"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="tool-btn" id="img-fit" title="适应窗口"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8.4 3.4H5.4a2 2 0 0 0-2 2v3"/><path d="M15.6 3.4h3a2 2 0 0 1 2 2v3"/><path d="M3.4 15.6v3a2 2 0 0 0 2 2h3"/><path d="M20.6 15.6v3a2 2 0 0 1-2 2h-3"/></svg> 适应</button>
+      <button class="icon-btn" id="img-close" title="关闭 (Esc)"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="image-viewer-stage" id="image-stage">
       <img id="image-view" alt="图片预览">
@@ -809,19 +809,19 @@
 <div id="pdf-modal" class="modal-overlay image-modal" style="display:none">
   <div class="image-viewer">
     <div class="image-viewer-bar">
-      <span class="image-viewer-ico">📄</span>
+      <span class="image-viewer-ico"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.4 3.4H6.6a2.2 2.2 0 0 0-2.2 2.2v12.8a2.2 2.2 0 0 0 2.2 2.2h10.8a2.2 2.2 0 0 0 2.2-2.2V9.2Z"/><path d="M13.4 3.4v5.8h6.2"/><path d="M8.6 18.2V13h1.7a1.5 1.5 0 0 1 0 3H8.6"/></svg></span>
       <span id="pdf-name" class="image-name"></span>
       <span class="image-name" id="pdf-page-info" style="opacity:.72;margin-left:10px"></span>
       <span class="toolbar-spacer"></span>
-      <button class="tool-btn" id="pdf-prev" title="上一页">◀</button>
-      <button class="tool-btn" id="pdf-next" title="下一页">▶</button>
-      <button class="tool-btn" id="pdf-zoom-out" title="缩小">－</button>
+      <button class="tool-btn" id="pdf-prev" title="上一页"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg></button>
+      <button class="tool-btn" id="pdf-next" title="下一页"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></button>
+      <button class="tool-btn" id="pdf-zoom-out" title="缩小"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg></button>
       <button class="tool-btn" id="pdf-zoom-reset" title="重置缩放">100%</button>
-      <button class="tool-btn" id="pdf-zoom-in" title="放大">＋</button>
-      <button class="tool-btn" id="pdf-fit" title="适应宽度">⤢ 适应</button>
-      <button class="tool-btn" id="pdf-copy" title="复制全部文字到剪贴板">📋 复制内容</button>
-      <button class="tool-btn" id="pdf-extract" title="把 PDF 文字提取为文本文档继续编辑">📝 提取文本</button>
-      <button class="icon-btn" id="pdf-close" title="关闭 (Esc)">✕</button>
+      <button class="tool-btn" id="pdf-zoom-in" title="放大"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="tool-btn" id="pdf-fit" title="适应宽度"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8.4 3.4H5.4a2 2 0 0 0-2 2v3"/><path d="M15.6 3.4h3a2 2 0 0 1 2 2v3"/><path d="M3.4 15.6v3a2 2 0 0 0 2 2h3"/><path d="M20.6 15.6v3a2 2 0 0 1-2 2h-3"/></svg> 适应</button>
+      <button class="tool-btn" id="pdf-copy" title="复制全部文字到剪贴板"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11.6" height="11.6" rx="2.1"/><path d="M15 5.4V5a2 2 0 0 0-2-2H5.4a2 2 0 0 0-2 2V13a2 2 0 0 0 2 2h.4"/></svg> 复制内容</button>
+      <button class="tool-btn" id="pdf-extract" title="把 PDF 文字提取为文本文档继续编辑"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.4H5.4a2 2 0 0 0-2 2v13.2a2 2 0 0 0 2 2h13.2a2 2 0 0 0 2-2V12"/><path d="M17.9 2.8a2.1 2.1 0 0 1 3 3L12.4 14.3l-4 1 1-4Z"/></svg> 提取文本</button>
+      <button class="icon-btn" id="pdf-close" title="关闭 (Esc)"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="pdf-stage" id="pdf-stage">
       <div id="pdf-canvas-wrap"></div>
@@ -834,14 +834,14 @@
 <div id="doc-modal" class="modal-overlay image-modal" style="display:none">
   <div class="image-viewer">
     <div class="image-viewer-bar">
-      <span class="image-viewer-ico">📘</span>
+      <span class="image-viewer-ico"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.2 19.4A2.4 2.4 0 0 1 6.6 17h13.2"/><path d="M6.6 2.6h13.2v18.8H6.6A2.4 2.4 0 0 1 4.2 19v-14A2.4 2.4 0 0 1 6.6 2.6Z"/></svg></span>
       <span id="doc-name" class="image-name"></span>
       <span class="image-name" id="doc-page-info" style="opacity:.72;margin-left:10px"></span>
       <span class="toolbar-spacer"></span>
-      <button class="tool-btn" id="doc-import-rich" title="把文档文字导入为富文档继续编辑">📝 导入富文档</button>
-      <button class="tool-btn" id="doc-import-text" title="把文档文字导入为 Markdown 继续编辑">📄 导入 Markdown</button>
-      <button class="tool-btn" id="doc-copy" title="复制全部文字到剪贴板">📋 复制内容</button>
-      <button class="icon-btn" id="doc-close" title="关闭 (Esc)">✕</button>
+      <button class="tool-btn" id="doc-import-rich" title="把文档文字导入为富文档继续编辑"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.4H5.4a2 2 0 0 0-2 2v13.2a2 2 0 0 0 2 2h13.2a2 2 0 0 0 2-2V12"/><path d="M17.9 2.8a2.1 2.1 0 0 1 3 3L12.4 14.3l-4 1 1-4Z"/></svg> 导入富文档</button>
+      <button class="tool-btn" id="doc-import-text" title="把文档文字导入为 Markdown 继续编辑"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.4 3.4H6.6a2.2 2.2 0 0 0-2.2 2.2v12.8a2.2 2.2 0 0 0 2.2 2.2h10.8a2.2 2.2 0 0 0 2.2-2.2V9.2Z"/><path d="M13.4 3.4v5.8h6.2"/><path d="M8.2 13.2h7.6M8.2 16.8h5.2"/></svg> 导入 Markdown</button>
+      <button class="tool-btn" id="doc-copy" title="复制全部文字到剪贴板"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11.6" height="11.6" rx="2.1"/><path d="M15 5.4V5a2 2 0 0 0-2-2H5.4a2 2 0 0 0-2 2V13a2 2 0 0 0 2 2h.4"/></svg> 复制内容</button>
+      <button class="icon-btn" id="doc-close" title="关闭 (Esc)"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="pdf-stage" id="doc-stage">
       <div id="doc-body"></div>
@@ -855,7 +855,7 @@
   <div class="modal-card">
     <div class="modal-head">
       <span class="modal-title">编码转换</span>
-      <button class="icon-btn" id="code-close" title="关闭">✕</button>
+      <button class="icon-btn" id="code-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="ts-row">
@@ -865,16 +865,16 @@
       <div class="ts-section">输入内容</div>
       <textarea id="code-input" class="code-area" placeholder="输入要转换的文本…" spellcheck="false"></textarea>
       <div class="ts-row">
-        <button class="tool-btn primary" id="code-encode">→ 编码</button>
-        <button class="tool-btn primary" id="code-decode">→ 解码</button>
-        <button class="tool-btn" id="code-swap">⇅ 结果填入输入框</button>
+        <button class="tool-btn primary" id="code-encode"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16"/><path d="m14 6 6 6-6 6"/></svg> 编码</button>
+        <button class="tool-btn primary" id="code-decode"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16"/><path d="m14 6 6 6-6 6"/></svg> 解码</button>
+        <button class="tool-btn" id="code-swap"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 4.4v15.2"/><path d="m13.4 15.8 3.6 3.8 3.6-3.8"/><path d="M7 19.6V4.4"/><path d="m3.4 8.2 3.6-3.8 3.6 3.8"/></svg> 结果填入输入框</button>
         <button class="tool-btn" id="code-clear">清空</button>
       </div>
       <div class="ts-section">转换结果</div>
       <textarea id="code-output" class="code-area" readonly placeholder="转换结果将显示在这里"></textarea>
       <div class="ts-row">
-        <button class="tool-btn" id="code-copy">📋 复制结果</button>
-        <button class="tool-btn" id="code-apply">↩ 应用到编辑器</button>
+        <button class="tool-btn" id="code-copy"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11.6" height="11.6" rx="2.1"/><path d="M15 5.4V5a2 2 0 0 0-2-2H5.4a2 2 0 0 0-2 2V13a2 2 0 0 0 2 2h.4"/></svg> 复制结果</button>
+        <button class="tool-btn" id="code-apply"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4.4v6.6a3.6 3.6 0 0 1-3.6 3.6H4.4"/><path d="m9.4 10.2-5 4.4 5 4.4"/></svg> 应用到编辑器</button>
       </div>
     </div>
   </div>
@@ -887,7 +887,7 @@
     <div class="fr-header">
       <span class="fr-header-title" id="fr-header-title">查找</span>
       <span class="fr-flex"></span>
-      <button class="fr-close-btn" id="fr-close" title="关闭 (Esc)">✕</button>
+      <button class="fr-close-btn" id="fr-close" title="关闭 (Esc)"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
 
     <!-- 查找行 -->
@@ -895,11 +895,11 @@
       <label class="fr-lbl" for="fr-find">查找:</label>
       <div class="fr-input-wrap">
         <input id="fr-find" class="fr-input" type="text" spellcheck="false" autocomplete="off">
-        <button class="fr-btn-icon" id="fr-find-hist" title="查找历史">▾</button>
+        <button class="fr-btn-icon" id="fr-find-hist" title="查找历史"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
       </div>
-      <button class="fr-nav-btn" id="fr-find-prev" title="上一个 (Shift+F3)">▲</button>
-      <button class="fr-nav-btn" id="fr-find-arrow" title="下一个 (F3)">▼</button>
-      <button class="fr-btn-icon star" id="fr-fav" title="收藏当前查找词">★</button>
+      <button class="fr-nav-btn" id="fr-find-prev" title="上一个 (Shift+F3)"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg></button>
+      <button class="fr-nav-btn" id="fr-find-arrow" title="下一个 (F3)"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+      <button class="fr-btn-icon star" id="fr-fav" title="收藏当前查找词"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3.4 2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.8Z"/></svg></button>
     </div>
 
     <!-- 替换行 -->
@@ -907,7 +907,7 @@
       <label class="fr-lbl" for="fr-replace">替换:</label>
       <div class="fr-input-wrap">
         <input id="fr-replace" class="fr-input" type="text" spellcheck="false" autocomplete="off">
-        <button class="fr-btn-icon" id="fr-replace-hist" title="替换历史">▾</button>
+        <button class="fr-btn-icon" id="fr-replace-hist" title="替换历史"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
       </div>
       <span class="fr-spacer"></span>
       <button class="fr-btn primary" id="fr-replace-one">替换</button>
@@ -945,7 +945,7 @@
       <label class="fr-radio"><input type="radio" name="fr-scope" value="selection">选区</label>
       <label class="fr-radio"><input type="radio" name="fr-scope" value="all">所有打开的文件</label>
       <span class="fr-flex"></span>
-      <button class="fr-btn-icon" id="fr-more" title="更多操作">⋯</button>
+      <button class="fr-btn-icon" id="fr-more" title="更多操作"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.4" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18.6" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg></button>
     </div>
 
     <div class="fr-status" id="fr-status"></div>
@@ -957,7 +957,7 @@
   <div class="fr-batch-card">
     <div class="modal-head">
       <span class="modal-title">批量替换（每行一对：查找⇨替换）</span>
-      <button class="icon-btn" id="fr-batch-close" title="关闭">✕</button>
+      <button class="icon-btn" id="fr-batch-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="fr-batch-body">
       <textarea id="fr-batch-text" class="fr-batch-ta" spellcheck="false" placeholder="一行一对，支持以下三种格式：
@@ -970,7 +970,7 @@ old = new"></textarea>
         <button class="fr-btn" id="fr-batch-from-find">从查找历史填入</button>
       </div>
       <div class="fr-batch-hint">
-        💡 不勾选「正则」时按字面替换，勾选后使用正则语法。
+        <svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.4 18.4h5.2"/><path d="M10.4 21h3.2"/><path d="M12 3.4a5.8 5.8 0 0 0-3.4 10.5c.6.5 1 1.2 1 2h4.8c0-.8.4-1.5 1-2A5.8 5.8 0 0 0 12 3.4Z"/></svg> 不勾选「正则」时按字面替换，勾选后使用正则语法。
         替换为空可批量删除；空行会被忽略。
       </div>
     </div>
@@ -982,7 +982,7 @@ old = new"></textarea>
   <div class="modal-card">
     <div class="modal-head">
       <span class="modal-title">Unix 时间互转（日期转毫秒）</span>
-      <button class="icon-btn" id="ts-close" title="关闭">✕</button>
+      <button class="icon-btn" id="ts-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="ts-row">
@@ -1092,12 +1092,12 @@ window.__docReady = function (cb) {
   <div class="modal-card modal-card-sm">
     <div class="modal-head">
       <span class="modal-title">删除文档</span>
-      <button class="icon-btn" id="doc-del-close" title="关闭">✕</button>
+      <button class="icon-btn" id="doc-del-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="doc-del-hint">确定要从「我的文档」中移除这条记录吗？</div>
       <div class="doc-del-name" id="doc-del-name">—</div>
-      <div class="doc-del-foot">ⓘ <span id="doc-del-foot">仅从列表移除记录，不会删除磁盘上的源文件。</span></div>
+      <div class="doc-del-foot"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.4"/><path d="M12 11.2v4.8"/><path d="M12 7.8h.01"/></svg><span id="doc-del-foot">仅从列表移除记录，不会删除磁盘上的源文件。</span></div>
     </div>
     <div class="modal-foot">
       <button class="tool-btn" id="doc-del-cancel">取消</button>
@@ -1111,7 +1111,7 @@ window.__docReady = function (cb) {
   <div class="modal-card modal-card-sm">
     <div class="modal-head">
       <span class="modal-title">重命名文档</span>
-      <button class="icon-btn" id="doc-rename-close" title="关闭">✕</button>
+      <button class="icon-btn" id="doc-rename-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <input type="text" class="tool-input" id="doc-rename-input" placeholder="请输入文档名称">
@@ -1128,7 +1128,7 @@ window.__docReady = function (cb) {
   <div class="modal-card modal-card-sm">
     <div class="modal-head">
       <span class="modal-title" id="doc-batch-del-title">批量删除文档</span>
-      <button class="icon-btn" id="doc-batch-del-close" title="关闭">✕</button>
+      <button class="icon-btn" id="doc-batch-del-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="doc-del-hint" id="doc-batch-del-hint">确定要从「我的文档」中移除选中的文档吗？</div>
@@ -1147,7 +1147,7 @@ window.__docReady = function (cb) {
   <div class="modal-card modal-card-sm">
     <div class="modal-head">
       <span class="modal-title">编辑标签</span>
-      <button class="icon-btn" id="tag-edit-close" title="关闭">✕</button>
+      <button class="icon-btn" id="tag-edit-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="tag-edit-docname" id="tag-edit-docname">—</div>
@@ -1178,7 +1178,7 @@ window.__docReady = function (cb) {
   <div class="modal-card modal-card-sm">
     <div class="modal-head">
       <span class="modal-title">便利贴</span>
-      <button class="icon-btn" id="sticky-edit-close" title="关闭">✕</button>
+      <button class="icon-btn" id="sticky-edit-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="sticky-color-row" id="sticky-color-row">
@@ -1234,7 +1234,7 @@ window.__docReady = function (cb) {
   <div class="modal-card modal-card-sm">
     <div class="modal-head">
       <span class="modal-title">提醒</span>
-      <button class="icon-btn" id="sticky-reminder-close" title="关闭">✕</button>
+      <button class="icon-btn" id="sticky-reminder-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="tag-edit-docname" id="sticky-reminder-title">—</div>
@@ -1251,12 +1251,12 @@ window.__docReady = function (cb) {
   <div class="modal-card icon-modal-card">
     <div class="modal-head">
       <span class="modal-title">插入图标</span>
-      <button class="icon-btn" id="icon-close" title="关闭">✕</button>
+      <button class="icon-btn" id="icon-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="icon-tabs">
-        <button class="icon-tab active" data-icontab="emoji">😀 Emoji</button>
-        <button class="icon-tab" data-icontab="vector">🎯 矢量图标</button>
+        <button class="icon-tab active" data-icontab="emoji"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.4"/><path d="M8.6 14.2s1.4 1.8 3.4 1.8 3.4-1.8 3.4-1.8"/><path d="M9.4 9.4h.01M14.6 9.4h.01"/></svg> Emoji</button>
+        <button class="icon-tab" data-icontab="vector"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="4.4"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg> 矢量图标</button>
       </div>
       <div class="icon-search-row">
         <input id="icon-search" class="tool-input" placeholder="搜索图标…" spellcheck="false">
@@ -1273,7 +1273,7 @@ window.__docReady = function (cb) {
   <div class="modal-card modal-card-sm">
     <div class="modal-head">
       <span class="modal-title">插入代码块</span>
-      <button class="icon-btn" id="code-ins-close" title="关闭">✕</button>
+      <button class="icon-btn" id="code-ins-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="ts-row">
@@ -1312,7 +1312,7 @@ window.__docReady = function (cb) {
   <div class="modal-card modal-card-sm">
     <div class="modal-head">
       <span class="modal-title">插入表格</span>
-      <button class="icon-btn" id="table-ins-close" title="关闭">✕</button>
+      <button class="icon-btn" id="table-ins-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="ts-row">
@@ -1337,14 +1337,14 @@ window.__docReady = function (cb) {
   <div class="modal-card modal-card-sm">
     <div class="modal-head">
       <span class="modal-title">选择标注类型</span>
-      <button class="icon-btn" id="callout-close" title="关闭">✕</button>
+      <button class="icon-btn" id="callout-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body callout-picker">
-      <button class="callout-pick" data-co="note"><span class="cp-ico">ℹ️</span><span><b>NOTE</b><small>说明 / 补充信息</small></span></button>
-      <button class="callout-pick" data-co="tip"><span class="cp-ico">💡</span><span><b>TIP</b><small>技巧 / 建议</small></span></button>
-      <button class="callout-pick" data-co="important"><span class="cp-ico"></span><span><b>IMPORTANT</b><small>重要提醒</small></span></button>
-      <button class="callout-pick" data-co="warning"><span class="cp-ico">⚠️</span><span><b>WARNING</b><small>警告</small></span></button>
-      <button class="callout-pick" data-co="caution"><span class="cp-ico">🚫</span><span><b>CAUTION</b><small>危险 / 禁止</small></span></button>
+      <button class="callout-pick" data-co="note"><span class="cp-ico"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.4"/><path d="M12 11.2v4.8"/><path d="M12 7.8h.01"/></svg></span><span><b>NOTE</b><small>说明 / 补充信息</small></span></button>
+      <button class="callout-pick" data-co="tip"><span class="cp-ico"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.4 18.4h5.2"/><path d="M10.4 21h3.2"/><path d="M12 3.4a5.8 5.8 0 0 0-3.4 10.5c.6.5 1 1.2 1 2h4.8c0-.8.4-1.5 1-2A5.8 5.8 0 0 0 12 3.4Z"/></svg></span><span><b>TIP</b><small>技巧 / 建议</small></span></button>
+      <button class="callout-pick" data-co="important"><span class="cp-ico"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3.6 2.6 5.4 5.9.8-4.3 4.2 1 5.9L12 17.1l-5.2 2.8 1-5.9-4.3-4.2 5.9-.8Z"/></svg></span><span><b>IMPORTANT</b><small>重要提醒</small></span></button>
+      <button class="callout-pick" data-co="warning"><span class="cp-ico"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.8 21.1 19.6a1 1 0 0 1-.9 1.4H3.8a1 1 0 0 1-.9-1.4Z"/><path d="M12 9.4v4.4"/><path d="M12 17.2h.01"/></svg></span><span><b>WARNING</b><small>警告</small></span></button>
+      <button class="callout-pick" data-co="caution"><span class="cp-ico"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.4"/><path d="m6.1 6.1 11.8 11.8"/></svg></span><span><b>CAUTION</b><small>危险 / 禁止</small></span></button>
     </div>
   </div>
 </div>
@@ -1354,12 +1354,12 @@ window.__docReady = function (cb) {
   <div class="modal-card translate-card">
     <div class="modal-head">
       <span class="modal-title">翻译</span>
-      <button class="icon-btn" id="translate-close" title="关闭">✕</button>
+      <button class="icon-btn" id="translate-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body translate-body">
       <div class="tr-label" id="translate-src-label">原文</div>
       <div class="tr-box" id="translate-orig"></div>
-      <div class="tr-arrow">↓</div>
+      <div class="tr-arrow"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16"/><path d="m6 14 6 6 6-6"/></svg></div>
       <div class="tr-label" id="translate-dst-label">译文</div>
       <div class="tr-box" id="translate-result"></div>
     </div>
@@ -1374,7 +1374,7 @@ window.__docReady = function (cb) {
 <div id="ai-panel" class="ai-panel" style="display:none">
   <div class="ai-panel-head">
     <span class="ai-panel-title" id="ai-panel-title">AI 助手</span>
-    <button class="icon-btn" id="ai-panel-close" title="关闭">✕</button>
+    <button class="icon-btn" id="ai-panel-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
   <div class="ai-panel-meta" id="ai-panel-meta"></div>
   <div class="ai-panel-body" id="ai-panel-body"></div>
@@ -1393,7 +1393,7 @@ window.__docReady = function (cb) {
 <div id="ai-diagram-panel" class="ai-panel" style="display:none">
   <div class="ai-panel-head">
     <span class="ai-panel-title" id="ai-diagram-title">AI 图表</span>
-    <button class="icon-btn" id="ai-diagram-close" title="关闭">✕</button>
+    <button class="icon-btn" id="ai-diagram-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
   <div class="ai-panel-meta" id="ai-diagram-meta"></div>
   <div class="ai-panel-body" id="ai-diagram-body" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px"></div>
@@ -1411,7 +1411,7 @@ window.__docReady = function (cb) {
   <div class="modal-card modal-card-sm">
     <div class="modal-head">
       <span class="modal-title" id="ai-diagram-prompt-title">AI 图表</span>
-      <button class="icon-btn" id="ai-diagram-prompt-close" title="关闭">✕</button>
+      <button class="icon-btn" id="ai-diagram-prompt-close" title="关闭"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <textarea id="ai-diagram-prompt-text" class="tool-input" rows="6" style="width:100%;resize:vertical"
@@ -1436,141 +1436,141 @@ window.__docReady = function (cb) {
 <div id="ctx-menu" class="ink-ctx-menu" style="display:none">
   <div class="ctx-group">
     <button class="ctx-item" data-cmd="undo">
-      <span class="ctx-icon">↶</span><span class="ctx-label">撤销</span><span class="ctx-shortcut">Ctrl+Z</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14.5 4 9.5l5-5"/><path d="M4 9.5h10.4a5.6 5.6 0 0 1 0 11.2H11"/></svg></span><span class="ctx-label">撤销</span><span class="ctx-shortcut">Ctrl+Z</span>
     </button>
     <button class="ctx-item" data-cmd="redo">
-      <span class="ctx-icon">↷</span><span class="ctx-label">重做</span><span class="ctx-shortcut">Ctrl+Y</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14.5 5-5-5-5"/><path d="M20 9.5H9.6a5.6 5.6 0 0 0 0 11.2H13"/></svg></span><span class="ctx-label">重做</span><span class="ctx-shortcut">Ctrl+Y</span>
     </button>
   </div>
   <div class="ctx-divider"></div>
   <div class="ctx-group">
     <button class="ctx-item" data-cmd="cut">
-      <span class="ctx-icon">✂</span><span class="ctx-label">剪切</span><span class="ctx-shortcut">Ctrl+X</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.2" cy="6.2" r="2.6"/><circle cx="6.2" cy="17.8" r="2.6"/><path d="M20 4.4 8.2 16.2M14.6 14.6 20 20M8.3 8.3 12 12"/></svg></span><span class="ctx-label">剪切</span><span class="ctx-shortcut">Ctrl+X</span>
     </button>
     <button class="ctx-item" data-cmd="copy">
-      <span class="ctx-icon">⎘</span><span class="ctx-label">复制</span><span class="ctx-shortcut">Ctrl+C</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11.6" height="11.6" rx="2.1"/><path d="M15 5.4V5a2 2 0 0 0-2-2H5.4a2 2 0 0 0-2 2V13a2 2 0 0 0 2 2h.4"/></svg></span><span class="ctx-label">复制</span><span class="ctx-shortcut">Ctrl+C</span>
     </button>
     <button class="ctx-item" data-cmd="paste">
-      <span class="ctx-icon">⤒</span><span class="ctx-label">粘贴</span><span class="ctx-shortcut">Ctrl+V</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4.4h1.6a2 2 0 0 1 2 2v13.2a2 2 0 0 1-2 2H6.4a2 2 0 0 1-2-2V6.4a2 2 0 0 1 2-2H8"/><rect x="8" y="2.6" width="8" height="3.8" rx="1.2"/></svg></span><span class="ctx-label">粘贴</span><span class="ctx-shortcut">Ctrl+V</span>
     </button>
     <button class="ctx-item" data-cmd="selectall">
-      <span class="ctx-icon">☷</span><span class="ctx-label">全选</span><span class="ctx-shortcut">Ctrl+A</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="2.4"/><path d="m8.4 12.2 2.6 2.6 5-6"/></svg></span><span class="ctx-label">全选</span><span class="ctx-shortcut">Ctrl+A</span>
     </button>
     <button class="ctx-item ctx-item-danger" data-cmd="del">
-      <span class="ctx-icon">✕</span><span class="ctx-label">删除选中</span><span class="ctx-shortcut">Delete</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span><span class="ctx-label">删除选中</span><span class="ctx-shortcut">Delete</span>
     </button>
   </div>
   <div class="ctx-divider"></div>
   <div class="ctx-group">
     <button class="ctx-item" data-cmd="translate">
-      <span class="ctx-icon">译</span><span class="ctx-label">翻译</span><span class="ctx-shortcut">选中内容</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.4h9"/><path d="M8.5 3.4v2"/><path d="m5.4 13.4 4-8 4 8"/><path d="M6.8 10.6h5.2"/><path d="M14 11.4h6.6"/><path d="m15.4 20.6 3-8 3 8"/><path d="M16.6 17.8h4.2"/></svg></span><span class="ctx-label">翻译</span><span class="ctx-shortcut">选中内容</span>
     </button>
   </div>
   <div class="ctx-divider"></div>
   <div class="ctx-group" id="ctx-group-ai" style="display:none">
     <div class="ctx-group-title">AI 助手</div>
     <button class="ctx-item" data-cmd="ai-polish">
-      <span class="ctx-icon">✦</span><span class="ctx-label">润色</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.6 3.4 13.2 8 17.8 9.6 13.2 11.2 11.6 15.8 10 11.2 5.4 9.6 10 8Z"/><path d="M18.4 14.4l.9 2.5 2.5.9-2.5.9-.9 2.5-.9-2.5-2.5-.9 2.5-.9Z"/></svg></span><span class="ctx-label">润色</span>
     </button>
     <button class="ctx-item" data-cmd="ai-continue">
-      <span class="ctx-icon">✎</span><span class="ctx-label">续写</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M16.6 3.6a2.6 2.6 0 0 1 3.8 3.7L7.6 20.1 3.4 21.1l1-4.2Z"/><path d="m14.6 5.6 3.8 3.8"/></svg></span><span class="ctx-label">续写</span>
     </button>
     <button class="ctx-item" data-cmd="ai-summary">
-      <span class="ctx-icon">☰</span><span class="ctx-label">总结要点</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.4h16"/><path d="M4 12h16"/><path d="M4 17.6h9.6"/></svg></span><span class="ctx-label">总结要点</span>
     </button>
     <button class="ctx-item" data-cmd="ai-expand">
-      <span class="ctx-icon">⤢</span><span class="ctx-label">扩写</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.6 3.4h6v6"/><path d="M9.4 20.6h-6v-6"/><path d="M20.6 3.4 14 10"/><path d="M3.4 20.6 10 14"/></svg></span><span class="ctx-label">扩写</span>
     </button>
     <button class="ctx-item" data-cmd="ai-fix">
-      <span class="ctx-icon">✓</span><span class="ctx-label">纠错</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg></span><span class="ctx-label">纠错</span>
     </button>
     <button class="ctx-item" data-cmd="ai-outline">
-      <span class="ctx-icon">⊞</span><span class="ctx-label">生成大纲</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="3.4" width="7" height="7" rx="1.6"/><rect x="13.6" y="3.4" width="7" height="7" rx="1.6"/><rect x="3.4" y="13.6" width="7" height="7" rx="1.6"/><rect x="13.6" y="13.6" width="7" height="7" rx="1.6"/></svg></span><span class="ctx-label">生成大纲</span>
     </button>
   </div>
   <div class="ctx-divider"></div>
   <div class="ctx-group" id="ctx-group-ai-diagram" style="display:none">
     <div class="ctx-group-title">AI 图表</div>
     <button class="ctx-item" data-cmd="ai-diagram-flow">
-      <span class="ctx-icon"><svg viewBox="0 0 24 24" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7.8" y="2.8" width="8.4" height="4.4" rx="1.2"/><path d="M12 7.2v2.1"/><path d="M10.8 8.2 12 9.3l1.2-1.1"/><path d="M12 11.4 16 15.4 12 19.4 8 15.4Z"/></svg></span><span class="ctx-label">生成流程图</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7.8" y="2.8" width="8.4" height="4.4" rx="1.2"/><path d="M12 7.2v2.1"/><path d="M10.8 8.2 12 9.3l1.2-1.1"/><path d="M12 11.4 16 15.4 12 19.4 8 15.4Z"/></svg></span><span class="ctx-label">生成流程图</span>
     </button>
     <button class="ctx-item" data-cmd="ai-diagram-mind">
-      <span class="ctx-icon"><svg viewBox="0 0 24 24" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4.6" y="9.2" width="5.4" height="5.6" rx="1.8"/><path d="M10 12c2.9 0 2.7-5.6 5.6-5.6"/><path d="M10 12h5.6"/><path d="M10 12c2.9 0 2.7 5.6 5.6 5.6"/><circle cx="17.4" cy="6.4" r="1.8"/><circle cx="17.4" cy="12" r="1.8"/><circle cx="17.4" cy="17.6" r="1.8"/></svg></span><span class="ctx-label">生成思维导图</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4.6" y="9.2" width="5.4" height="5.6" rx="1.8"/><path d="M10 12c2.9 0 2.7-5.6 5.6-5.6"/><path d="M10 12h5.6"/><path d="M10 12c2.9 0 2.7 5.6 5.6 5.6"/><circle cx="17.4" cy="6.4" r="1.8"/><circle cx="17.4" cy="12" r="1.8"/><circle cx="17.4" cy="17.6" r="1.8"/></svg></span><span class="ctx-label">生成思维导图</span>
     </button>
   </div>
   <div class="ctx-divider"></div>
   <div class="ctx-group">
     <div class="ctx-group-title">JSON 工具</div>
     <button class="ctx-item" data-cmd="json-format">
-      <span class="ctx-icon">{}</span><span class="ctx-label">JSON 格式化</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8.6 3.4H7.2A2.2 2.2 0 0 0 5 5.6V9a2.2 2.2 0 0 1-2.2 2.2A2.2 2.2 0 0 1 5 13.4V16.8A2.2 2.2 0 0 0 7.2 19h1.4"/><path d="M15.4 3.4h1.4A2.2 2.2 0 0 1 19 5.6V9a2.2 2.2 0 0 0 2.2 2.2A2.2 2.2 0 0 0 19 13.4V16.8a2.2 2.2 0 0 1-2.2 2.2h-1.4"/></svg></span><span class="ctx-label">JSON 格式化</span>
     </button>
     <button class="ctx-item" data-cmd="json-compress">
-      <span class="ctx-icon">⧉</span><span class="ctx-label">JSON 压缩</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.4h5.6V20"/><path d="M20 9.6h-5.6V4"/><path d="M9.6 14.4 3.4 20.6"/><path d="M20.6 3.4 14.4 9.6"/></svg></span><span class="ctx-label">JSON 压缩</span>
     </button>
     <button class="ctx-item" data-cmd="json-escape">
-      <span class="ctx-icon">\"</span><span class="ctx-label">转义</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15.4 4 8.6 20"/></svg></span><span class="ctx-label">转义</span>
     </button>
     <button class="ctx-item" data-cmd="json-unescape">
-      <span class="ctx-icon">"</span><span class="ctx-label">去转义</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.8 4.6 9.2 19.4"/><path d="M4.4 5 19.6 19"/></svg></span><span class="ctx-label">去转义</span>
     </button>
     <button class="ctx-item" data-cmd="json-unicode-zh">
-      <span class="ctx-icon">文</span><span class="ctx-label">Unicode → 中文</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.4v2"/><path d="M4.6 8h14.8"/><path d="m6.8 12.6 10.4 8.4"/><path d="m17.2 12.6-10.4 8.4"/></svg></span><span class="ctx-label">Unicode → 中文</span>
     </button>
     <button class="ctx-item" data-cmd="json-zh-unicode">
-      <span class="ctx-icon">U</span><span class="ctx-label">中文 → Unicode</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.6 4.4v8.4a5.4 5.4 0 0 0 10.8 0V4.4"/></svg></span><span class="ctx-label">中文 → Unicode</span>
     </button>
   </div>
   <div class="ctx-divider"></div>
   <div class="ctx-group">
     <button class="ctx-item" data-cmd="merge">
-      <span class="ctx-icon">⇔</span><span class="ctx-label">合并行</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16"/><path d="m8.4 8-4 4 4 4"/><path d="m15.6 8 4 4-4 4"/></svg></span><span class="ctx-label">合并行</span>
     </button>
     <button class="ctx-item" data-cmd="sort">
-      <span class="ctx-icon">⇅</span><span class="ctx-label">行排序</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 4.4v15.2"/><path d="m13.4 15.8 3.6 3.8 3.6-3.8"/><path d="M7 19.6V4.4"/><path d="m3.4 8.2 3.6-3.8 3.6 3.8"/></svg></span><span class="ctx-label">行排序</span>
     </button>
     <button class="ctx-item" data-cmd="reindent">
-      <span class="ctx-icon">⇥</span><span class="ctx-label">重新缩进</span><span class="ctx-shortcut">Tab</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 5h17.2M3.4 19h17.2"/><path d="M3.4 12h9.2"/><path d="m16.4 8.8 3.4 3.2-3.4 3.2"/></svg></span><span class="ctx-label">重新缩进</span><span class="ctx-shortcut">Tab</span>
     </button>
   </div>
   <div class="ctx-divider"></div>
   <div class="ctx-group">
     <button class="ctx-item" data-cmd="upper">
-      <span class="ctx-icon">↑</span><span class="ctx-label">转大写</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.4 17.6 8.4 8.2l4 9.4"/><path d="M5.9 14.4h5"/><path d="M17.6 18.8V7.6"/><path d="m15.2 10 2.4-2.4 2.4 2.4"/></svg></span><span class="ctx-label">转大写</span>
     </button>
     <button class="ctx-item" data-cmd="lower">
-      <span class="ctx-icon">↓</span><span class="ctx-label">转小写</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.4 20.2 8.4 10.8l4 9.4"/><path d="M5.9 17h5"/><path d="M17.6 10.4v11.2"/><path d="m15.2 19 2.4 2.4 2.4-2.4"/></svg></span><span class="ctx-label">转小写</span>
     </button>
     <button class="ctx-item" data-cmd="cmt">
-      <span class="ctx-icon">⁄</span><span class="ctx-label">切换注释</span><span class="ctx-shortcut">Ctrl+/</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 4 6.4 20"/><path d="M17.6 4l-3.2 16"/></svg></span><span class="ctx-label">切换注释</span><span class="ctx-shortcut">Ctrl+/</span>
     </button>
   </div>
   <div class="ctx-divider"></div>
   <div class="ctx-group">
     <div class="ctx-group-title">行操作</div>
     <button class="ctx-item" data-cmd="del-empty">
-      <span class="ctx-icon">∅</span><span class="ctx-label">删除空行</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.4"/><path d="m6.1 6.1 11.8 11.8"/></svg></span><span class="ctx-label">删除空行</span>
     </button>
     <button class="ctx-item" data-cmd="del-dup">
-      <span class="ctx-icon">≡</span><span class="ctx-label">删除重复行</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9.4" y="3.4" width="11.2" height="11.2" rx="2"/><path d="M15.4 17.9v1.7a2 2 0 0 1-2 2H5.4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1.7"/><path d="m12.4 7.4 4.6 4.6"/><path d="m17 7.4-4.6 4.6"/></svg></span><span class="ctx-label">删除重复行</span>
     </button>
     <button class="ctx-item" data-cmd="del-sol-space">
-      <span class="ctx-icon">⇤</span><span class="ctx-label">删除行头空白</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.4 3.4v17.2"/><path d="M8.6 7.4h10.8M8.6 12h10.8M8.6 16.6h10.8"/></svg></span><span class="ctx-label">删除行头空白</span>
     </button>
     <button class="ctx-item" data-cmd="del-eol-space">
-      <span class="ctx-icon">⇥</span><span class="ctx-label">删除行尾空白</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19.6 3.4v17.2"/><path d="M4.6 7.4h10.8M4.6 12h10.8M4.6 16.6h10.8"/></svg></span><span class="ctx-label">删除行尾空白</span>
     </button>
     <button class="ctx-item ctx-item-danger" data-cmd="del-line">
-      <span class="ctx-icon">✕</span><span class="ctx-label">删除整行</span><span class="ctx-shortcut">Ctrl+L</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.6h16M4 17.4h16"/><path d="M4 12h5.2"/><path d="m15 8.6 5.4 6.8M20.4 8.6 15 15.4"/></svg></span><span class="ctx-label">删除整行</span><span class="ctx-shortcut">Ctrl+L</span>
     </button>
   </div>
   <div class="ctx-divider"></div>
   <div class="ctx-group">
     <div class="ctx-group-title">代码折叠</div>
     <button class="ctx-item" data-cmd="fold-all">
-      <span class="ctx-icon">⋯</span><span class="ctx-label">折叠全部</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m7 3.6 5 5 5-5"/><path d="m7 20.4 5-5 5 5"/></svg></span><span class="ctx-label">折叠全部</span>
     </button>
     <button class="ctx-item" data-cmd="unfold-all">
-      <span class="ctx-icon">⋮</span><span class="ctx-label">展开全部</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m7 20.4 5-5 5 5"/><path d="m7 3.6 5 5 5-5"/></svg></span><span class="ctx-label">展开全部</span>
     </button>
   </div>
 </div>
@@ -1579,28 +1579,28 @@ window.__docReady = function (cb) {
 <div id="doc-ctx-menu" class="ink-ctx-menu" style="display:none">
   <div class="ctx-group">
     <button class="ctx-item" data-dcmd="open">
-      <span class="ctx-icon">↗</span><span class="ctx-label">打开文档</span><span class="ctx-shortcut">Enter</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8.4 7H17v8.6"/></svg></span><span class="ctx-label">打开文档</span><span class="ctx-shortcut">Enter</span>
     </button>
   </div>
   <div class="ctx-divider"></div>
   <div class="ctx-group">
     <button class="ctx-item" data-dcmd="copy-title">
-      <span class="ctx-icon">⎘</span><span class="ctx-label">复制标题</span><span class="ctx-shortcut">Ctrl+C</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11.6" height="11.6" rx="2.1"/><path d="M15 5.4V5a2 2 0 0 0-2-2H5.4a2 2 0 0 0-2 2V13a2 2 0 0 0 2 2h.4"/></svg></span><span class="ctx-label">复制标题</span><span class="ctx-shortcut">Ctrl+C</span>
     </button>
     <button class="ctx-item" data-dcmd="copy-path" id="doc-ctx-copypath">
-      <span class="ctx-icon">⎘</span><span class="ctx-label">复制路径</span><span class="ctx-shortcut">Ctrl+Shift+C</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11.6" height="11.6" rx="2.1"/><path d="M15 5.4V5a2 2 0 0 0-2-2H5.4a2 2 0 0 0-2 2V13a2 2 0 0 0 2 2h.4"/></svg></span><span class="ctx-label">复制路径</span><span class="ctx-shortcut">Ctrl+Shift+C</span>
     </button>
   </div>
   <div class="ctx-divider"></div>
   <div class="ctx-group">
     <button class="ctx-item" data-dcmd="tag">
-      <span class="ctx-icon">#</span><span class="ctx-label">编辑标签</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.4 3.6 7.6 20.4M16.4 3.6l-1.8 16.8"/><path d="M3.8 8.6h16.4M3 15.4h16.4"/></svg></span><span class="ctx-label">编辑标签</span>
     </button>
   </div>
   <div class="ctx-divider"></div>
   <div class="ctx-group">
     <button class="ctx-item ctx-item-danger" data-dcmd="del">
-      <span class="ctx-icon">🗑</span><span class="ctx-label">删除文档</span>
+      <span class="ctx-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h16"/><path d="M9.4 6.5V4.4A1.4 1.4 0 0 1 10.8 3h2.4A1.4 1.4 0 0 1 14.6 4.4v2.1"/><path d="M6.4 6.5 7.3 20a1.4 1.4 0 0 0 1.4 1.3h6.6a1.4 1.4 0 0 0 1.4-1.3l.9-13.5"/><path d="M10.2 10.4v7.2M13.8 10.4v7.2"/></svg></span><span class="ctx-label">删除文档</span>
     </button>
   </div>
 </div>

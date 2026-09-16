@@ -1,5 +1,5 @@
 /* =========================================================
- * InkpadBlocks —— Notion / 飞书式块编辑器（所见即所得）
+ * InkpadBlocks —— 块编辑器（所见即所得）
  * ---------------------------------------------------------
  * 文档 = 块数组；文本块用 contentEditable 富文本，
  * 代码 / 表格 / 图片 / 流程图 / 公式 / 标注 渲染成组件。
@@ -95,7 +95,7 @@ window.InkpadBlocks = (function () {
       }
     });
     if (_outlineCb) {
-      try { _outlineCb(outline); } catch (e) { console.warn('[inkpad] outline cb', e); }
+      try { _outlineCb(outline); } catch (e) { console.warn('[L.Note] outline cb', e); }
     }
   }
 
@@ -168,7 +168,7 @@ window.InkpadBlocks = (function () {
 
     state.blocks.forEach(function (b) {
       try { root.appendChild(renderBlock(b)); }
-      catch (e) { console.warn('[inkpad] block render', b && b.type, e); }
+      catch (e) { console.warn('[L.Note] block render', b && b.type, e); }
     });
 
     var addZone = document.createElement('div');
@@ -463,7 +463,7 @@ window.InkpadBlocks = (function () {
       img.classList.add('ink-img-err');
       // 诊断：输出 src 前 100 字符到 toast
       var diag = (img.src || '').substring(0, 100);
-      console.error('[inkpad] img load error, src=' + diag);
+      console.error('[L.Note] img load error, src=' + diag);
       // 回退：通过 API 读取图片为 base64 data URI
       if (errRetried || !src || !hasApi()) return;
       errRetried = true;
@@ -858,7 +858,7 @@ window.InkpadBlocks = (function () {
   var _bubbleCb = null;
   function setBubbleListener(cb) { _bubbleCb = cb; }
   function notifyBubble(info) {
-    if (_bubbleCb) { try { _bubbleCb(info); } catch (e) { console.warn('[inkpad] bubble cb', e); } }
+    if (_bubbleCb) { try { _bubbleCb(info); } catch (e) { console.warn('[L.Note] bubble cb', e); } }
   }
   function setupBubbleObserver() {
     if (state.bubbleHandler) return;
@@ -962,7 +962,7 @@ window.InkpadBlocks = (function () {
       } else {
         document.execCommand(cmd, false, null);
       }
-    } catch (e) { console.warn('[inkpad] execCommand', cmd, e); return false; }
+    } catch (e) { console.warn('[L.Note] execCommand', cmd, e); return false; }
     // 同步回 state.blocks.b.text
     r.block.text = r.editable.innerHTML;
     scheduleSave();
@@ -992,7 +992,7 @@ window.InkpadBlocks = (function () {
       var newRange = document.createRange();
       newRange.selectNodeContents(span);
       sel.addRange(newRange);
-    } catch (e) { console.warn('[inkpad] paintRangeBackground', e); }
+    } catch (e) { console.warn('[L.Note] paintRangeBackground', e); }
   }
 
   // 清除选区上所有元素的 style[prop]（用于恢复颜色默认）
@@ -1026,7 +1026,7 @@ window.InkpadBlocks = (function () {
           if (range.intersectsNode(f)) f.removeAttribute('color');
         });
       }
-    } catch (e) { console.warn('[inkpad] clearRangeInlineProp', e); }
+    } catch (e) { console.warn('[L.Note] clearRangeInlineProp', e); }
   }
 
   /* ---------------- 交互 ---------------- */

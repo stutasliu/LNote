@@ -143,7 +143,7 @@ async function boot(cdp, docs, activeId, waitMs = 2200) {
 const WELCOME_MD = [
   '# 欢迎使用 L.Note 🖋️',
   '',
-  '一个纯本地的 Notion 风文本编辑器。',
+  '一款纯本地的笔记编辑软件。',
   '',
   '## 它能做什么',
   '',

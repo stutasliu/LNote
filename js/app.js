@@ -246,7 +246,7 @@
         try {
           fn(data);
         } catch (e) {
-          console.warn("[inkpad] bus handler error on " + ev, e);
+          console.warn("[L.Note] bus handler error on " + ev, e);
         }
       });
       return this;
@@ -323,6 +323,46 @@
       } catch (e) {
       }
     });
+    var WELCOME_REPLACEMENTS = [
+      ["\u4E00\u4E2A\u7EAF\u672C\u5730\u7684 Notion \u98CE\u6587\u672C\u7F16\u8F91\u5668\u3002", "\u4E00\u6B3E\u7EAF\u672C\u5730\u7684\u7B14\u8BB0\u7F16\u8F91\u8F6F\u4EF6\u3002"],
+      ["\u4E00\u4E2A\u7EAF\u672C\u5730\u7684Notion\u98CE\u6587\u672C\u7F16\u8F91\u5668\u3002", "\u4E00\u6B3E\u7EAF\u672C\u5730\u7684\u7B14\u8BB0\u7F16\u8F91\u8F6F\u4EF6\u3002"],
+      ["\u4E00\u4E2A\u7EAF\u672C\u5730\u7684 Notion \u98CE\u6587\u672C\u7F16\u8F91\u5668", "\u4E00\u6B3E\u7EAF\u672C\u5730\u7684\u7B14\u8BB0\u7F16\u8F91\u8F6F\u4EF6"],
+      ["\u4E00\u4E2A\u7EAF\u672C\u5730\u7684Notion\u98CE\u6587\u672C\u7F16\u8F91\u5668", "\u4E00\u6B3E\u7EAF\u672C\u5730\u7684\u7B14\u8BB0\u7F16\u8F91\u8F6F\u4EF6"],
+      ["\u4E00\u4E2A\u7EAF\u672C\u5730\u7684 Notion \u98CE\u683C\u7684\u6587\u672C\u7F16\u8F91\u5668\u3002", "\u4E00\u6B3E\u7EAF\u672C\u5730\u7684\u7B14\u8BB0\u7F16\u8F91\u8F6F\u4EF6\u3002"],
+      ["\u4E00\u4E2A\u7EAF\u672C\u5730\u7684Notion\u98CE\u683C\u7684\u6587\u672C\u7F16\u8F91\u5668\u3002", "\u4E00\u6B3E\u7EAF\u672C\u5730\u7684\u7B14\u8BB0\u7F16\u8F91\u8F6F\u4EF6\u3002"],
+      ["\u672C\u5730 Notion \u98CE\u6587\u672C\u7F16\u8F91\u5668", "\u672C\u5730\u7B14\u8BB0\u7F16\u8F91\u8F6F\u4EF6"],
+      ["\u672C\u5730Notion\u98CE\u6587\u672C\u7F16\u8F91\u5668", "\u672C\u5730\u7B14\u8BB0\u7F16\u8F91\u8F6F\u4EF6"],
+      ["Notion \u98CE\u6587\u672C\u7F16\u8F91\u5668", "\u7B14\u8BB0\u7F16\u8F91\u8F6F\u4EF6"],
+      ["Notion\u98CE\u6587\u672C\u7F16\u8F91\u5668", "\u7B14\u8BB0\u7F16\u8F91\u8F6F\u4EF6"],
+      ["Notion \u98CE\u683C\u7684\u6587\u672C\u7F16\u8F91\u5668", "\u7B14\u8BB0\u7F16\u8F91\u8F6F\u4EF6"],
+      ["Notion\u98CE\u683C\u7684\u6587\u672C\u7F16\u8F91\u5668", "\u7B14\u8BB0\u7F16\u8F91\u8F6F\u4EF6"],
+      ["Inkpad", "L.Note"]
+    ];
+    var replaceAll = function(src, replacements) {
+      var out = src;
+      for (var i2 = 0; i2 < replacements.length; i2++) {
+        if (out.indexOf(replacements[i2][0]) >= 0) out = out.split(replacements[i2][0]).join(replacements[i2][1]);
+      }
+      return out;
+    };
+    var welcomeMigrated = false;
+    state.docs.forEach(function(d) {
+      if (!d || !d.id) return;
+      var isWelcome = typeof d.title === "string" && d.title.indexOf("\u6B22\u8FCE\u4F7F\u7528") >= 0;
+      if (typeof d.title === "string" && d.title !== replaceAll(d.title, WELCOME_REPLACEMENTS)) {
+        d.title = replaceAll(d.title, WELCOME_REPLACEMENTS);
+        isWelcome = true;
+        welcomeMigrated = true;
+      }
+      if (typeof d.content !== "string") return;
+      if (!isWelcome && d.content.indexOf("Notion") < 0 && d.content.indexOf("\u6B22\u8FCE\u4F7F\u7528 Inkpad") < 0) return;
+      var migrated = replaceAll(d.content, WELCOME_REPLACEMENTS);
+      if (migrated !== d.content) {
+        d.content = migrated;
+        welcomeMigrated = true;
+      }
+    });
+    if (welcomeMigrated) persist();
     state.activeId = null;
     try {
       state.activeId = localStorage.getItem(ACTIVE_KEY);
@@ -333,7 +373,7 @@
         id: uid(),
         title: "\u6B22\u8FCE\u4F7F\u7528 L.Note",
         lang: "markdown",
-        content: "# \u6B22\u8FCE\u4F7F\u7528 L.Note \u{1F58B}\uFE0F\n\n\u4E00\u4E2A\u7EAF\u672C\u5730\u7684 Notion \u98CE\u6587\u672C\u7F16\u8F91\u5668\u3002\n\n## \u5B83\u80FD\u505A\u4EC0\u4E48\n\n- **\u8BED\u6CD5\u9AD8\u4EAE** \u2014\u2014 \u652F\u6301 Markdown / JSON / XML / JS / Python \u7B49\u5341\u4F59\u79CD\u8BED\u8A00\n- **\u4E00\u952E\u683C\u5F0F\u5316** \u2014\u2014 \u5DE5\u5177\u680F\u70B9 `{ } JSON \u683C\u5F0F\u5316` \u6216 `< / > XML \u683C\u5F0F\u5316`\n- **\u753B\u56FE\u8868** \u2014\u2014 \u65B0\u5EFA\u300C\u56FE\u8868\u6587\u6863\u300D\uFF0C\u7528 Mermaid \u753B\u6D41\u7A0B\u56FE\u3001\u65F6\u5E8F\u56FE\u3001\u601D\u7EF4\u5BFC\u56FE\n- **\u672C\u5730\u5B58\u50A8** \u2014\u2014 \u6240\u6709\u5185\u5BB9\u81EA\u52A8\u4FDD\u5B58\u5728\u6D4F\u89C8\u5668\u91CC\uFF0C\u53EF\u5BFC\u5165\u5BFC\u51FA\n\n## \u5FEB\u6377\u952E\n\n| \u5FEB\u6377\u952E | \u529F\u80FD |\n| --- | --- |\n| `Ctrl + S` | \u4FDD\u5B58 |\n| `Ctrl + Shift + F` | \u6309\u5F53\u524D\u8BED\u8A00\u683C\u5F0F\u5316 |\n",
+        content: "# \u6B22\u8FCE\u4F7F\u7528 L.Note \u{1F58B}\uFE0F\n\n\u4E00\u6B3E\u7EAF\u672C\u5730\u7684\u7B14\u8BB0\u7F16\u8F91\u8F6F\u4EF6\u3002\n\n## \u5B83\u80FD\u505A\u4EC0\u4E48\n\n- **\u8BED\u6CD5\u9AD8\u4EAE** \u2014\u2014 \u652F\u6301 Markdown / JSON / XML / JS / Python \u7B49\u5341\u4F59\u79CD\u8BED\u8A00\n- **\u4E00\u952E\u683C\u5F0F\u5316** \u2014\u2014 \u5DE5\u5177\u680F\u70B9 `{ } JSON \u683C\u5F0F\u5316` \u6216 `< / > XML \u683C\u5F0F\u5316`\n- **\u753B\u56FE\u8868** \u2014\u2014 \u65B0\u5EFA\u300C\u56FE\u8868\u6587\u6863\u300D\uFF0C\u7528 Mermaid \u753B\u6D41\u7A0B\u56FE\u3001\u65F6\u5E8F\u56FE\u3001\u601D\u7EF4\u5BFC\u56FE\n- **\u672C\u5730\u5B58\u50A8** \u2014\u2014 \u6240\u6709\u5185\u5BB9\u81EA\u52A8\u4FDD\u5B58\u5728\u6D4F\u89C8\u5668\u91CC\uFF0C\u53EF\u5BFC\u5165\u5BFC\u51FA\n\n## \u5FEB\u6377\u952E\n\n| \u5FEB\u6377\u952E | \u529F\u80FD |\n| --- | --- |\n| `Ctrl + S` | \u4FDD\u5B58 |\n| `Ctrl + Shift + F` | \u6309\u5F53\u524D\u8BED\u8A00\u683C\u5F0F\u5316 |\n",
         updated: Date.now()
       };
       state.docs.push(welcome);
@@ -385,12 +425,12 @@
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(index));
     } catch (e) {
-      console.warn("[inkpad] \u7D22\u5F15\u6301\u4E45\u5316\u5931\u8D25", e);
+      console.warn("[L.Note] \u7D22\u5F15\u6301\u4E45\u5316\u5931\u8D25", e);
     }
     try {
       localStorage.setItem(TAGMETA_KEY, JSON.stringify(state.tagMeta || {}));
     } catch (e) {
-      console.warn("[inkpad] \u6807\u7B7E\u5143\u6570\u636E\u6301\u4E45\u5316\u5931\u8D25", e);
+      console.warn("[L.Note] \u6807\u7B7E\u5143\u6570\u636E\u6301\u4E45\u5316\u5931\u8D25", e);
     }
     var seen = {};
     state.docs.forEach(function(d) {
@@ -2867,7 +2907,7 @@
       els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
       els.statSaved.style.color = "#0f7b0f";
     }).catch(function(err) {
-      console.warn("[inkpad] \u5BCC\u6587\u6863\u4FDD\u5B58\u5931\u8D25\uFF1A", err);
+      console.warn("[L.Note] \u5BCC\u6587\u6863\u4FDD\u5B58\u5931\u8D25\uFF1A", err);
       els.statSaved.textContent = "\u4FDD\u5B58\u5931\u8D25";
       els.statSaved.style.color = "var(--danger)";
     });
@@ -2962,7 +3002,7 @@
     return t;
   }
   function richDocSaveFilters() {
-    return ["Inkpad \u5BCC\u6587\u6863 (*.json)", "JSON \u683C\u5F0F (*.json)", "\u6240\u6709\u6587\u4EF6 (*.*)"];
+    return ["L.Note \u5BCC\u6587\u6863 (*.json)", "JSON \u683C\u5F0F (*.json)", "\u6240\u6709\u6587\u4EF6 (*.*)"];
   }
   function richDocSaveInitialDir(d) {
     if (d && d.diskPath) return dirOf(d.diskPath);
@@ -3623,7 +3663,7 @@
       setAiStatus("\u6D4B\u8BD5\u5931\u8D25\uFF1A" + String(e && e.message || e), "error");
     });
   }
-  window.__inkpadAiTestCb = function(r) {
+  window.__lnoteAiTestCb = function(r) {
     if (!aiTestPending) return;
     aiTestPending = false;
     if (aiTestTimer) {
@@ -3865,7 +3905,7 @@
       }
     }
   }
-  window.__inkpadAiChatCb = function(msg) {
+  window.__lnoteAiChatCb = function(msg) {
     if (!msg || !msg.sessionId || !aiSession) return;
     if (msg.sessionId !== aiSession.sessionId) return;
     if (aiSession.status !== "streaming") return;
@@ -4280,7 +4320,7 @@
       }
     }
   }
-  window.__inkpadAiDiagramCb = function(msg) {
+  window.__lnoteAiDiagramCb = function(msg) {
     if (!msg || !msg.sessionId || !diagSession) return;
     if (msg.sessionId !== diagSession.sessionId) return;
     if (diagSession.status !== "streaming") return;
@@ -5351,7 +5391,7 @@
       renderList();
     } catch (e) {
       dbgLog2("initApp main error: " + (e && e.message));
-      console.warn("[inkpad] initApp main init error, continue", e);
+      console.warn("[L.Note] initApp main init error, continue", e);
     }
     bindRichOutline();
     setTimeout(function() {
@@ -5362,7 +5402,7 @@
       initDocMap();
     } catch (e) {
       dbgLog2("initDocMap error: " + (e && e.message));
-      console.warn("[inkpad] initDocMap error", e);
+      console.warn("[L.Note] initDocMap error", e);
     }
   }
   function dbgLog2(m) {
@@ -5400,7 +5440,7 @@
       }
     }).catch(function(e) {
       dbgLog2("openPendingExternal failed: " + (e && e.message));
-      console.warn("[inkpad] open pending file failed", e);
+      console.warn("[L.Note] open pending file failed", e);
       openDoc(state.activeId);
     });
   }
@@ -5417,7 +5457,7 @@
       else if (skp > 0) {
       }
     }).catch(function(e) {
-      console.warn("[inkpad] cleanup orphans failed", e);
+      console.warn("[L.Note] cleanup orphans failed", e);
     });
   }
   var runtimeHandoffBusy = false;
@@ -5425,8 +5465,8 @@
     if (runtimeHandoffBusy) return;
     runtimeHandoffBusy = true;
     dbgLog2("initRuntimeHandoff enter");
-    window.__inkpadOpenExternalFiles = function(items) {
-      dbgLog2("__inkpadOpenExternalFiles: " + JSON.stringify(items));
+    window.__lnoteOpenExternalFiles = function(items) {
+      dbgLog2("__lnoteOpenExternalFiles: " + JSON.stringify(items));
       (items || []).forEach(function(it) {
         try {
           if (!it || !it.path) return;
@@ -5436,7 +5476,7 @@
           openDiskFile(p, name);
         } catch (e) {
           dbgLog2("runtime open external error: " + (e && e.message));
-          console.warn("[inkpad] runtime open external failed", e);
+          console.warn("[L.Note] runtime open external failed", e);
         }
       });
     };
@@ -5446,7 +5486,7 @@
         getApi().frontend_ready();
       } catch (e) {
         dbgLog2("frontend_ready error: " + (e && e.message));
-        console.warn("[inkpad] frontend_ready failed", e);
+        console.warn("[L.Note] frontend_ready failed", e);
       }
     };
     if (!hasApi()) {
@@ -6801,7 +6841,7 @@
     try {
       var marks = cm2.getAllMarks();
       for (var i = 0; i < marks.length; i++) {
-        if (marks[i].__inkpadDataUriFold) marks[i].clear();
+        if (marks[i].__lnoteDataUriFold) marks[i].clear();
       }
     } catch (e) {
     }
@@ -6839,7 +6879,7 @@
           inclusiveRight: false,
           clearWhenEmpty: false
         });
-        mk.__inkpadDataUriFold = true;
+        mk.__lnoteDataUriFold = true;
         (function(mref) {
           widget.addEventListener("click", function(ev) {
             ev.preventDefault();
@@ -6909,7 +6949,7 @@
   }
   function buildDataUri(mime, b64) {
     if (typeof b64 !== "string") {
-      console.warn("[inkpad] buildDataUri: b64 is not string, got", typeof b64, b64);
+      console.warn("[L.Note] buildDataUri: b64 is not string, got", typeof b64, b64);
       b64 = "";
     }
     return "data:" + (mime || "image/png") + ";base64," + b64;
@@ -9079,7 +9119,7 @@
     }
     if (els.btnRichOutline) {
       els.btnRichOutline.classList.toggle("primary", v);
-      els.btnRichOutline.title = v ? "\u6536\u8D77\u5927\u7EB2\uFF08\u98DE\u4E66\u5F0F\u4FA7\u680F\uFF09" : "\u5BCC\u6587\u6863\u5927\u7EB2 / \u76EE\u5F55\uFF08\u98DE\u4E66\u5F0F\u4FA7\u680F\uFF09";
+      els.btnRichOutline.title = v ? "\u6536\u8D77\u5927\u7EB2\uFF08\u6587\u6863\u8F6F\u4EF6\u5F0F\u4FA7\u680F\uFF09" : "\u5BCC\u6587\u6863\u5927\u7EB2 / \u76EE\u5F55\uFF08\u6587\u6863\u8F6F\u4EF6\u5F0F\u4FA7\u680F\uFF09";
     }
     if (v && window.InkpadBlocks) {
       try {
@@ -9390,7 +9430,7 @@
     try {
       cm.addOverlay({ token: wikiToken });
     } catch (e) {
-      console.warn("[inkpad] wikilink overlay failed", e);
+      console.warn("[L.Note] wikilink overlay failed", e);
     }
   }
   function linkTargetAt(text, ch) {
@@ -10039,7 +10079,7 @@
       return { ok: true, text: out, target };
     });
   }
-  window.__inkpadTranslateCb = function(r) {
+  window.__lnoteTranslateCb = function(r) {
     if (__trCb) {
       var cb = __trCb;
       __trCb = null;
@@ -11118,7 +11158,7 @@
     setUpdStatus("", "");
     _setUpdProgressView();
     _setUpdProgress(-1);
-    window.__inkpadUpdateCb = _onUpdateCb;
+    window.__lnoteUpdateCb = _onUpdateCb;
     api.start_update(tag).then(function(r) {
       if (!r) return;
       if (r.error) _failUpdate(r.error);
@@ -11176,7 +11216,7 @@
   }
 
   // src-app/27-about.js
-  var APP_VERSION = "0.24.0";
+  var APP_VERSION = "1.0.0";
   var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
   var APP_HOME_URL = "https://stutasliu.github.io/LNote/";
   function versionGreater(a, b) {

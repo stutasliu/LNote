@@ -10,7 +10,7 @@ import { toast } from './16-doc-ops.js';
 import { aiEntryBlocked, isAiAuthError, openAiSettings } from './29-ai-config.js';
 
   /* ---------------- 选中即用助手（v0.22：M2） ----------------
-   * 后端：main.py InkpadApi.ai_chat / ai_stop（SSE 流式 + 单任务取消）
+   * 后端：main.py LNoteApi.ai_chat / ai_stop（SSE 流式 + 单任务取消）
    * 入口：文本编辑器右键菜单「AI 助手」/ 富文档浮动工具条「AI 助手」
    * 约束：同一时刻仅 1 个任务；新任务先停旧任务；生成中切换文档/关闭面板
    *       即停止并丢弃回调；Key 不落到前端，助手仅消费文本。 */
@@ -162,7 +162,7 @@ import { aiEntryBlocked, isAiAuthError, openAiSettings } from './29-ai-config.js
   }
 
   // Python 端流式回调入口（worker 线程 evaluate_js 推送）
-  window.__inkpadAiChatCb = function (msg) {
+  window.__lnoteAiChatCb = function (msg) {
     if (!msg || !msg.sessionId || !aiSession) return;
     if (msg.sessionId !== aiSession.sessionId) return;   // 丢弃过期会话回调
     if (aiSession.status !== 'streaming') return;
