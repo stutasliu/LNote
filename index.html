@@ -52,11 +52,12 @@
     text-align: center;
   }
   .dl-btn {
-    display: inline-flex; align-items: center; gap: 12px;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    width: 100%; box-sizing: border-box; min-height: 54px;
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
     color: #fff; text-decoration: none;
-    font-size: 18px; font-weight: 600;
-    padding: 16px 42px; border-radius: 12px;
+    font-size: 17px; font-weight: 600;
+    padding: 14px 24px; border: 1px solid transparent; border-radius: 12px;
     transition: transform .12s, box-shadow .12s;
     box-shadow: 0 10px 30px rgba(51,112,255,.35);
   }
@@ -65,8 +66,8 @@
   .dl-meta { margin-top: 18px; font-size: 13px; color: var(--muted); }
   .dl-meta code {
     background: var(--card2); border: 1px solid var(--line);
-    padding: 2px 8px; border-radius: 6px; font-size: 12px;
-    word-break: break-all; display: inline-block; margin-top: 6px;
+    padding: 6px 10px; border-radius: 6px; font-size: 12px;
+    word-break: break-all; display: block; margin-top: 8px; line-height: 1.55;
   }
   .hash {
     font-family: Consolas, Menlo, monospace; font-size: 12px;
@@ -80,7 +81,7 @@
   @media (max-width: 700px) { .dl-grid { grid-template-columns: 1fr; } }
   .dl-grid .dl-card { margin: 0; max-width: none; padding: 28px 24px; }
   .dl-tag {
-    display: inline-block; margin-bottom: 14px; padding: 3px 10px;
+    display: block; width: fit-content; margin: 0 auto 14px; padding: 3px 10px;
     border-radius: 999px; font-size: 12px; letter-spacing: .3px;
     background: rgba(51,112,255,.12); color: var(--accent-2);
     border: 1px solid rgba(51,112,255,.35);
@@ -89,7 +90,6 @@
   .dl-btn.alt {
     background: transparent; border: 1px solid var(--accent);
     color: var(--accent-2); box-shadow: none;
-    padding: 12px 26px; font-size: 15px;
   }
   .dl-btn.alt:hover { background: rgba(51,112,255,.08); transform: none; box-shadow: none; }
 
