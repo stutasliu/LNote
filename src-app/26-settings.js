@@ -1,8 +1,9 @@
 /* [esm] 导出本模块顶层绑定 */
 export { settingsState, currentCombo, buildCmExtraKeys, handleGlobalKeydown, openSettingsModal, closeSettingsModal, initSettings };
 /* [esm] 导入依赖模块绑定 */
-import { $ } from './01-core.js';
+import { $, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
+import { updatePreviewVisibility } from './10-status-preview.js';
 import { renderList } from './06-doc-list.js';
 import { saveDoc, newRichDoc, newVisualDoc } from './09-rich-save.js';
 import { execEditorCmd, formatCurrent } from './11-format-tools.js';
@@ -18,6 +19,7 @@ var DEFAULT_SETTINGS = {
   fontSize: 14,
   lineWrapping: true,
   lineNumbers: true,
+  previewSplit: false,
   shortcuts: {
     save: 'Ctrl-S',
     newDoc: 'Ctrl-N',
@@ -65,6 +67,7 @@ function loadSettings() {
     if (typeof saved.fontSize === 'number') base.fontSize = saved.fontSize;
     if (typeof saved.lineWrapping === 'boolean') base.lineWrapping = saved.lineWrapping;
     if (typeof saved.lineNumbers === 'boolean') base.lineNumbers = saved.lineNumbers;
+    if (typeof saved.previewSplit === 'boolean') base.previewSplit = saved.previewSplit;
     if (saved.shortcuts) {
       Object.keys(base.shortcuts).forEach(function (k) {
         var v = saved.shortcuts[k];
@@ -196,6 +199,7 @@ function handleGlobalKeydown(e) {
 }
 
 loadSettings();
+state.previewSplit = settingsState.previewSplit;
 
 /* ---------------- 设置弹窗绑定（通用设置 + 快捷键） ---------------- */
 var settingsRecordingId = null;
@@ -205,6 +209,7 @@ function syncSettingsControls() {
   $('settings-fontsize-val').textContent = settingsState.fontSize + 'px';
   $('settings-linenum').value = settingsState.lineNumbers ? '1' : '0';
   $('settings-wrap').value = settingsState.lineWrapping ? '1' : '0';
+  $('settings-previewmode').value = settingsState.previewSplit ? 'split' : 'full';
 }
 function switchSettingsTab(name) {
   Array.prototype.forEach.call(document.querySelectorAll('.settings-tab'), function (t) {
@@ -334,8 +339,10 @@ function initSettings() {
     cm.setOption('lineWrapping', settingsState.lineWrapping);
     cm.setOption('extraKeys', buildCmExtraKeys());
     applyFontSize(settingsState.fontSize);
+    state.previewSplit = settingsState.previewSplit;
     syncSettingsControls();
     renderShortcutList();
+    updatePreviewVisibility();
     toast('已恢复默认设置', 'success');
   });
   Array.prototype.forEach.call(document.querySelectorAll('.settings-tab'), function (t) {
@@ -357,6 +364,12 @@ function initSettings() {
     settingsState.lineWrapping = this.value === '1';
     saveSettings();
     cm.setOption('lineWrapping', settingsState.lineWrapping);
+  });
+  $('settings-previewmode').addEventListener('change', function () {
+    settingsState.previewSplit = this.value === 'split';
+    state.previewSplit = settingsState.previewSplit;
+    saveSettings();
+    updatePreviewVisibility();
   });
 
   // 应用持久化的编辑器选项（04 初始化使用默认值，这里覆盖为已保存设置）

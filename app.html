@@ -474,6 +474,7 @@
         <div class="preview-header">
           <span id="preview-title">预览</span>
           <span class="preview-hint" id="preview-hint"></span>
+          <button class="icon-btn" id="preview-close" title="关闭预览"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
         </div>
         <div id="preview-body">
           <div id="md-out" style="display:none"></div>
@@ -672,6 +673,13 @@
           <select id="settings-wrap" class="tool-select">
             <option value="1">开启</option>
             <option value="0">关闭</option>
+          </select>
+        </div>
+        <div class="ts-row">
+          <span class="ts-label">预览显示方式</span>
+          <select id="settings-previewmode" class="tool-select">
+            <option value="full">全窗口</option>
+            <option value="split">左右分栏</option>
           </select>
         </div>
         <div class="ts-row">

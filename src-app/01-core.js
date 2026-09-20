@@ -154,6 +154,7 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, DOC_ICO
     splitter: $('pane-splitter'),
     sideSplitter: $('sidebar-splitter'),
     previewEmpty: $('preview-empty'),
+    previewBody: $('preview-body'),
     previewTitle: $('preview-title'), previewHint: $('preview-hint'), mdOut: $('md-out'),
     htmlOut: $('html-out'), htmlFrame: $('html-frame'),
     clipList: $('clip-list'), snippetList: $('snippet-list'),
@@ -163,6 +164,7 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, DOC_ICO
     toast: $('toast'), fileInput: $('file-input'),
     btnTogglePreview: $('btn-toggle-preview'),
     btnPreviewTop: $('btn-preview-top'),
+    previewClose: $('preview-close'),
     btnStylePanel: $('btn-style-panel'),
     btnInsertImage: $('btn-insert-image'),
     btnExpandSidebar: $('btn-toggle-sidebar2'),
@@ -250,6 +252,7 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, DOC_ICO
     docs: [],           // 文档列表（索引 + 正文）
     activeId: null,     // 当前文档 id
     previewOn: false,   // 预览默认不打开，点工具栏「👁 预览」手动开启
+    previewSplit: false, // 预览显示方式：false=全窗口（默认），true=左右分栏
     currentVisual: null, // { kind, doc, model, module }
     // UI 瞬态（跨模块赋值的可变变量，见上）
     renderTimer: null,  // 预览渲染 debounce

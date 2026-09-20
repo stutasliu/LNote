@@ -142,6 +142,12 @@ import { isAiConfigured, onAiConfigChanged, refreshAiConfigState } from './29-ai
     updatePreviewVisibility();
   });
 
+  // 全窗口预览：右上角关闭按钮
+  els.previewClose.addEventListener('click', function () {
+    state.previewOn = false;
+    updatePreviewVisibility();
+  });
+
   $('btn-insert-sample').addEventListener('click', function () {
     cm.setValue(SAMPLE_DIAGRAM + '\n\n' + SAMPLE_MINDMAP);
     scheduleRender();

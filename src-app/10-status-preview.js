@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { statDebounceTimer, STAT_DEBOUNCE_MS, STAT_BIG_DOC, countCharsAndWords, updateStatus, updatePreviewVisibility, scheduleRender, renderMermaid, renderHtmlPreview, inlineHtmlImages, renderMarkdownPreview, resolveMarkdownImages, panState, svgNatural, prepareSvg, applyZoom };
+export { statDebounceTimer, STAT_DEBOUNCE_MS, STAT_BIG_DOC, countCharsAndWords, updateStatus, previewDisplayMode, updatePreviewVisibility, scheduleRender, renderMermaid, renderHtmlPreview, inlineHtmlImages, renderMarkdownPreview, resolveMarkdownImages, panState, svgNatural, prepareSvg, applyZoom };
 /* [esm] 导入依赖模块绑定 */
 import { els, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
@@ -64,14 +64,27 @@ import { dirOf, getApi, hasApi, isAbsPath, joinPath, normPath, resolveImgSrc, to
 
   /* ---------------- Mermaid 渲染 ---------------- */
   /* ---------------- 右侧预览（Markdown / HTML / Mermaid 共用） ---------------- */
+  function previewDisplayMode(previewOn, lang, previewSplit) {
+    if (!previewOn) return 'none';
+    if (lang !== 'mermaid' && lang !== 'markdown' && lang !== 'html') return 'none';
+    return previewSplit ? 'split' : 'full';
+  }
+
   function updatePreviewVisibility() {
     var d = activeDoc();
-    var isMermaid = d && d.lang === 'mermaid';
-    var isMd = d && d.lang === 'markdown';
-    var isHtml = d && d.lang === 'html';
-    var show = state.previewOn && (isMermaid || isMd || isHtml);
+    var lang = d ? d.lang : null;
+    var isMermaid = lang === 'mermaid';
+    var isMd = lang === 'markdown';
+    var isHtml = lang === 'html';
+    var mode = previewDisplayMode(state.previewOn, lang, state.previewSplit);
+    var show = mode !== 'none';
+    els.previewPane.classList.toggle('full-window', mode === 'full');
     els.previewPane.style.display = show ? 'flex' : 'none';
-    els.splitter.style.display = show ? 'block' : 'none';
+    els.splitter.style.display = mode === 'split' ? 'block' : 'none';
+    // 抓手光标 / 禁用文本选择只用于图表预览（可拖拽平移），
+    // Markdown / HTML 预览保持正常光标并可选中文字
+    els.previewBody.classList.toggle('pan-mode', show && isMermaid);
+    if (cm) cm.refresh();
     els.btnTogglePreview.classList.toggle('active', !!show);
     // 顶栏右上角预览按钮：高亮 + 提示随状态切换
     els.btnPreviewTop.classList.toggle('active', !!show);

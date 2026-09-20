@@ -114,6 +114,7 @@
     splitter: $("pane-splitter"),
     sideSplitter: $("sidebar-splitter"),
     previewEmpty: $("preview-empty"),
+    previewBody: $("preview-body"),
     previewTitle: $("preview-title"),
     previewHint: $("preview-hint"),
     mdOut: $("md-out"),
@@ -132,6 +133,7 @@
     fileInput: $("file-input"),
     btnTogglePreview: $("btn-toggle-preview"),
     btnPreviewTop: $("btn-preview-top"),
+    previewClose: $("preview-close"),
     btnStylePanel: $("btn-style-panel"),
     btnInsertImage: $("btn-insert-image"),
     btnExpandSidebar: $("btn-toggle-sidebar2"),
@@ -259,6 +261,8 @@
     // 当前文档 id
     previewOn: false,
     // 预览默认不打开，点工具栏「👁 预览」手动开启
+    previewSplit: false,
+    // 预览显示方式：false=全窗口（默认），true=左右分栏
     currentVisual: null,
     // { kind, doc, model, module }
     // UI 瞬态（跨模块赋值的可变变量，见上）
@@ -3158,12 +3162,256 @@
     saveDoc(false);
   }
 
+  // src-app/10-status-preview.js
+  var statDebounceTimer = null;
+  var STAT_DEBOUNCE_MS = 180;
+  var STAT_BIG_DOC = 200 * 1024;
+  function countCharsAndWords(text) {
+    var chars = text.length;
+    var cjk = 0, words = 0;
+    var inWord = false;
+    for (var i = 0; i < text.length; i++) {
+      var c = text.charCodeAt(i);
+      var isCjk = c >= 19968 && c <= 40959;
+      var isWordChar = isCjk || c >= 48 && c <= 57 || c >= 65 && c <= 90 || c >= 97 && c <= 122 || c === 95 || c === 36;
+      if (isCjk) cjk++;
+      if (isWordChar) {
+        if (!inWord) {
+          words++;
+          inWord = true;
+        }
+      } else {
+        inWord = false;
+      }
+    }
+    return { chars, cjk, words };
+  }
+  function updateStatus() {
+    var cur = cm.getCursor();
+    els.statCursor.textContent = "\u884C " + (cur.line + 1) + ", \u5217 " + (cur.ch + 1);
+    if (statDebounceTimer) return;
+    statDebounceTimer = setTimeout(function() {
+      statDebounceTimer = null;
+      var text = cm.getValue();
+      var sel = cm.getSelection();
+      var out;
+      if (text.length > STAT_BIG_DOC) {
+        out = {
+          chars: text.length,
+          cjk: "~",
+          words: "~"
+        };
+      } else {
+        out = countCharsAndWords(text);
+      }
+      var base = out.chars + " \u5B57\u7B26 \xB7 " + out.words + " \u8BCD";
+      els.statCount.textContent = sel ? base + " \xB7 \u9009\u4E2D " + sel.length + " \u5B57\u7B26" : base;
+    }, STAT_DEBOUNCE_MS);
+  }
+  function previewDisplayMode(previewOn, lang, previewSplit) {
+    if (!previewOn) return "none";
+    if (lang !== "mermaid" && lang !== "markdown" && lang !== "html") return "none";
+    return previewSplit ? "split" : "full";
+  }
+  function updatePreviewVisibility() {
+    var d = activeDoc();
+    var lang = d ? d.lang : null;
+    var isMermaid = lang === "mermaid";
+    var isMd = lang === "markdown";
+    var isHtml = lang === "html";
+    var mode = previewDisplayMode(state.previewOn, lang, state.previewSplit);
+    var show = mode !== "none";
+    els.previewPane.classList.toggle("full-window", mode === "full");
+    els.previewPane.style.display = show ? "flex" : "none";
+    els.splitter.style.display = mode === "split" ? "block" : "none";
+    els.previewBody.classList.toggle("pan-mode", show && isMermaid);
+    if (cm) cm.refresh();
+    els.btnTogglePreview.classList.toggle("active", !!show);
+    els.btnPreviewTop.classList.toggle("active", !!show);
+    els.btnPreviewTop.title = show ? "\u5173\u95ED\u9884\u89C8" : "\u9884\u89C8";
+    if (isMd) els.btnTogglePreview.textContent = "\u{1F441} MD\u9884\u89C8";
+    else if (isHtml) els.btnTogglePreview.textContent = "\u{1F441} HTML\u9884\u89C8";
+    else els.btnTogglePreview.textContent = "\u{1F441} \u56FE\u8868\u9884\u89C8";
+    if (!show) return;
+    if (isMermaid) {
+      els.previewTitle.textContent = "\u56FE\u8868\u9884\u89C8";
+      els.previewHint.textContent = "\u62D6\u62FD\u5E73\u79FB \xB7 Ctrl+\u6EDA\u8F6E\u7F29\u653E \xB7 \u53CC\u51FB\u590D\u4F4D";
+      els.mdOut.style.display = "none";
+      els.htmlOut.style.display = "none";
+      els.mermaidOut.style.display = "";
+    } else if (isHtml) {
+      els.previewTitle.textContent = "HTML \u9884\u89C8";
+      els.previewHint.textContent = "\u672C\u5730\u5B9E\u65F6\u6E32\u67D3 \xB7 \u4FEE\u6539\u81EA\u52A8\u5237\u65B0";
+      els.mdOut.style.display = "none";
+      els.htmlOut.style.display = "";
+      els.mermaidOut.style.display = "none";
+    } else {
+      els.previewTitle.textContent = "Markdown \u9884\u89C8";
+      els.previewHint.textContent = "\u652F\u6301 GFM \u8868\u683C \xB7 \u4EE3\u7801\u5757 \xB7 ```mermaid \u56FE\u8868";
+      els.mermaidOut.style.display = "none";
+      els.htmlOut.style.display = "none";
+      els.mdOut.style.display = "";
+    }
+    scheduleRender();
+  }
+  function scheduleRender() {
+    clearTimeout(state.renderTimer);
+    state.renderTimer = setTimeout(function() {
+      var d = activeDoc();
+      if (!d || !state.previewOn) return;
+      if (d.lang === "mermaid") renderMermaid();
+      else if (d.lang === "markdown") renderMarkdownPreview();
+      else if (d.lang === "html") renderHtmlPreview();
+    }, 300);
+  }
+  function renderMermaid() {
+    var d = activeDoc();
+    if (!d || d.lang !== "mermaid" || !state.previewOn) return;
+    var code = cm.getValue().trim();
+    els.mermaidOut.innerHTML = "";
+    var oldErr = document.querySelector(".mermaid-error");
+    if (oldErr) oldErr.remove();
+    if (!code) {
+      els.previewEmpty.style.display = "";
+      return;
+    }
+    els.previewEmpty.style.display = "none";
+    var seq = ++state.mermaidSeq;
+    function doRender() {
+      mermaid.render("mmd-" + seq, code).then(function(res) {
+        if (seq !== state.mermaidSeq) return;
+        els.mermaidOut.innerHTML = res.svg;
+        prepareSvg();
+      }).catch(function(err) {
+        if (seq !== state.mermaidSeq) return;
+        var div = document.createElement("div");
+        div.className = "mermaid-error";
+        div.textContent = "\u56FE\u8868\u8BED\u6CD5\u9519\u8BEF\uFF1A\n" + (err && err.message ? err.message : String(err));
+        els.previewPane.querySelector("#preview-body").appendChild(div);
+      });
+    }
+    function showErr(msg) {
+      if (seq !== state.mermaidSeq) return;
+      var div = document.createElement("div");
+      div.className = "mermaid-error";
+      div.textContent = String(msg);
+      els.previewPane.querySelector("#preview-body").appendChild(div);
+    }
+    if (typeof mermaid === "undefined") {
+      if (window.__mermaidReady) {
+        window.__mermaidReady(function(err) {
+          err ? showErr("\u56FE\u8868\u6E32\u67D3\u5931\u8D25\uFF1A" + (err.message || err)) : doRender();
+        });
+      } else {
+        showErr("\uFF08\u672A\u52A0\u8F7D mermaid\uFF09");
+      }
+    } else {
+      doRender();
+    }
+  }
+  function renderHtmlPreview() {
+    var d = activeDoc();
+    if (!d || d.lang !== "html" || !state.previewOn) return;
+    var src = cm.getValue();
+    els.previewEmpty.style.display = "none";
+    if (!src.trim()) {
+      els.htmlFrame.srcdoc = '<body style="font-family:sans-serif;color:#999;padding:40px;text-align:center">\u5728\u5DE6\u4FA7\u8F93\u5165 HTML\uFF0C\u8FD9\u91CC\u5B9E\u65F6\u6E32\u67D3</body>';
+      return;
+    }
+    var baseDir = d.diskPath ? dirOf(d.diskPath) : null;
+    inlineHtmlImages(src, baseDir).then(function(html) {
+      if (html) els.htmlFrame.srcdoc = html;
+    });
+  }
+  function inlineHtmlImages(html, baseDir) {
+    var re = /(<img\b[^>]*\ssrc\s*=\s*)(["'])(.*?)\2/gi;
+    var found = [];
+    var mm;
+    while (mm = re.exec(html)) {
+      var src = mm[3];
+      if (/^(https?:|data:|blob:)/i.test(src)) continue;
+      var abs = isAbsPath(src) ? normPath(src) : baseDir ? joinPath(baseDir, src) : null;
+      if (!abs) continue;
+      found.push({ full: mm[0], pre: mm[1], q: mm[2], abs });
+    }
+    if (!found.length) return Promise.resolve(html);
+    var out = html;
+    return Promise.all(found.map(function(it) {
+      if (!hasApi()) {
+        it.url = toFileUrl(it.abs);
+        return Promise.resolve();
+      }
+      return getApi().read_file_b64(it.abs).then(function(res) {
+        if (res && res.b64) it.url = "data:" + (res.mime || "image/png") + ";base64," + res.b64;
+        else it.url = toFileUrl(it.abs);
+      }).catch(function() {
+        it.url = toFileUrl(it.abs);
+      });
+    })).then(function() {
+      found.forEach(function(it) {
+        if (it.url) out = out.split(it.full).join(it.pre + it.q + it.url + it.q);
+      });
+      return out;
+    });
+  }
+  function renderMarkdownPreview() {
+    var d = activeDoc();
+    if (!d || d.lang !== "markdown" || !state.previewOn) return;
+    var text = cm.getValue();
+    var oldErr = document.querySelector(".mermaid-error");
+    if (oldErr) oldErr.remove();
+    els.previewEmpty.style.display = "none";
+    if (!text.trim()) {
+      els.mdOut.innerHTML = '<div class="preview-empty"><div class="preview-empty-icon">\u{1F4DD}</div><p>\u5728\u5DE6\u4FA7\u8F93\u5165 Markdown<br>\u8FD9\u91CC\u4F1A\u5B9E\u65F6\u6E32\u67D3\u9884\u89C8</p></div>';
+      return;
+    }
+    window.InkpadMd.renderInto(els.mdOut, text);
+    resolveMarkdownImages(d);
+  }
+  function resolveMarkdownImages(d) {
+    var baseDir = d.diskPath ? dirOf(d.diskPath) : null;
+    var imgs = els.mdOut.querySelectorAll("img");
+    Array.prototype.forEach.call(imgs, function(img) {
+      var src = img.getAttribute("src") || "";
+      var url = resolveImgSrc(src, baseDir);
+      if (url) img.src = url;
+    });
+  }
+  var panState = { down: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 };
+  state.zoomLevel = 1;
+  var svgNatural = null;
+  function prepareSvg() {
+    var svg = els.mermaidOut.querySelector("svg");
+    if (!svg) {
+      svgNatural = null;
+      return;
+    }
+    svg.style.maxWidth = "none";
+    var vb = svg.viewBox && svg.viewBox.baseVal;
+    var w = vb && vb.width ? vb.width : svg.getBoundingClientRect().width;
+    var h = vb && vb.height ? vb.height : svg.getBoundingClientRect().height;
+    if (!w || !h) {
+      svgNatural = null;
+      return;
+    }
+    svgNatural = { w, h };
+    applyZoom();
+  }
+  function applyZoom() {
+    if (!svgNatural) return;
+    var svg = els.mermaidOut.querySelector("svg");
+    if (!svg) return;
+    svg.style.width = svgNatural.w * state.zoomLevel + "px";
+    svg.style.height = svgNatural.h * state.zoomLevel + "px";
+  }
+
   // src-app/26-settings.js
   var SETTINGS_KEY = "inkpad.settings.v1";
   var DEFAULT_SETTINGS = {
     fontSize: 14,
     lineWrapping: true,
     lineNumbers: true,
+    previewSplit: false,
     shortcuts: {
       save: "Ctrl-S",
       newDoc: "Ctrl-N",
@@ -3211,6 +3459,7 @@
       if (typeof saved.fontSize === "number") base.fontSize = saved.fontSize;
       if (typeof saved.lineWrapping === "boolean") base.lineWrapping = saved.lineWrapping;
       if (typeof saved.lineNumbers === "boolean") base.lineNumbers = saved.lineNumbers;
+      if (typeof saved.previewSplit === "boolean") base.previewSplit = saved.previewSplit;
       if (saved.shortcuts) {
         Object.keys(base.shortcuts).forEach(function(k) {
           var v = saved.shortcuts[k];
@@ -3352,6 +3601,7 @@
     return false;
   }
   loadSettings();
+  state.previewSplit = settingsState.previewSplit;
   var settingsRecordingId = null;
   var settingsRecordingBtn = null;
   function syncSettingsControls() {
@@ -3359,6 +3609,7 @@
     $("settings-fontsize-val").textContent = settingsState.fontSize + "px";
     $("settings-linenum").value = settingsState.lineNumbers ? "1" : "0";
     $("settings-wrap").value = settingsState.lineWrapping ? "1" : "0";
+    $("settings-previewmode").value = settingsState.previewSplit ? "split" : "full";
   }
   function switchSettingsTab(name) {
     Array.prototype.forEach.call(document.querySelectorAll(".settings-tab"), function(t) {
@@ -3485,8 +3736,10 @@
       cm.setOption("lineWrapping", settingsState.lineWrapping);
       cm.setOption("extraKeys", buildCmExtraKeys());
       applyFontSize(settingsState.fontSize);
+      state.previewSplit = settingsState.previewSplit;
       syncSettingsControls();
       renderShortcutList();
+      updatePreviewVisibility();
       toast3("\u5DF2\u6062\u590D\u9ED8\u8BA4\u8BBE\u7F6E", "success");
     });
     Array.prototype.forEach.call(document.querySelectorAll(".settings-tab"), function(t) {
@@ -3508,6 +3761,12 @@
       settingsState.lineWrapping = this.value === "1";
       saveSettings();
       cm.setOption("lineWrapping", settingsState.lineWrapping);
+    });
+    $("settings-previewmode").addEventListener("change", function() {
+      settingsState.previewSplit = this.value === "split";
+      state.previewSplit = settingsState.previewSplit;
+      saveSettings();
+      updatePreviewVisibility();
     });
     cm.setOption("lineNumbers", settingsState.lineNumbers);
     cm.setOption("lineWrapping", settingsState.lineWrapping);
@@ -5110,7 +5369,7 @@
     currentKind = kind;
     applyUI();
     if (state.docMapOn && currentKind === "text") {
-      scheduleRender();
+      scheduleRender2();
       scheduleViewport();
     }
   }
@@ -5123,7 +5382,7 @@
     }
     applyUI();
     if (state.docMapOn && currentKind === "text") {
-      scheduleRender();
+      scheduleRender2();
       scheduleViewport();
     }
   }
@@ -5221,7 +5480,7 @@
     var bot = Math.min(docLineCount() - 1, cm.lineAtHeight(info.top + info.clientHeight, "local"));
     return [top, bot];
   }
-  function scheduleRender() {
+  function scheduleRender2() {
     if (rafId) return;
     rafId = requestAnimationFrame(function() {
       rafId = null;
@@ -5292,7 +5551,7 @@
     var maxTop = Math.max(0, info.height - info.clientHeight);
     targetTop = Math.max(0, Math.min(maxTop, targetTop));
     cm.scrollTo(null, targetTop);
-    scheduleRender();
+    scheduleRender2();
   }
   function onMouseDown(e) {
     if (e.button !== 0) return;
@@ -5328,14 +5587,14 @@
   }
   function handleScroll() {
     updateViewport();
-    scheduleRender();
+    scheduleRender2();
   }
   function handleChanges() {
-    scheduleRender();
+    scheduleRender2();
     scheduleViewport();
   }
   function handleResize() {
-    scheduleRender();
+    scheduleRender2();
     scheduleViewport();
   }
   function bindEvents() {
@@ -5368,12 +5627,12 @@
     bindEvents();
     applyUI();
     if (state.docMapOn) {
-      scheduleRender();
+      scheduleRender2();
       scheduleViewport();
     }
     setTimeout(function() {
       if (state.docMapOn) {
-        scheduleRender();
+        scheduleRender2();
         scheduleViewport();
       }
     }, 120);
@@ -8353,239 +8612,6 @@
     }
   });
 
-  // src-app/10-status-preview.js
-  var statDebounceTimer = null;
-  var STAT_DEBOUNCE_MS = 180;
-  var STAT_BIG_DOC = 200 * 1024;
-  function countCharsAndWords(text) {
-    var chars = text.length;
-    var cjk = 0, words = 0;
-    var inWord = false;
-    for (var i = 0; i < text.length; i++) {
-      var c = text.charCodeAt(i);
-      var isCjk = c >= 19968 && c <= 40959;
-      var isWordChar = isCjk || c >= 48 && c <= 57 || c >= 65 && c <= 90 || c >= 97 && c <= 122 || c === 95 || c === 36;
-      if (isCjk) cjk++;
-      if (isWordChar) {
-        if (!inWord) {
-          words++;
-          inWord = true;
-        }
-      } else {
-        inWord = false;
-      }
-    }
-    return { chars, cjk, words };
-  }
-  function updateStatus() {
-    var cur = cm.getCursor();
-    els.statCursor.textContent = "\u884C " + (cur.line + 1) + ", \u5217 " + (cur.ch + 1);
-    if (statDebounceTimer) return;
-    statDebounceTimer = setTimeout(function() {
-      statDebounceTimer = null;
-      var text = cm.getValue();
-      var sel = cm.getSelection();
-      var out;
-      if (text.length > STAT_BIG_DOC) {
-        out = {
-          chars: text.length,
-          cjk: "~",
-          words: "~"
-        };
-      } else {
-        out = countCharsAndWords(text);
-      }
-      var base = out.chars + " \u5B57\u7B26 \xB7 " + out.words + " \u8BCD";
-      els.statCount.textContent = sel ? base + " \xB7 \u9009\u4E2D " + sel.length + " \u5B57\u7B26" : base;
-    }, STAT_DEBOUNCE_MS);
-  }
-  function updatePreviewVisibility() {
-    var d = activeDoc();
-    var isMermaid = d && d.lang === "mermaid";
-    var isMd = d && d.lang === "markdown";
-    var isHtml = d && d.lang === "html";
-    var show = state.previewOn && (isMermaid || isMd || isHtml);
-    els.previewPane.style.display = show ? "flex" : "none";
-    els.splitter.style.display = show ? "block" : "none";
-    els.btnTogglePreview.classList.toggle("active", !!show);
-    els.btnPreviewTop.classList.toggle("active", !!show);
-    els.btnPreviewTop.title = show ? "\u5173\u95ED\u9884\u89C8" : "\u9884\u89C8";
-    if (isMd) els.btnTogglePreview.textContent = "\u{1F441} MD\u9884\u89C8";
-    else if (isHtml) els.btnTogglePreview.textContent = "\u{1F441} HTML\u9884\u89C8";
-    else els.btnTogglePreview.textContent = "\u{1F441} \u56FE\u8868\u9884\u89C8";
-    if (!show) return;
-    if (isMermaid) {
-      els.previewTitle.textContent = "\u56FE\u8868\u9884\u89C8";
-      els.previewHint.textContent = "\u62D6\u62FD\u5E73\u79FB \xB7 Ctrl+\u6EDA\u8F6E\u7F29\u653E \xB7 \u53CC\u51FB\u590D\u4F4D";
-      els.mdOut.style.display = "none";
-      els.htmlOut.style.display = "none";
-      els.mermaidOut.style.display = "";
-    } else if (isHtml) {
-      els.previewTitle.textContent = "HTML \u9884\u89C8";
-      els.previewHint.textContent = "\u672C\u5730\u5B9E\u65F6\u6E32\u67D3 \xB7 \u4FEE\u6539\u81EA\u52A8\u5237\u65B0";
-      els.mdOut.style.display = "none";
-      els.htmlOut.style.display = "";
-      els.mermaidOut.style.display = "none";
-    } else {
-      els.previewTitle.textContent = "Markdown \u9884\u89C8";
-      els.previewHint.textContent = "\u652F\u6301 GFM \u8868\u683C \xB7 \u4EE3\u7801\u5757 \xB7 ```mermaid \u56FE\u8868";
-      els.mermaidOut.style.display = "none";
-      els.htmlOut.style.display = "none";
-      els.mdOut.style.display = "";
-    }
-    scheduleRender2();
-  }
-  function scheduleRender2() {
-    clearTimeout(state.renderTimer);
-    state.renderTimer = setTimeout(function() {
-      var d = activeDoc();
-      if (!d || !state.previewOn) return;
-      if (d.lang === "mermaid") renderMermaid();
-      else if (d.lang === "markdown") renderMarkdownPreview();
-      else if (d.lang === "html") renderHtmlPreview();
-    }, 300);
-  }
-  function renderMermaid() {
-    var d = activeDoc();
-    if (!d || d.lang !== "mermaid" || !state.previewOn) return;
-    var code = cm.getValue().trim();
-    els.mermaidOut.innerHTML = "";
-    var oldErr = document.querySelector(".mermaid-error");
-    if (oldErr) oldErr.remove();
-    if (!code) {
-      els.previewEmpty.style.display = "";
-      return;
-    }
-    els.previewEmpty.style.display = "none";
-    var seq = ++state.mermaidSeq;
-    function doRender() {
-      mermaid.render("mmd-" + seq, code).then(function(res) {
-        if (seq !== state.mermaidSeq) return;
-        els.mermaidOut.innerHTML = res.svg;
-        prepareSvg();
-      }).catch(function(err) {
-        if (seq !== state.mermaidSeq) return;
-        var div = document.createElement("div");
-        div.className = "mermaid-error";
-        div.textContent = "\u56FE\u8868\u8BED\u6CD5\u9519\u8BEF\uFF1A\n" + (err && err.message ? err.message : String(err));
-        els.previewPane.querySelector("#preview-body").appendChild(div);
-      });
-    }
-    function showErr(msg) {
-      if (seq !== state.mermaidSeq) return;
-      var div = document.createElement("div");
-      div.className = "mermaid-error";
-      div.textContent = String(msg);
-      els.previewPane.querySelector("#preview-body").appendChild(div);
-    }
-    if (typeof mermaid === "undefined") {
-      if (window.__mermaidReady) {
-        window.__mermaidReady(function(err) {
-          err ? showErr("\u56FE\u8868\u6E32\u67D3\u5931\u8D25\uFF1A" + (err.message || err)) : doRender();
-        });
-      } else {
-        showErr("\uFF08\u672A\u52A0\u8F7D mermaid\uFF09");
-      }
-    } else {
-      doRender();
-    }
-  }
-  function renderHtmlPreview() {
-    var d = activeDoc();
-    if (!d || d.lang !== "html" || !state.previewOn) return;
-    var src = cm.getValue();
-    els.previewEmpty.style.display = "none";
-    if (!src.trim()) {
-      els.htmlFrame.srcdoc = '<body style="font-family:sans-serif;color:#999;padding:40px;text-align:center">\u5728\u5DE6\u4FA7\u8F93\u5165 HTML\uFF0C\u8FD9\u91CC\u5B9E\u65F6\u6E32\u67D3</body>';
-      return;
-    }
-    var baseDir = d.diskPath ? dirOf(d.diskPath) : null;
-    inlineHtmlImages(src, baseDir).then(function(html) {
-      if (html) els.htmlFrame.srcdoc = html;
-    });
-  }
-  function inlineHtmlImages(html, baseDir) {
-    var re = /(<img\b[^>]*\ssrc\s*=\s*)(["'])(.*?)\2/gi;
-    var found = [];
-    var mm;
-    while (mm = re.exec(html)) {
-      var src = mm[3];
-      if (/^(https?:|data:|blob:)/i.test(src)) continue;
-      var abs = isAbsPath(src) ? normPath(src) : baseDir ? joinPath(baseDir, src) : null;
-      if (!abs) continue;
-      found.push({ full: mm[0], pre: mm[1], q: mm[2], abs });
-    }
-    if (!found.length) return Promise.resolve(html);
-    var out = html;
-    return Promise.all(found.map(function(it) {
-      if (!hasApi()) {
-        it.url = toFileUrl(it.abs);
-        return Promise.resolve();
-      }
-      return getApi().read_file_b64(it.abs).then(function(res) {
-        if (res && res.b64) it.url = "data:" + (res.mime || "image/png") + ";base64," + res.b64;
-        else it.url = toFileUrl(it.abs);
-      }).catch(function() {
-        it.url = toFileUrl(it.abs);
-      });
-    })).then(function() {
-      found.forEach(function(it) {
-        if (it.url) out = out.split(it.full).join(it.pre + it.q + it.url + it.q);
-      });
-      return out;
-    });
-  }
-  function renderMarkdownPreview() {
-    var d = activeDoc();
-    if (!d || d.lang !== "markdown" || !state.previewOn) return;
-    var text = cm.getValue();
-    var oldErr = document.querySelector(".mermaid-error");
-    if (oldErr) oldErr.remove();
-    els.previewEmpty.style.display = "none";
-    if (!text.trim()) {
-      els.mdOut.innerHTML = '<div class="preview-empty"><div class="preview-empty-icon">\u{1F4DD}</div><p>\u5728\u5DE6\u4FA7\u8F93\u5165 Markdown<br>\u8FD9\u91CC\u4F1A\u5B9E\u65F6\u6E32\u67D3\u9884\u89C8</p></div>';
-      return;
-    }
-    window.InkpadMd.renderInto(els.mdOut, text);
-    resolveMarkdownImages(d);
-  }
-  function resolveMarkdownImages(d) {
-    var baseDir = d.diskPath ? dirOf(d.diskPath) : null;
-    var imgs = els.mdOut.querySelectorAll("img");
-    Array.prototype.forEach.call(imgs, function(img) {
-      var src = img.getAttribute("src") || "";
-      var url = resolveImgSrc(src, baseDir);
-      if (url) img.src = url;
-    });
-  }
-  var panState = { down: false, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 };
-  state.zoomLevel = 1;
-  var svgNatural = null;
-  function prepareSvg() {
-    var svg = els.mermaidOut.querySelector("svg");
-    if (!svg) {
-      svgNatural = null;
-      return;
-    }
-    svg.style.maxWidth = "none";
-    var vb = svg.viewBox && svg.viewBox.baseVal;
-    var w = vb && vb.width ? vb.width : svg.getBoundingClientRect().width;
-    var h = vb && vb.height ? vb.height : svg.getBoundingClientRect().height;
-    if (!w || !h) {
-      svgNatural = null;
-      return;
-    }
-    svgNatural = { w, h };
-    applyZoom();
-  }
-  function applyZoom() {
-    if (!svgNatural) return;
-    var svg = els.mermaidOut.querySelector("svg");
-    if (!svg) return;
-    svg.style.width = svgNatural.w * state.zoomLevel + "px";
-    svg.style.height = svgNatural.h * state.zoomLevel + "px";
-  }
-
   // src-app/16-doc-ops.js
   function saveDiskDoc(d) {
     if (!d || !d.diskPath || !hasApi()) return;
@@ -10174,7 +10200,7 @@
     cm.on("change", function() {
       syncFromEditor();
       updateStatus();
-      scheduleRender2();
+      scheduleRender();
       clearJSONErrorHighlight();
       scheduleFoldDataUris();
     });
@@ -10290,9 +10316,13 @@
     state.previewOn = !state.previewOn;
     updatePreviewVisibility();
   });
+  els.previewClose.addEventListener("click", function() {
+    state.previewOn = false;
+    updatePreviewVisibility();
+  });
   $("btn-insert-sample").addEventListener("click", function() {
     cm.setValue(SAMPLE_DIAGRAM + "\n\n" + SAMPLE_MINDMAP);
-    scheduleRender2();
+    scheduleRender();
   });
   var pb = document.getElementById("preview-body");
   pb.addEventListener("mousedown", function(e) {
@@ -11245,7 +11275,7 @@
   }
 
   // src-app/27-about.js
-  var APP_VERSION = "1.0.1";
+  var APP_VERSION = "1.0.2";
   var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
   var APP_HOME_URL = "https://stutasliu.github.io/LNote/";
   function versionGreater(a, b) {

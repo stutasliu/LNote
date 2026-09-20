@@ -9,7 +9,7 @@ import { notifyNewUpdate } from './28-update.js';
 
 /* ---------------- 关于：版本号 / 检查更新 / 更新日志 ---------------- */
 // 版本号与 main.py 的 APP_VERSION / package.json 的 version 保持一致
-var APP_VERSION = '1.0.1';
+var APP_VERSION = '1.0.2';
 var APP_RELEASES_URL = 'https://github.com/stutasliu/LNote/releases';
 var APP_HOME_URL = 'https://stutasliu.github.io/LNote/';
 

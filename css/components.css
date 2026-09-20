@@ -269,6 +269,7 @@
   flex: 1;
   display: flex;
   min-height: 0;
+  position: relative; /* 作为满屏预览（absolute inset:0）的定位参照 */
 }
 #editor-pane {
   flex: 1;
@@ -286,6 +287,21 @@
   flex-direction: column;
   background: var(--surface);
 }
+/* ---- 满屏预览：预览区占满右侧编辑区（默认模式），左栏列表 / 顶栏仍可见 ---- */
+#preview-pane.full-window {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto !important; /* 覆盖折叠/拖动遗留的行内宽度 */
+  min-width: 0;
+  border-left: none;
+  z-index: 15;
+}
+#preview-pane.full-window #preview-body { padding: 24px 40px 40px; }
+#preview-close { display: none; margin-left: 10px; }
+#preview-pane.full-window #preview-close { display: inline-flex; }
 /* ---- 可拖动分割线 ---- */
 #pane-splitter {
   flex: 0 0 auto;
@@ -344,14 +360,15 @@
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border);
 }
-.preview-hint { font-weight: 400; font-size: 11.5px; color: var(--text-faint); }
+.preview-hint { font-weight: 400; font-size: 11.5px; color: var(--text-faint); margin-left: auto; }
 #preview-body {
   flex: 1;
   overflow: auto;
   padding: 20px;
-  cursor: grab;
-  user-select: none;
 }
+/* 仅图表预览需要拖拽平移：抓手光标 + 禁用文本选择。
+   Markdown / HTML 预览保持正常光标，允许选中复制文字 */
+#preview-body.pan-mode { cursor: grab; user-select: none; }
 #preview-body.panning { cursor: grabbing; }
 /* width:max-content + margin:auto：小于容器时居中，大于容器时可完整滚动/拖拽 */
 #mermaid-out { width: max-content; margin: 0 auto; }
