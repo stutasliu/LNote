@@ -7,14 +7,14 @@ import { activeDoc, persist, uid } from './05-store.js';
 import { fullTime } from './06-doc-list.js';
 import { openDoc } from './07-doc-open.js';
 import { onVisualChange, saveUniversal } from './08-visual.js';
-import { dirOf, getApi, hasApi, normPath, setCachedRichDir } from './13-api-path.js';
+import { dirOf, getApi, hasApi, normPath, setCachedRichDir, callApi } from './13-api-path.js';
 import { folderState } from './14-filetree-image.js';
-import { saveDiskDoc, toast } from './16-doc-ops.js';
+import { saveDiskDoc, toast, nextAutoTitle } from './16-doc-ops.js';
   function newVisualDoc(kind) {
     var mod = window[VISUAL_MODULES[kind]];
     var d = {
       id: uid(),
-      title: '',
+      title: nextAutoTitle(),
       kind: kind,
       lang: 'json',
       content: JSON.stringify(mod.defaultModel()),
@@ -31,7 +31,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
   function newVisualDocFromModel(kind, model, title) {
     var d = {
       id: uid(),
-      title: title || '',
+      title: title || nextAutoTitle(),
       kind: kind,
       lang: 'json',
       content: JSON.stringify(model),
@@ -47,7 +47,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
   function newRichDoc() {
     var d = {
       id: uid(),
-      title: '',
+      title: nextAutoTitle(),
       kind: 'rich',
       encoding: 'utf-8',
       content: JSON.stringify([
@@ -71,7 +71,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
       if (!dir) return false;
       setCachedRichDir(dir);
       var dirNorm = dir.replace(/\\/g, '/');
-      var desired = (d.title && d.title.trim()) || '未命名文档';
+      var desired = (d.title && d.title.trim()) || '无标题';
       d.diskPath = computeRichFilePath(dirNorm, d, desired);
       d.encoding = d.encoding || 'utf-8';
       return true;
@@ -88,21 +88,21 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
     if (!d.diskPath) return ensureRichDiskPath(d).then(function () { return null; });
     var dir = dirOf(d.diskPath);
     if (!dir) return Promise.resolve();
-    var desired = (d.title && d.title.trim()) || '未命名文档';
+    var desired = (d.title && d.title.trim()) || '无标题';
     var newPath = computeRichFilePath(dir, d, desired);
     if (newPath === d.diskPath) return Promise.resolve();
     var oldPath = d.diskPath;
     // 1) 立刻把 in-memory diskPath 切到新路径
     d.diskPath = newPath;
     // 2) 把当前内容写到新路径（覆盖任何 orphan）
-    return getApi().write_text_file(newPath, d.content || '', d.encoding || 'utf-8').then(function (ok) {
+    return callApi('write_text_file', newPath, d.content || '', d.encoding || 'utf-8').then(function (ok) {
       if (!ok) {
         // 写失败 —— 回滚 diskPath
         d.diskPath = oldPath;
         throw new Error('write_text_file 返回失败');
       }
       // 3) 写成功后再删旧路径（异步吞错）
-      return getApi().delete_rich_file(oldPath).catch(function () { return null; });
+      return callApi('delete_rich_file', oldPath).catch(function () { return null; });
     }).then(function () {
       persist();
       els.statSaved.textContent = '已保存到磁盘';
@@ -115,6 +115,9 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
   function runRichSaveChain(d) {
     var self = _richSaveChain.then(function () {
       if (!d || d.kind !== 'rich') return null;
+      // 新建文档尚未关联磁盘文件：只保存到本地存储，不自动落盘；
+      // 需用户显式点击「保存 / 另存为」才创建磁盘文件（此后编辑才会自动同步到磁盘）
+      if (!d.diskPath) return null;
       return syncRichDiskPath(d).then(function () {
         if (!d.diskPath) return null;
         return saveDiskDoc(d);  // 内容写盘（覆盖当前 diskPath 对应文件）
@@ -123,8 +126,13 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
       if (!d) return;
       persist();
       bus.emit('docs:changed');
-      els.statSaved.textContent = '已保存到磁盘';
-      els.statSaved.style.color = '#0f7b0f';
+      if (d.diskPath) {
+        els.statSaved.textContent = '已保存到磁盘';
+        els.statSaved.style.color = '#0f7b0f';
+      } else {
+        els.statSaved.textContent = '已保存';
+        els.statSaved.style.color = '#0f7b0f';
+      }
     }).catch(function (err) {
       console.warn('[L.Note] 富文档保存失败：', err);
       els.statSaved.textContent = '保存失败';
@@ -146,7 +154,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
     t = t.replace(/[.\s]+$/, '');
     if (t.length > 80) t = t.slice(0, 80);
     t = t.replace(/[.\s]+$/, '');
-    if (!t) t = '未命名文档';
+    if (!t) t = '无标题';
     return t;
   }
 
@@ -233,8 +241,11 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
   }
 
   // 富文档「另存为」的过滤器（pywebview 接收 (描述, 模式) 元组序列）
+  // 注意：描述部分不能含 '.' 等字符——pywebview 的 parse_file_type 只接受
+  // '[\w ]+ (*.ext)' 形式，品牌名「L.Note」里的点会让它抛 ValueError，
+  // 而该异常在 create_file_dialog 的 try 之外，会导致整个保存失败。
   function richDocSaveFilters() {
-    return ['L.Note 富文档 (*.json)', 'JSON 格式 (*.json)', '所有文件 (*.*)'];
+    return ['LNote 富文档 (*.json)', 'JSON 格式 (*.json)', '所有文件 (*.*)'];
   }
 
   // 富文档「另存为」弹出对话框时建议的初始目录。
@@ -247,7 +258,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
 
   // 【修复】用户在原生「保存/另存为」对话框里直接输入的文件名，
   // 也应成为文档标题（与 v0.17「磁盘文件名 = 文档标题」约定保持一致），
-  // 否则保存后侧边栏/标题框仍显示旧名「未命名文档」。
+  // 否则保存后侧边栏/标题框仍显示旧名「无标题」。
   function adoptTitleFromPath(d, path) {
     if (!d || !path) return;
     var base = String(path).split(/[\\/]/).pop() || '';
@@ -299,7 +310,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
       var oldPath = d.diskPath || null;
       var initialName = docSaveName(d);
       var richContent = d.content || '';
-      getApi().save_file_encoded(initialName, richContent, d.encoding || 'UTF-8', richDocSaveFilters()).then(function (newPath) {
+      callApi('save_file_encoded', initialName, richContent, d.encoding || 'UTF-8', richDocSaveFilters()).then(function (newPath) {
         if (!newPath) { toast('已取消保存', 'info'); return; }
         // 写盘成功 → 更新 diskPath + 登记到 openFiles + 若有旧路径则尝试删掉
         d.diskPath = newPath;
@@ -310,7 +321,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
         folderState.openFiles[normPath(newPath).toLowerCase()] = d.id;
         if (oldPath && oldPath !== newPath) {
           // 旧路径（如果存在）建议清掉，避免遗留 orphan
-          getApi().delete_rich_file(oldPath).catch(function () {});
+          callApi('delete_rich_file', oldPath).catch(function () {});
         }
         els.statSaved.textContent = '已保存到磁盘';
         els.statSaved.style.color = '#0f7b0f';
@@ -332,7 +343,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
     }
     // 已关联磁盘文件且非「另存为」→ 直接覆盖写盘
     if (!forceAsk && d.diskPath) {
-      getApi().write_text_file(d.diskPath, d.content, d.encoding || 'UTF-8').then(function (ok) {
+      callApi('write_text_file', d.diskPath, d.content, d.encoding || 'UTF-8').then(function (ok) {
         if (ok) {
           d.updated = Date.now();
           els.statSaved.textContent = '已保存到磁盘';
@@ -352,7 +363,7 @@ import { saveDiskDoc, toast } from './16-doc-ops.js';
     // 首次保存（无 diskPath）或「另存为」→ 弹原生保存对话框
     // 首次保存先提示原因，避免用户误以为「已存在文件还让另存为」
     if (!forceAsk && !d.diskPath) toast('该文档尚未关联磁盘文件，请选择保存位置（仅首次保存需要选择）', 'info');
-    getApi().save_file_encoded(docSaveName(d), d.content, d.encoding || 'UTF-8').then(function (path) {
+    callApi('save_file_encoded', docSaveName(d), d.content, d.encoding || 'UTF-8').then(function (path) {
       if (!path) { toast('已取消保存', 'info'); return; }
       d.diskPath = path;
       d.encoding = d.encoding || 'UTF-8';

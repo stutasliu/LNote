@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { API, getApi, hasApi, EXT_LANGS, RICH_BLOCK_TYPES, isRichDocContent, IMG_EXTS, isImageExt, PDF_EXTS, isPdfExt, DOC_EXTS, isDocExt, dirOf, joinPath, normPath, isAbsPath, toFileUrl, resolveImgSrc, getCachedRichDir, setCachedRichDir };
+export { API, getApi, hasApi, getSessionToken, callApi, EXT_LANGS, RICH_BLOCK_TYPES, isRichDocContent, IMG_EXTS, isImageExt, PDF_EXTS, isPdfExt, DOC_EXTS, isDocExt, dirOf, joinPath, normPath, isAbsPath, toFileUrl, resolveImgSrc, getCachedRichDir, setCachedRichDir };
   /* ---------------- 磁盘文件（打开文件夹 / 编码 / 比较） ---------------- */
   // pywebview 的 JS 桥是在页面加载完成后（pywebviewready）才注入的，
   // 因此必须在调用时动态获取，不能初始化时缓存，否则会误判为浏览器环境。
@@ -17,7 +17,40 @@ export { API, getApi, hasApi, EXT_LANGS, RICH_BLOCK_TYPES, isRichDocContent, IMG
     if (API && API.get_rich_dir) {
       API.get_rich_dir().then(function (dir) { setCachedRichDir(dir); }).catch(function () {});
     }
+    // 预取会话令牌（高危原生调用的通行证），后续调用免等待
+    getSessionToken();
   });
+
+  /* ---------------- 会话令牌（高危原生 API 的通行证） ----------------
+   * Python 端对「执行安装包 / 写盘 / 移动 / 删除文件」等高危方法要求首位参数
+   * 携带本进程启动时随机生成的令牌。令牌在此模块作用域内保存（非全局），
+   * 页面内被注入的脚本无法读取，因而无法直接调用 window.pywebview.api 触发高危操作。
+   * 所有高危调用请走 callApi(name, ...args)，它会自动前置令牌。 */
+  var _sessionToken = null;
+  var _tokenPromise = null;
+  function getSessionToken() {
+    if (_sessionToken) return Promise.resolve(_sessionToken);
+    var a = getApi();
+    if (!a || typeof a.get_session_token !== 'function') return Promise.resolve(null);
+    if (!_tokenPromise) {
+      _tokenPromise = a.get_session_token().then(function (r) {
+        _sessionToken = (r && r.token) || null;
+        return _sessionToken;
+      }).catch(function () { _tokenPromise = null; return null; });
+    }
+    return _tokenPromise;
+  }
+  // 统一封装：取令牌 → 把它前置到参数首位 → 调用同名原生方法
+  function callApi(name) {
+    var a = getApi();
+    if (!a || typeof a[name] !== 'function') {
+      return Promise.reject(new Error('原生 API 不可用: ' + name));
+    }
+    var rest = Array.prototype.slice.call(arguments, 1);
+    return getSessionToken().then(function (tk) {
+      return a[name].apply(a, [tk].concat(rest));
+    });
+  }
 
   // 缓存富文档目录，避免每次渲染图片都异步调用 Python API
   var _cachedRichDir = null;

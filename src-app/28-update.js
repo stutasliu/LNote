@@ -2,7 +2,7 @@
 export { initAutoUpdate, showUpdateModal, notifyNewUpdate };
 /* [esm] 导入依赖模块绑定 */
 import { $ } from './01-core.js';
-import { getApi, hasApi } from './13-api-path.js';
+import { getApi, hasApi, callApi } from './13-api-path.js';
 import { openSingleModal } from './15-insert.js';
 import { toast } from './16-doc-ops.js';
 
@@ -97,6 +97,9 @@ function _onUpdateCb(p) {
   var s = p.state;
   if (s === 'downloading') {
     _setUpdProgress(p.percent);
+  } else if (s === 'verifying') {
+    var txtV = $('update-progress-text');
+    if (txtV) txtV.textContent = '正在校验安装包完整性…';
   } else if (s === 'ready') {
     var txt = $('update-progress-text');
     if (txt) txt.textContent = '下载完成，正在安装…';
@@ -123,7 +126,7 @@ function startUpdate() {
   _setUpdProgressView();
   _setUpdProgress(-1);
   window.__lnoteUpdateCb = _onUpdateCb;
-  api.start_update(tag).then(function (r) {
+  callApi('start_update', tag).then(function (r) {
     if (!r) return;
     if (r.error) _failUpdate(r.error);
     else if (!r.started) _failUpdate('更新任务未能启动');

@@ -12,7 +12,7 @@ import { newRichDoc, newVisualDoc, saveDoc, syncFromEditor } from './09-rich-sav
 import { applyZoom, panState, scheduleRender, svgNatural, updatePreviewVisibility, updateStatus } from './10-status-preview.js';
 import { clearJSONErrorHighlight, copyToClipboard, execEditorCmd, formatXML, runTextTool, runTool } from './11-format-tools.js';
 import { CLIP_KEY, openSnippetModal, recordClip, renderClipList } from './12-snippet-clip.js';
-import { getApi, hasApi } from './13-api-path.js';
+import { getApi, hasApi, callApi } from './13-api-path.js';
 import { applyImgZoom, closeImageModal, fitImage, openFolder, openDiskFile, switchSideTab } from './14-filetree-image.js';
 import { closeAllToolMenus, closeCalloutModal, closeCodeModal, closeIconModal, closeInsertMenu, closeTableModal, filterIcons, handlePastedImage, insertCallout, insertCode, insertImageFile, insertTable, openInsertMenu, openSingleModal, routeInsert, scheduleFoldDataUris, showMenuAtMoreBtn } from './15-insert.js';
 import { exportDoc, importFile, newDoc, openCompareWindow, openEncModal, setLang, toast } from './16-doc-ops.js';
@@ -820,7 +820,7 @@ import { isAiConfigured, onAiConfigChanged, refreshAiConfigState } from './29-ai
     var ext = LANGS[d.lang] ? LANGS[d.lang].ext : '.txt';
     var name = (d.title || '未命名').replace(/[\\/:*?"<>|]/g, '_') + ext;
     var enc = $('enc-select').value;
-    getApi().save_file_encoded(name, cm.getValue(), enc).then(function (p) {
+    callApi('save_file_encoded', name, cm.getValue(), enc).then(function (p) {
       if (p) toast('已按 ' + enc + ' 另存为 ✓', 'success');
     }).catch(function () { toast('另存失败', 'error'); });
   });

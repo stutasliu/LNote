@@ -7,9 +7,12 @@ L.Note 桌面版入口
 import os
 import sys
 import time
+import hmac
+import hashlib
 import threading
 import base64
 import json
+import secrets
 import struct
 import re
 import socket
@@ -19,6 +22,7 @@ import tempfile
 import html as _html
 
 import webview
+from webview.util import parse_file_type
 
 # 供文件比较窗口读取的待比较数据
 pending_compare = None
@@ -40,10 +44,18 @@ _runtime_pending_files = []
 _runtime_frontend_ready = False
 
 # 版本号（与 js/app.js 页脚保持一致）
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 
 # 主窗口标题（软件登记全称，与说明书、源代码文档、界面截图保持同名）
 APP_TITLE = "L.Note本地笔记编辑软件"
+
+# ---- 会话令牌（高危原生 API 的纵深防御） ----
+# pywebview 的 JS 桥（window.pywebview.api）对窗口内任何脚本都可见。在「预览净化 +
+# CSP + iframe 沙箱」之外再加一道：会执行安装包、或会写入/删除/移动磁盘文件的高危
+# 方法，必须携带本进程启动时随机生成的令牌（见 LNoteApi._SESSION_TOKEN）。
+# 令牌只通过 get_session_token 交给应用自身的调用封装（保存在前端模块作用域），
+# 未携带或错误的调用一律拒绝 —— 注入脚本直接调用原生桥也无法触发安装或写盘。
+_SESSION_TOKEN = secrets.token_urlsafe(32)
 
 # 富文档（块编辑器）自动存储目录名
 RICH_DIRNAME = "L.NoteRich"
@@ -551,6 +563,22 @@ class LNoteApi:
     def set_window(self, window):
         self._window = window
 
+    def _token_ok(self, token) -> bool:
+        """校验高危调用携带的会话令牌（常量时间比较，避免时序侧信道）。"""
+        try:
+            return isinstance(token, str) and hmac.compare_digest(token, _SESSION_TOKEN)
+        except Exception:
+            return False
+
+    def get_session_token(self):
+        """把本进程的会话令牌交给前端调用封装（低危方法）。
+
+        前端在 pywebviewready 时取一次，保存在模块作用域（非全局），此后所有高危
+        调用自动在参数首位前置该令牌。注入脚本即使能直连 window.pywebview.api，
+        也拿不到令牌，从而无法触发安装包执行或任意文件写入。
+        """
+        return {"token": _SESSION_TOKEN}
+
     def get_pending_open_file(self):
         """返回右键「打开方式」传入、待主编辑器打开的非图片文件。
 
@@ -605,9 +633,12 @@ class LNoteApi:
         _debug_log("[js] " + str(msg))
         return True
 
-    def save_file(self, filename: str, content: str, file_types=None):
+    def save_file(self, token: str, filename: str, content: str, file_types=None):
         """弹出原生「另存为」对话框，保存文本文件。返回保存路径或 None。
         file_types 可选；为 None 时给「所有文件」单过滤器。"""
+        if not self._token_ok(token):
+            _debug_log("[api] 拒绝未授权调用: save_file")
+            return None
         path = self._ask_save_path(filename, file_types)
         if not path:
             return None
@@ -615,9 +646,12 @@ class LNoteApi:
             f.write(content)
         return path
 
-    def save_file_binary(self, filename: str, content_b64: str, file_types=None):
+    def save_file_binary(self, token: str, filename: str, content_b64: str, file_types=None):
         """保存二进制文件（前端传 base64）。返回保存路径或 None。
         file_types 可选；为 None 时给「所有文件」单过滤器。"""
+        if not self._token_ok(token):
+            _debug_log("[api] 拒绝未授权调用: save_file_binary")
+            return None
         path = self._ask_save_path(filename, file_types)
         if not path:
             return None
@@ -636,8 +670,11 @@ class LNoteApi:
         except Exception as e:
             return {"error": str(e)}
 
-    def copy_image_to_assets(self, dirpath: str, srcpath: str, subdir: str = "assets"):
+    def copy_image_to_assets(self, token: str, dirpath: str, srcpath: str, subdir: str = "assets"):
         """把图片 srcpath 复制到 dirpath/subdir/ 下，返回最终写入的绝对路径（正斜杠）。"""
+        if not self._token_ok(token):
+            _debug_log("[api] 拒绝未授权调用: copy_image_to_assets")
+            return {"error": "未授权调用"}
         if not dirpath or not os.path.isdir(dirpath):
             return {"error": "目标目录无效: " + str(dirpath)}
         if not os.path.isfile(srcpath):
@@ -659,8 +696,11 @@ class LNoteApi:
         except Exception as e:
             return {"error": str(e)}
 
-    def save_image_binary(self, dirpath: str, filename: str, content_b64: str, subdir: str = "assets"):
+    def save_image_binary(self, token: str, dirpath: str, filename: str, content_b64: str, subdir: str = "assets"):
         """把 base64 图片保存到 dirpath/subdir/ 下，返回写入的绝对路径（正斜杠）。"""
+        if not self._token_ok(token):
+            _debug_log("[api] 拒绝未授权调用: save_image_binary")
+            return {"error": "未授权调用"}
         if not dirpath or not os.path.isdir(dirpath):
             return {"error": "目标目录无效: " + str(dirpath)}
         try:
@@ -679,9 +719,12 @@ class LNoteApi:
         except Exception as e:
             return {"error": str(e)}
 
-    def save_file_encoded(self, filename: str, content: str, encoding: str = "utf-8", file_types=None):
+    def save_file_encoded(self, token: str, filename: str, content: str, encoding: str = "utf-8", file_types=None):
         """以指定编码弹出「另存为」，返回保存路径或 None。
         file_types 可选；为 None 时给「所有文件」单过滤器。"""
+        if not self._token_ok(token):
+            _debug_log("[api] 拒绝未授权调用: save_file_encoded")
+            return None
         path = self._ask_save_path(filename, file_types)
         if not path:
             return None
@@ -737,13 +780,16 @@ class LNoteApi:
                 continue
         return None
 
-    def move_rich_file(self, src: str, dst: str):
+    def move_rich_file(self, token: str, src: str, dst: str):
         """把富文档的磁盘文件移动到新位置（用于「标题改名 → 文件名跟着变」）。
 
         同盘走 os.replace（O(1)）；跨盘降级为 copy + remove。
         父目录不存在会自动创建。**目标若已存在则直接拒绝**（避免误覆盖其它富文档）。
         返回 {path: 新绝对路径（正斜杠）} 或 {error: ...}。
         """
+        if not self._token_ok(token):
+            _debug_log("[api] 拒绝未授权调用: move_rich_file")
+            return {"error": "未授权调用"}
         if not src or not dst:
             return {"error": "源或目标路径为空"}
         if not os.path.isfile(src):
@@ -768,11 +814,14 @@ class LNoteApi:
         except Exception as e:
             return {"error": str(e)}
 
-    def delete_rich_file(self, path: str):
+    def delete_rich_file(self, token: str, path: str):
         """删除富文档磁盘文件（用于标题改名时清理旧路径）。
 
         若文件不存在静默成功。返回 {"ok": True} 或 {"error": ...}。
         """
+        if not self._token_ok(token):
+            _debug_log("[api] 拒绝未授权调用: delete_rich_file")
+            return {"error": "未授权调用"}
         if not path:
             return {"error": "路径为空"}
         try:
@@ -1007,9 +1056,12 @@ class LNoteApi:
         except Exception as e:
             return {"error": str(e)}
 
-    def write_text_file(self, path: str, content: str, encoding: str = "utf-8"):
+    def write_text_file(self, token: str, path: str, content: str, encoding: str = "utf-8"):
         """以指定编码写回磁盘文件。自动创建父目录。返回 True。"""
         import os
+        if not self._token_ok(token):
+            _debug_log("[api] 拒绝未授权调用: write_text_file")
+            return False
         # PDF / Word 只读保护：拒绝任何对 .pdf/.doc/.docx 路径的文本写入（返回 False，不抛错）
         if path.lower().endswith((".pdf", ".doc", ".docx")):
             return False
@@ -1320,15 +1372,19 @@ class LNoteApi:
             result["update_available"] = _version_greater(result["latest"], APP_VERSION)
         return result
 
-    def start_update(self, tag: str = ""):
+    def start_update(self, token: str, tag: str = ""):
         """开始自动更新：下载新版安装包 → 静默安装 → 自动重启到新版本。
 
         tag 为 check_update 返回的 latest（如 "v0.21.13"），留空则自动先查一次。
         立即返回 {"started": True, "tag": ...}，下载进度与结果通过
         window.__lnoteUpdateCb(payload) 回调推送：
         {"state": "downloading", "percent": 0-100| -1 未知, "received", "total"}
+        → {"state": "verifying"}（下载后比对 SHA256SUMS.txt）
         → {"state": "ready", "path"} → {"state": "installing"}；
-        任一步失败推 {"ok": False, "error": ...}。"""
+        任一步失败推 {"ok": False, "error": ...}（校验不通过时同样中止安装）。"""
+        if not self._token_ok(token):
+            _debug_log("[api] 拒绝未授权调用: start_update")
+            return {"error": "未授权调用"}
         if not str(tag or "").strip():
             chk = self.check_update()
             tag = str((chk or {}).get("latest") or "").strip()
@@ -1387,6 +1443,37 @@ class LNoteApi:
                                 "received": received,
                                 "total": total,
                             })
+                # —— SHA256 完整性校验：比对仓库 SHA256SUMS.txt，防止下载被篡改或损坏 ——
+                # 在改名为正式文件名之前完成，未通过即丢弃临时文件并中止，绝不进入安装。
+                push({"ok": True, "state": "verifying"})
+                filename = os.path.basename(target)
+                expect = _expected_sha256(tag, filename)
+                actual = _sha256_file(partial)
+                if not expect:
+                    _debug_log("[update] 校验中止：未取得期望哈希 tag=%s file=%s" % (tag, filename))
+                    try:
+                        os.remove(partial)
+                    except Exception:
+                        pass
+                    push({
+                        "ok": False,
+                        "error": "安装包校验失败：无法获取官方校验和（SHA256SUMS.txt），"
+                                 "为安全起见已中止安装。请稍后重试，或到发布页手动下载安装。",
+                    })
+                    return
+                if actual != expect:
+                    _debug_log("[update] 校验不匹配 expect=%s actual=%s" % (expect, actual))
+                    try:
+                        os.remove(partial)
+                    except Exception:
+                        pass
+                    push({
+                        "ok": False,
+                        "error": "安装包校验失败：文件哈希与官方值不一致（可能下载损坏或被篡改），"
+                                 "已中止安装并删除该文件。请重新下载后再试。",
+                    })
+                    return
+                _debug_log("[update] 校验通过 %s %s" % (filename, actual))
                 os.replace(partial, target)
                 push({"ok": True, "state": "ready", "path": target})
                 time.sleep(0.8)
@@ -1501,6 +1588,22 @@ class LNoteApi:
             file_types = (file_types,)
         if isinstance(file_types, list):
             file_types = tuple(file_types)
+        # 逐个校验过滤器：pywebview 的 parse_file_type 在描述含 '.' 等字符时会抛
+        # ValueError，且该异常发生在 create_file_dialog 内部 try 之外，会让整个
+        # 保存流程直接失败。此处丢弃非法项，单个坏过滤器不再连累其它过滤器与保存。
+        safe_types = []
+        for ft in file_types:
+            if not isinstance(ft, str):
+                continue
+            try:
+                parse_file_type(ft)
+            except Exception:
+                _debug_log("[api] 忽略非法文件过滤器: " + repr(ft))
+                continue
+            safe_types.append(ft)
+        if not safe_types:
+            safe_types = ["所有文件 (*.*)"]
+        file_types = tuple(safe_types)
         result = self._window.create_file_dialog(
             webview.SAVE_DIALOG,
             save_filename=filename,
@@ -1773,6 +1876,47 @@ def _resolve_update_asset(tag: str) -> str:
         "https://gitee.com/x_xiansheng/l.-note/releases/download/%s/"
         "L.Note-setup-%s.exe" % (tag, tag)
     )
+
+
+# 校验和文件行格式："SHA256(<文件名>) = <64位大写HEX>"（与 tools/publish.js 生成口径一致）
+_SHA256SUMS_RE = re.compile(r"SHA256\((.*?)\)\s*=\s*([0-9A-Fa-f]{64})")
+
+
+def _sha256_file(path: str) -> str:
+    """流式计算文件 SHA256（大写十六进制），避免整包读入内存。"""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest().upper()
+
+
+def _expected_sha256(tag: str, filename: str) -> str:
+    """从仓库 SHA256SUMS.txt 读取指定文件的期望哈希（大写十六进制）。
+
+    地址按优先级依次尝试：tag 固定版本的 Gitee raw → GitHub raw → 发布页站点
+    （最后一项是随 GitHub Pages 上线的同一份文件）。全部失败、或文件里没有
+    该文件名时返回空串，调用方据此判定为「无法校验」并中止安装。
+    """
+    import urllib.request
+
+    urls = (
+        "https://gitee.com/x_xiansheng/l.-note/raw/%s/SHA256SUMS.txt" % tag,
+        "https://raw.githubusercontent.com/stutasliu/LNote/%s/SHA256SUMS.txt" % tag,
+        "https://stutasliu.github.io/LNote/SHA256SUMS.txt",
+    )
+    for url in urls:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                text = resp.read().decode("utf-8", errors="replace")
+        except Exception as e:
+            _debug_log("[update] 拉取校验和失败(%s): %s" % (url, e))
+            continue
+        for name, digest in _SHA256SUMS_RE.findall(text):
+            if os.path.basename(name.strip()) == filename:
+                return digest.upper()
+    return ""
 
 
 def _do_translate(text: str, target: str) -> dict:

@@ -73,6 +73,32 @@ window.InkpadBlocks = (function () {
 
   function api() { return window.pywebview && window.pywebview.api; }
   function hasApi() { return !!api(); }
+
+  // 会话令牌：高危原生调用（写盘 / 移动 / 删除文件）必须携带，与 app.js 中 callApi 同款机制。
+  // 令牌保存在本闭包作用域（非全局），页面内被注入的脚本无法读取。
+  var _sessionToken = null;
+  var _tokenPromise = null;
+  function getSessionToken() {
+    if (_sessionToken) return Promise.resolve(_sessionToken);
+    var a = api();
+    if (!a || typeof a.get_session_token !== 'function') return Promise.resolve(null);
+    if (!_tokenPromise) {
+      _tokenPromise = a.get_session_token().then(function (r) {
+        _sessionToken = (r && r.token) || null;
+        return _sessionToken;
+      }).catch(function () { _tokenPromise = null; return null; });
+    }
+    return _tokenPromise;
+  }
+  // 统一封装：取令牌 → 前置到参数首位 → 调用同名原生方法
+  function callApi(name) {
+    var a = api();
+    if (!a || typeof a[name] !== 'function') return Promise.reject(new Error('原生 API 不可用: ' + name));
+    var rest = Array.prototype.slice.call(arguments, 1);
+    return getSessionToken().then(function (tk) { return a[name].apply(a, [tk].concat(rest)); });
+  }
+  if (api()) getSessionToken();
+  window.addEventListener('pywebviewready', function () { getSessionToken(); });
   function uid() { return 'b' + Date.now().toString(36) + (state.seq++) + Math.random().toString(36).slice(2, 5); }
   function notifyChange() {
     if (window.InkpadApp && window.InkpadApp.richChanged) window.InkpadApp.richChanged();
@@ -420,7 +446,7 @@ window.InkpadBlocks = (function () {
         dir = window.InkpadApp.getRichDir();
       }
       if (dir) {
-        api().copy_image_to_assets(dir, p).then(function (res) {
+        callApi('copy_image_to_assets', dir, p).then(function (res) {
           if (res && res.path) {
             b.src = res.rel; b.alt = p.split(/[\\/]/).pop(); render(); scheduleSave();
           } else if (res && res.error) {

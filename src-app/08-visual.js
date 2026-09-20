@@ -6,6 +6,7 @@ import { KIND_META, VISUAL_MODULES } from './04-editor-init.js';
 import { persist } from './05-store.js';
 import { fullTime } from './06-doc-list.js';
 import { toast } from './16-doc-ops.js';
+import { callApi } from './13-api-path.js';
   /* ---------------- 可视化文档（流程图/思维导图/思维笔记） ---------------- */
   function openVisual(d, kind) {
     var mod = window[VISUAL_MODULES[kind]];
@@ -190,10 +191,10 @@ import { toast } from './16-doc-ops.js';
   function saveUniversal(filename, content, isBinary) {
     if (window.pywebview && window.pywebview.api) {
       if (isBinary && window.pywebview.api.save_file_binary) {
-        return window.pywebview.api.save_file_binary(filename, window.InkpadExporter.u8ToBase64(content));
+        return callApi('save_file_binary', filename, window.InkpadExporter.u8ToBase64(content));
       }
       if (!isBinary && window.pywebview.api.save_file) {
-        return window.pywebview.api.save_file(filename, content);
+        return callApi('save_file', filename, content);
       }
     }
     // 浏览器降级

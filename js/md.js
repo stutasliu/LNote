@@ -10,11 +10,120 @@ window.InkpadMd = (function () {
 
   var mermaidSeq = 0;
 
+  /* ---------------- HTML 白名单净化 ----------------
+   * 预览的 HTML 来自用户笔记（可能经「打开外部文件」引入），marked 默认不
+   * 转义原始 HTML，直接 innerHTML 挂载会执行内联事件处理器（<img onerror>、
+   * <svg onload>、javascript: 链接）与 <iframe> 逃逸。因此在挂载前先做
+   * 「标签 + 属性」白名单净化，并校验 URL 协议。 */
+  var OK_TAGS = {};
+  ('p,br,hr,div,span,blockquote,pre,code,h1,h2,h3,h4,h5,h6,' +
+   'ul,ol,li,dl,dt,dd,table,thead,tbody,tfoot,tr,th,td,caption,' +
+   'figure,figcaption,details,summary,section,article,header,footer,main,' +
+   'aside,nav,address,a,strong,b,em,i,u,s,del,ins,mark,small,sub,sup,' +
+   'kbd,samp,var,abbr,cite,q,time,ruby,rt,rp,bdi,bdo,wbr,' +
+   'img,picture,source,video,audio,track,input'
+  ).split(',').forEach(function (t) { OK_TAGS[t] = true; });
+
+  // 连内容一起丢弃的标签（脚本 / 样式 / 嵌入 / 表单控件等）
+  var DROP_TAGS = {};
+  ('script,style,iframe,frame,frameset,object,embed,applet,param,noscript,' +
+   'template,base,link,meta,title,head,html,body,svg,math,canvas,' +
+   'textarea,select,option,optgroup,button,form,label,fieldset,legend'
+  ).split(',').forEach(function (t) { DROP_TAGS[t] = true; });
+
+  // 各标签允许保留的属性（'*' 为通用属性），未列出的属性一律移除
+  var OK_ATTRS = {
+    '*': ['id', 'class', 'title', 'lang', 'dir'],
+    a: ['href'],
+    img: ['src', 'alt', 'width', 'height'],
+    source: ['src', 'type', 'media'],
+    video: ['src', 'poster', 'width', 'height', 'controls'],
+    audio: ['src', 'controls'],
+    track: ['src', 'kind', 'srclang', 'label'],
+    input: ['type', 'checked', 'disabled'],
+    ol: ['start', 'type'],
+    td: ['colspan', 'rowspan', 'align', 'valign'],
+    th: ['colspan', 'rowspan', 'align', 'valign', 'scope'],
+    time: ['datetime'],
+    details: ['open'],
+    code: ['class'],
+    pre: ['class']
+  };
+
+  // 取 URL 协议：先剔除控制符与空白（防 "java\tscript:" 类绕过），再匹配 scheme
+  function urlScheme(raw) {
+    var s = String(raw == null ? '' : raw).replace(/[\u0000-\u0020\u007f]+/g, '');
+    var m = /^([a-z][a-z0-9+.\-]*):/i.exec(s);
+    return m ? m[1].toLowerCase() : '';
+  }
+
+  // 链接：仅 http/https/mailto/tel 与相对地址（含 #锚点）
+  // 媒体：另放行 file:/blob: 与 data:image/*（img 上下文不执行脚本）
+  function isSafeUrl(raw, kind) {
+    var scheme = urlScheme(raw);
+    if (!scheme) return true;
+    if (scheme === 'http' || scheme === 'https') return true;
+    if (kind === 'link') return scheme === 'mailto' || scheme === 'tel';
+    if (scheme === 'file' || scheme === 'blob') return true;
+    if (scheme === 'data') return /^data:image\//i.test(String(raw).replace(/[\u0000-\u0020\u007f]+/g, ''));
+    return false;
+  }
+
+  function sanitizeAttrs(el) {
+    var tag = (el.tagName || '').toLowerCase();
+    if (tag === 'input' && (el.getAttribute('type') || '').toLowerCase() !== 'checkbox') {
+      if (el.parentNode) el.parentNode.removeChild(el);
+      return;
+    }
+    var allowed = (OK_ATTRS[tag] || []).concat(OK_ATTRS['*']);
+    var names = [];
+    for (var i = 0; i < el.attributes.length; i++) names.push(el.attributes[i].name);
+    names.forEach(function (name) {
+      var lower = name.toLowerCase();
+      var ok = allowed.indexOf(lower) !== -1 || lower.slice(0, 5) === 'data-';
+      // 非白名单 / 所有 on* 事件 / 带命名空间（xlink:href 等）一律移除
+      if (!ok || lower.slice(0, 2) === 'on' || lower.indexOf(':') !== -1) el.removeAttribute(name);
+    });
+    if (tag === 'input') el.setAttribute('disabled', 'disabled');
+    if (el.hasAttribute('href') && !isSafeUrl(el.getAttribute('href'), 'link')) el.removeAttribute('href');
+    ['src', 'poster'].forEach(function (attr) {
+      if (el.hasAttribute(attr) && !isSafeUrl(el.getAttribute(attr), 'media')) el.removeAttribute(attr);
+    });
+  }
+
+  function sanitizeKids(node) {
+    var kids = [];
+    for (var i = 0; i < node.childNodes.length; i++) kids.push(node.childNodes[i]);
+    kids.forEach(function (child) {
+      if (child.nodeType === 8) { node.removeChild(child); return; } // 注释
+      if (child.nodeType === 1) sanitizeElement(child);              // 元素
+    });
+  }
+
+  function sanitizeElement(el) {
+    var tag = (el.tagName || '').toLowerCase();
+    if (DROP_TAGS[tag]) { if (el.parentNode) el.parentNode.removeChild(el); return; }
+    if (!OK_TAGS[tag]) {
+      // 未知标签：解包——仅保留子节点，避免误删正文
+      var parent = el.parentNode;
+      if (!parent) return;
+      var inner = [];
+      for (var i = 0; i < el.childNodes.length; i++) inner.push(el.childNodes[i]);
+      inner.forEach(function (n) { parent.insertBefore(n, el); });
+      parent.removeChild(el);
+      inner.forEach(function (n) { if (n.nodeType === 1) sanitizeElement(n); });
+      return;
+    }
+    sanitizeKids(el);
+    sanitizeAttrs(el);
+  }
+
   // 渲染 markdown 文本 → 已后处理的 DOM（mermaid / math 留占位，异步补）
   function parse(text) {
     var html = marked.parse(text || '');
     var wrap = document.createElement('div');
     wrap.innerHTML = html;
+    sanitizeKids(wrap); // 白名单净化：必须在挂载到文档之前
 
     // mermaid 代码块 → 占位，保存源码到 data-code
     wrap.querySelectorAll('pre > code.language-mermaid').forEach(function (code) {

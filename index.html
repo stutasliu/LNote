@@ -186,34 +186,34 @@
     <div class="logo"><img src="resource/app_512.png" alt="L.Note"></div>
     <h1>L.Note本地笔记编辑软件</h1>
     <p class="tagline">本地笔记编辑软件 —— 语法高亮 · Markdown 预览 · Mermaid 图表 · JSON/XML 工具</p>
-    <div class="badge">免费 · 纯本地运行 · 无需联网 · 安装版 / 便携版可选 · <b>v1.0.0</b></div>
+    <div class="badge">免费 · 纯本地运行 · 无需联网 · 安装版 / 便携版可选 · <b>v1.0.1</b></div>
   </header>
 
   <div class="dl-grid">
     <div class="dl-card">
       <div class="dl-tag">推荐 · 安装版</div>
-      <a class="dl-btn" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v1.0.0/L.Note-setup-v1.0.0.exe" download>
+      <a class="dl-btn" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v1.0.1/L.Note-setup-v1.0.1.exe" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        下载安装版 v1.0.0
+        下载安装版 v1.0.1
       </a>
       <div class="dl-meta">
         安装向导 · 约 18.3 MB · Windows 10/11（x64）<br>
         可选注册 .md / .markdown / 图片文件关联，含卸载程序<br>
         SHA256（可复制核对）：<br>
-        <code class="hash">858B2FA4BE9823129A0AB0A960BA90477498D2A5A840B7597DECAD1D0A2AC125</code>
+        <code class="hash">2DA09C8D2201AA47975D0E52F47C54DE9821B20864B0334E827B3075A61C7506</code>
       </div>
     </div>
     <div class="dl-card">
       <div class="dl-tag alt">免安装 · 便携版</div>
-      <a class="dl-btn alt" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v1.0.0/L.Note-v1.0.0-win64.exe" download>
+      <a class="dl-btn alt" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v1.0.1/L.Note-v1.0.1-win64.exe" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        下载便携版 v1.0.0
+        下载便携版 v1.0.1
       </a>
       <div class="dl-meta">
         免安装 · 约 16.7 MB · Windows 10/11（x64）<br>
         双击直接运行；需要文件关联时用 register-file-assoc.ps1<br>
         SHA256（可复制核对）：<br>
-        <code class="hash">F7722C071D0B5D87575D3BE331EA97C24C9F9073D5CC8DDE42A6A660269B0D84</code>
+        <code class="hash">CA4D59A5321E86AD07577551D6E038F03F8441EB5E345B8260801F477AD74F62</code>
       </div>
     </div>
   </div>
@@ -305,8 +305,8 @@
       <div class="panel">
         <h3>安装与运行</h3>
         <ul>
-          <li><b>安装版（推荐）：</b>双击 L.Note-setup-v1.0.0.exe，按向导完成安装；勾选「注册文件关联」后，.md / .markdown / 图片文件即可双击用 L.Note 打开</li>
-          <li><b>便携版：</b>双击 L.Note-v1.0.0-win64.exe，免安装直接运行</li>
+          <li><b>安装版（推荐）：</b>双击 L.Note-setup-v1.0.1.exe，按向导完成安装；勾选「注册文件关联」后，.md / .markdown / 图片文件即可双击用 L.Note 打开</li>
+          <li><b>便携版：</b>双击 L.Note-v1.0.1-win64.exe，免安装直接运行</li>
           <li>依赖 Edge WebView2 运行时（Win11 自带，Win10 一般已预装）</li>
           <li>数据保存在本机浏览器存储，卸载/换机前请先导出备份</li>
         </ul>
@@ -316,8 +316,8 @@
         <ul>
           <li>复制上方对应文件的 SHA256 值</li>
           <li>在 exe 所在目录执行：</li>
-          <li><b>certutil -hashfile L.Note-setup-v1.0.0.exe SHA256</b></li>
-          <li><b>certutil -hashfile L.Note-v1.0.0-win64.exe SHA256</b></li>
+          <li><b>certutil -hashfile L.Note-setup-v1.0.1.exe SHA256</b></li>
+          <li><b>certutil -hashfile L.Note-v1.0.1-win64.exe SHA256</b></li>
           <li>比对输出哈希是否一致</li>
         </ul>
       </div>
@@ -326,6 +326,12 @@
 
   <section>
     <h2>更新日志</h2>
+    <div class="changelog">
+      <div class="v">v1.0.1</div>
+      <ul>
+        <li>**修复富文本文档点击「保存」提示保存失败**：根因是「另存为」原生对话框的文件类型过滤器描述含品牌名「L.Note」中的点号，pywebview 的 `parse_file_type` 只接受 `[\w ]+ (*.ext)` 形式并会抛 `ValueError`，而该异常在平台 try 之外，直接导致整个保存流程失败；现前端过滤器描述改为「LNote 富文档 (*.json)」，Python 侧 `_ask_save_path` 对每条过滤器逐条校验、剔除非法项并在全部非法时回落到「所有文件 (*.*)」，双保险后保存恢复正常。，**新建文档默认名称统一为「无标题 / 无标题 2 / 无标题 3 …」**：此前普通文档走「无标题」，而快捷键 `Ctrl+N` 及富文本 / 流程图 / 思维导图 / 笔记等入口走「未命名文档 N」，两套命名规则并存；现全部新建入口统一复用 `nextAutoTitle()`，按现有「无标题」文档数量追加序号，侧栏与标题框显示一致。，**新建文档不再自动写入磁盘**：新建文档仅保存在本地存储，必须由用户显式点击「保存 / 另存为」才创建磁盘文件，此后编辑才会自动同步到磁盘；修复「新建的文档未经确认就落盘」的问题，未关联磁盘文件时状态栏显示「已保存」而非「已保存到磁盘」。，**预览内容安全加固**：Markdown / HTML 预览挂载前新增「标签 + 属性」白名单净化（丢弃 `<script>` / `<iframe>` / `<object>` / 表单控件等，仅保留 `href` / `src` 等必要属性并校验 URL 协议，拦截 `javascript:` 等危险链接）；Mermaid 安全级别由 `loose` 收紧为 `strict`；`app.html` 新增 Content-Security-Policy，并把 HTML 预览 iframe 的 `sandbox` 收紧为仅 `allow-scripts`（去掉 `allow-same-origin`），杜绝预览内容逃逸。，**高危原生 API 增加会话令牌校验**：Python 端对写盘、移动 / 删除文件、保存图片、执行更新安装包等高危方法要求首位参数携带本进程随机生成的令牌（`hmac.compare_digest` 恒定时间比对），令牌仅保存在前端模块作用域、页面内注入脚本无法读取，因而无法直接调用 `window.pywebview.api` 触发高危操作；前端所有高危调用统一改走 `callApi()` 自动前置令牌。，**自动更新增加 SHA256 完整性校验**：下载完成后先进入「正在校验安装包完整性」状态，Python 端按 Gitee raw → GitHub raw → GitHub Pages 顺序拉取官方 `SHA256SUMS.txt`，与已下载临时文件的实际 SHA256 比对，一致才 `os.replace` 就位；校验和不匹配或无法获取官方值时删除临时文件并中止安装，防止下载被篡改或损坏。</li>
+      </ul>
+    </div>
     <div class="changelog">
       <div class="v">v1.0.0</div>
       <ul>

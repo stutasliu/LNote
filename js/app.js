@@ -517,7 +517,35 @@
       }).catch(function() {
       });
     }
+    getSessionToken();
   });
+  var _sessionToken = null;
+  var _tokenPromise = null;
+  function getSessionToken() {
+    if (_sessionToken) return Promise.resolve(_sessionToken);
+    var a = getApi();
+    if (!a || typeof a.get_session_token !== "function") return Promise.resolve(null);
+    if (!_tokenPromise) {
+      _tokenPromise = a.get_session_token().then(function(r) {
+        _sessionToken = r && r.token || null;
+        return _sessionToken;
+      }).catch(function() {
+        _tokenPromise = null;
+        return null;
+      });
+    }
+    return _tokenPromise;
+  }
+  function callApi(name) {
+    var a = getApi();
+    if (!a || typeof a[name] !== "function") {
+      return Promise.reject(new Error("\u539F\u751F API \u4E0D\u53EF\u7528: " + name));
+    }
+    var rest = Array.prototype.slice.call(arguments, 1);
+    return getSessionToken().then(function(tk) {
+      return a[name].apply(a, [tk].concat(rest));
+    });
+  }
   var _cachedRichDir = null;
   function getCachedRichDir() {
     return _cachedRichDir;
@@ -2790,10 +2818,10 @@
   function saveUniversal(filename, content, isBinary) {
     if (window.pywebview && window.pywebview.api) {
       if (isBinary && window.pywebview.api.save_file_binary) {
-        return window.pywebview.api.save_file_binary(filename, window.InkpadExporter.u8ToBase64(content));
+        return callApi("save_file_binary", filename, window.InkpadExporter.u8ToBase64(content));
       }
       if (!isBinary && window.pywebview.api.save_file) {
-        return window.pywebview.api.save_file(filename, content);
+        return callApi("save_file", filename, content);
       }
     }
     var blob = isBinary ? new Blob([content]) : new Blob([content], { type: "text/plain;charset=utf-8" });
@@ -2810,7 +2838,7 @@
     var mod = window[VISUAL_MODULES[kind]];
     var d = {
       id: uid(),
-      title: "",
+      title: nextAutoTitle(),
       kind,
       lang: "json",
       content: JSON.stringify(mod.defaultModel()),
@@ -2824,7 +2852,7 @@
   function newVisualDocFromModel(kind, model, title) {
     var d = {
       id: uid(),
-      title: title || "",
+      title: title || nextAutoTitle(),
       kind,
       lang: "json",
       content: JSON.stringify(model),
@@ -2838,7 +2866,7 @@
   function newRichDoc() {
     var d = {
       id: uid(),
-      title: "",
+      title: nextAutoTitle(),
       kind: "rich",
       encoding: "utf-8",
       content: JSON.stringify([
@@ -2858,7 +2886,7 @@
       if (!dir) return false;
       setCachedRichDir(dir);
       var dirNorm = dir.replace(/\\/g, "/");
-      var desired = d.title && d.title.trim() || "\u672A\u547D\u540D\u6587\u6863";
+      var desired = d.title && d.title.trim() || "\u65E0\u6807\u9898";
       d.diskPath = computeRichFilePath(dirNorm, d, desired);
       d.encoding = d.encoding || "utf-8";
       return true;
@@ -2873,17 +2901,17 @@
     });
     var dir = dirOf(d.diskPath);
     if (!dir) return Promise.resolve();
-    var desired = d.title && d.title.trim() || "\u672A\u547D\u540D\u6587\u6863";
+    var desired = d.title && d.title.trim() || "\u65E0\u6807\u9898";
     var newPath = computeRichFilePath(dir, d, desired);
     if (newPath === d.diskPath) return Promise.resolve();
     var oldPath = d.diskPath;
     d.diskPath = newPath;
-    return getApi().write_text_file(newPath, d.content || "", d.encoding || "utf-8").then(function(ok) {
+    return callApi("write_text_file", newPath, d.content || "", d.encoding || "utf-8").then(function(ok) {
       if (!ok) {
         d.diskPath = oldPath;
         throw new Error("write_text_file \u8FD4\u56DE\u5931\u8D25");
       }
-      return getApi().delete_rich_file(oldPath).catch(function() {
+      return callApi("delete_rich_file", oldPath).catch(function() {
         return null;
       });
     }).then(function() {
@@ -2896,6 +2924,7 @@
   function runRichSaveChain(d) {
     var self = _richSaveChain.then(function() {
       if (!d || d.kind !== "rich") return null;
+      if (!d.diskPath) return null;
       return syncRichDiskPath(d).then(function() {
         if (!d.diskPath) return null;
         return saveDiskDoc(d);
@@ -2904,8 +2933,13 @@
       if (!d) return;
       persist();
       bus.emit("docs:changed");
-      els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
-      els.statSaved.style.color = "#0f7b0f";
+      if (d.diskPath) {
+        els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
+        els.statSaved.style.color = "#0f7b0f";
+      } else {
+        els.statSaved.textContent = "\u5DF2\u4FDD\u5B58";
+        els.statSaved.style.color = "#0f7b0f";
+      }
     }).catch(function(err) {
       console.warn("[L.Note] \u5BCC\u6587\u6863\u4FDD\u5B58\u5931\u8D25\uFF1A", err);
       els.statSaved.textContent = "\u4FDD\u5B58\u5931\u8D25";
@@ -2925,7 +2959,7 @@
     t = t.replace(/[.\s]+$/, "");
     if (t.length > 80) t = t.slice(0, 80);
     t = t.replace(/[.\s]+$/, "");
-    if (!t) t = "\u672A\u547D\u540D\u6587\u6863";
+    if (!t) t = "\u65E0\u6807\u9898";
     return t;
   }
   function computeRichFilePath(dir, d, desiredName) {
@@ -3002,7 +3036,7 @@
     return t;
   }
   function richDocSaveFilters() {
-    return ["L.Note \u5BCC\u6587\u6863 (*.json)", "JSON \u683C\u5F0F (*.json)", "\u6240\u6709\u6587\u4EF6 (*.*)"];
+    return ["LNote \u5BCC\u6587\u6863 (*.json)", "JSON \u683C\u5F0F (*.json)", "\u6240\u6709\u6587\u4EF6 (*.*)"];
   }
   function richDocSaveInitialDir(d) {
     if (d && d.diskPath) return dirOf(d.diskPath);
@@ -3053,7 +3087,7 @@
       var oldPath = d.diskPath || null;
       var initialName = docSaveName(d);
       var richContent = d.content || "";
-      getApi().save_file_encoded(initialName, richContent, d.encoding || "UTF-8", richDocSaveFilters()).then(function(newPath) {
+      callApi("save_file_encoded", initialName, richContent, d.encoding || "UTF-8", richDocSaveFilters()).then(function(newPath) {
         if (!newPath) {
           toast3("\u5DF2\u53D6\u6D88\u4FDD\u5B58", "info");
           return;
@@ -3065,7 +3099,7 @@
         if (!folderState.openFiles) folderState.openFiles = {};
         folderState.openFiles[normPath(newPath).toLowerCase()] = d.id;
         if (oldPath && oldPath !== newPath) {
-          getApi().delete_rich_file(oldPath).catch(function() {
+          callApi("delete_rich_file", oldPath).catch(function() {
           });
         }
         els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
@@ -3084,7 +3118,7 @@
       return;
     }
     if (!forceAsk && d.diskPath) {
-      getApi().write_text_file(d.diskPath, d.content, d.encoding || "UTF-8").then(function(ok) {
+      callApi("write_text_file", d.diskPath, d.content, d.encoding || "UTF-8").then(function(ok) {
         if (ok) {
           d.updated = Date.now();
           els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
@@ -3102,7 +3136,7 @@
       return;
     }
     if (!forceAsk && !d.diskPath) toast3("\u8BE5\u6587\u6863\u5C1A\u672A\u5173\u8054\u78C1\u76D8\u6587\u4EF6\uFF0C\u8BF7\u9009\u62E9\u4FDD\u5B58\u4F4D\u7F6E\uFF08\u4EC5\u9996\u6B21\u4FDD\u5B58\u9700\u8981\u9009\u62E9\uFF09", "info");
-    getApi().save_file_encoded(docSaveName(d), d.content, d.encoding || "UTF-8").then(function(path) {
+    callApi("save_file_encoded", docSaveName(d), d.content, d.encoding || "UTF-8").then(function(path) {
       if (!path) {
         toast3("\u5DF2\u53D6\u6D88\u4FDD\u5B58", "info");
         return;
@@ -6919,7 +6953,7 @@
       paths.forEach(function(p) {
         queue = queue.then(function() {
           if (hasDisk) {
-            return getApi().copy_image_to_assets(baseDir, p).then(function(res) {
+            return callApi("copy_image_to_assets", baseDir, p).then(function(res) {
               if (res && res.path) {
                 insertAtCursor("![](" + res.rel + ")");
                 toast3("\u5DF2\u63D2\u5165\uFF1A" + res.rel, "success");
@@ -6988,7 +7022,7 @@
         var ext = extFromType(mime);
         var fname = "paste_" + Date.now() + "." + ext;
         var baseDir = dirOf(d.diskPath);
-        getApi().save_image_binary(baseDir, fname, b64).then(function(res) {
+        callApi("save_image_binary", baseDir, fname, b64).then(function(res) {
           if (res && res.path) {
             insertAtCursor("![](" + res.rel + ")");
             toast3("\u5DF2\u7C98\u8D34\u56FE\u7247", "success");
@@ -8556,7 +8590,7 @@
   function saveDiskDoc(d) {
     if (!d || !d.diskPath || !hasApi()) return;
     if (d.kind === "pdf" || d.kind === "doc") return;
-    getApi().write_text_file(d.diskPath, d.content, d.encoding).then(function(ok) {
+    callApi("write_text_file", d.diskPath, d.content, d.encoding).then(function(ok) {
       if (ok) {
         els.statSaved.textContent = "\u5DF2\u4FDD\u5B58\u5230\u78C1\u76D8";
         els.statSaved.style.color = "#0f7b0f";
@@ -8629,7 +8663,7 @@
     updatePreviewVisibility();
   }
   function nextAutoTitle() {
-    var base = "\u672A\u547D\u540D\u6587\u6863";
+    var base = "\u65E0\u6807\u9898";
     var max = 0;
     (state.docs || []).forEach(function(doc) {
       var t = doc.title || "";
@@ -8637,7 +8671,7 @@
         max = Math.max(max, 1);
         return;
       }
-      var m = t.match(/^未命名文档\s+(\d+)$/);
+      var m = t.match(/^无标题\s+(\d+)$/);
       if (m) max = Math.max(max, parseInt(m[1], 10));
     });
     return max ? base + " " + (max + 1) : base;
@@ -8671,7 +8705,7 @@
       var md = window.InkpadBlocks ? window.InkpadBlocks.toMarkdown() : d.content;
       var rname = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ".md";
       if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
-        window.pywebview.api.save_file(rname, md).then(function(saved) {
+        callApi("save_file", rname, md).then(function(saved) {
           if (saved) toast3("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
         }).catch(function() {
           toast3("\u5BFC\u51FA\u5931\u8D25", "error");
@@ -8695,7 +8729,7 @@
     var name = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ext;
     var content = isVisualDoc ? d.content : cm.getValue();
     if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
-      window.pywebview.api.save_file(name, content).then(function(saved) {
+      callApi("save_file", name, content).then(function(saved) {
         if (saved) toast3("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
       }).catch(function() {
         toast3("\u5BFC\u51FA\u5931\u8D25", "error");
@@ -8848,7 +8882,7 @@
       var md = d.content || "";
       var rname = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ".md";
       if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
-        window.pywebview.api.save_file(rname, md).then(function(saved) {
+        callApi("save_file", rname, md).then(function(saved) {
           if (saved) toast3("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
         }).catch(function() {
           toast3("\u5BFC\u51FA\u5931\u8D25", "error");
@@ -8869,7 +8903,7 @@
     var name = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ext;
     var content = d.content || "";
     if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
-      window.pywebview.api.save_file(name, content).then(function(saved) {
+      callApi("save_file", name, content).then(function(saved) {
         if (saved) toast3("\u5DF2\u5BFC\u51FA\u5230 " + saved, "success");
       }).catch(function() {
         toast3("\u5BFC\u51FA\u5931\u8D25", "error");
@@ -9865,15 +9899,7 @@
             }, { once: true });
           }
         };
-        ensureRichDiskPath(d).then(function(assigned) {
-          loadFromDisk(function() {
-            finishOpen();
-            if (assigned) {
-              persist();
-              saveDiskDoc(d);
-            }
-          });
-        });
+        loadFromDisk(finishOpen);
       }
       return;
     }
@@ -11052,7 +11078,7 @@
     var ext = LANGS[d.lang] ? LANGS[d.lang].ext : ".txt";
     var name = (d.title || "\u672A\u547D\u540D").replace(/[\\/:*?"<>|]/g, "_") + ext;
     var enc = $("enc-select").value;
-    getApi().save_file_encoded(name, cm.getValue(), enc).then(function(p) {
+    callApi("save_file_encoded", name, cm.getValue(), enc).then(function(p) {
       if (p) toast3("\u5DF2\u6309 " + enc + " \u53E6\u5B58\u4E3A \u2713", "success");
     }).catch(function() {
       toast3("\u53E6\u5B58\u5931\u8D25", "error");
@@ -11134,6 +11160,9 @@
     var s = p.state;
     if (s === "downloading") {
       _setUpdProgress(p.percent);
+    } else if (s === "verifying") {
+      var txtV = $("update-progress-text");
+      if (txtV) txtV.textContent = "\u6B63\u5728\u6821\u9A8C\u5B89\u88C5\u5305\u5B8C\u6574\u6027\u2026";
     } else if (s === "ready") {
       var txt = $("update-progress-text");
       if (txt) txt.textContent = "\u4E0B\u8F7D\u5B8C\u6210\uFF0C\u6B63\u5728\u5B89\u88C5\u2026";
@@ -11159,7 +11188,7 @@
     _setUpdProgressView();
     _setUpdProgress(-1);
     window.__lnoteUpdateCb = _onUpdateCb;
-    api.start_update(tag).then(function(r) {
+    callApi("start_update", tag).then(function(r) {
       if (!r) return;
       if (r.error) _failUpdate(r.error);
       else if (!r.started) _failUpdate("\u66F4\u65B0\u4EFB\u52A1\u672A\u80FD\u542F\u52A8");
@@ -11216,7 +11245,7 @@
   }
 
   // src-app/27-about.js
-  var APP_VERSION = "1.0.0";
+  var APP_VERSION = "1.0.1";
   var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
   var APP_HOME_URL = "https://stutasliu.github.io/LNote/";
   function versionGreater(a, b) {

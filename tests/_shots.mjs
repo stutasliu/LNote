@@ -139,6 +139,198 @@ async function boot(cdp, docs, activeId, waitMs = 2200) {
   await sleep(waitMs);
 }
 
+/* ---------------- 假 pywebview 桥（独立页面 / 自动更新依赖 Python API） ---------------- */
+
+/** 在每次导航前注入脚本，返回 identifier 供后续移除 */
+async function installBridge(cdp, source) {
+  const res = await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source });
+  return res && res.identifier;
+}
+
+async function removeBridge(cdp, id) {
+  if (!id) return;
+  try {
+    await cdp.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: id });
+  } catch { /* ignore */ }
+}
+
+/** 应用主窗口假桥：check_update 返回有更新 → 点亮「新」徽标并弹出更新提示窗 */
+const BRIDGE_APP_UPDATE = `(function () {
+  window.__fakeApiCalls = [];
+  function ok(name) { return function () { window.__fakeApiCalls.push(name); return Promise.resolve({}); }; }
+  window.pywebview = { api: {
+    debug_log: function () {},
+    get_pending_open_file: ok('get_pending_open_file'),
+    frontend_ready: ok('frontend_ready'),
+    cleanup_rich_orphans: function () { window.__fakeApiCalls.push('cleanup_rich_orphans'); return Promise.resolve({ deleted: [], skipped: [] }); },
+    check_update: function () { window.__fakeApiCalls.push('check_update');
+      return Promise.resolve({ ok: true, update_available: true, latest: 'v9.9.9', current: '1.0.0' }); }
+  } };
+})();`;
+
+/** 应用主窗口假 AI 桥：已配置状态 + 助手/图表回调，用于采集 AI 相关界面截图 */
+const BRIDGE_APP_AI = `(function () {
+  window.__fakeApiCalls = [];
+  var AI_CFG = {
+    baseUrl: 'https://api.deepseek.com',
+    model: 'deepseek-chat',
+    hasKey: true,
+    keyMasked: 'sk-9f3c********c7d2'
+  };
+  var AI_RESULT = '一、截图采集：按章节顺序逐张采集界面截图，统一命名为 shot-章-序-内容.png。\\n'
+    + '二、全文排版：统一页眉为“软件全称 + 版本号 + 页码”，正文页面不少于 60 页。\\n'
+    + '三、提交前核对：确认软件全称、著作权人与开发完成日期与申请表完全一致。';
+  var FLOW_STRUCT = {
+    nodes: [
+      { id: 'n1', type: 'start', text: '开始注册' },
+      { id: 'n2', type: 'process', text: '填写邮箱与密码' },
+      { id: 'n3', type: 'decision', text: '邮箱格式是否正确' },
+      { id: 'n4', type: 'process', text: '发送验证码' },
+      { id: 'n5', type: 'decision', text: '验证码是否正确' },
+      { id: 'n6', type: 'end', text: '注册成功' }
+    ],
+    edges: [
+      { from: 'n1', to: 'n2' },
+      { from: 'n2', to: 'n3' },
+      { from: 'n3', to: 'n4', text: '是' },
+      { from: 'n4', to: 'n5' },
+      { from: 'n5', to: 'n6', text: '是' }
+    ]
+  };
+  function ok(name) { return function () { window.__fakeApiCalls.push(name); return Promise.resolve({}); }; }
+  window.pywebview = { api: {
+    debug_log: function () {},
+    get_pending_open_file: ok('get_pending_open_file'),
+    frontend_ready: ok('frontend_ready'),
+    get_rich_dir: function () { window.__fakeApiCalls.push('get_rich_dir'); return Promise.resolve({ dir: '' }); },
+    cleanup_rich_orphans: function () { window.__fakeApiCalls.push('cleanup_rich_orphans'); return Promise.resolve({ deleted: [], skipped: [] }); },
+    check_update: function () { window.__fakeApiCalls.push('check_update'); return Promise.resolve({ ok: true, update_available: false }); },
+    ai_get_config: function () { window.__fakeApiCalls.push('ai_get_config'); return Promise.resolve({ ok: true, config: AI_CFG }); },
+    ai_save_config: function () { window.__fakeApiCalls.push('ai_save_config'); return Promise.resolve({ ok: true, config: AI_CFG }); },
+    ai_clear_key: function () { window.__fakeApiCalls.push('ai_clear_key'); return Promise.resolve({ ok: true }); },
+    ai_test: function () { window.__fakeApiCalls.push('ai_test'); return Promise.resolve({ ok: true, model: AI_CFG.model }); },
+    ai_stop: ok('ai_stop'),
+    ai_chat: function (payload) {
+      window.__fakeApiCalls.push('ai_chat');
+      var sid = payload && payload.sessionId;
+      setTimeout(function () {
+        if (window.__lnoteAiChatCb) window.__lnoteAiChatCb({ sessionId: sid, type: 'done', fullText: AI_RESULT });
+      }, 200);
+      return Promise.resolve({ ok: true });
+    },
+    ai_diagram: function (payload) {
+      window.__fakeApiCalls.push('ai_diagram');
+      var sid = payload && payload.sessionId;
+      setTimeout(function () {
+        if (window.__lnoteAiDiagramCb) window.__lnoteAiDiagramCb({ sessionId: sid, type: 'done', structure: FLOW_STRUCT, title: '邮箱注册流程' });
+      }, 200);
+      return Promise.resolve({ ok: true });
+    }
+  } };
+})();`;
+
+/** 图片编辑窗口假桥：get_image 返回内嵌 data URL 的图片 */
+function imageBridgeSource(dataUrl, name) {
+  return '(function () {\n' +
+    '  window.pywebview = { api: {\n' +
+    '    debug_log: function () {},\n' +
+    '    get_image: function () { return Promise.resolve({ name: ' + JSON.stringify(name) + ', src: ' + JSON.stringify(dataUrl) + ' }); },\n' +
+    '    close_window: function () { return Promise.resolve({}); },\n' +
+    '    save_image: function () { return Promise.resolve({ ok: true }); },\n' +
+    '    save_image_as: function () { return Promise.resolve({ ok: true }); }\n' +
+    '  } };\n' +
+    '})();';
+}
+
+/** 展开「更多」菜单并点击某个一级菜单项 */
+async function clickMoreItem(cdp, ab) {
+  await evalJs(cdp, `(() => { const b = document.getElementById('btn-more'); if (b) b.click(); return !!b; })()`);
+  await sleep(400);
+  return evalJs(cdp, `(() => {
+    const m = document.querySelector('#appbar-menu [data-ab=${JSON.stringify(ab)}]');
+    if (!m) return false;
+    m.click();
+    return true;
+  })()`);
+}
+
+// CodeMirror 5 会把实例挂到 wrapper 元素上（wrapper.CodeMirror = this），
+// 模块内的 cm 虽未暴露到 window，仍可经 DOM 取到同一实例，用于构造选区。
+async function editorSelectionInfo(cdp) {
+  return evalJs(cdp, `(() => {
+    const w = document.querySelector('#editor-wrap .CodeMirror');
+    return { hasWrap: !!w, hasCm: !!(w && w.CodeMirror), sel: (w && w.CodeMirror) ? (w.CodeMirror.getSelection() || '') : '' };
+  })()`).catch(() => null);
+}
+
+/** 在编辑器中选中 fromLine~toLine 整行，返回选区中心坐标（用于右键点击） */
+async function selectEditorLines(cdp, fromLine, toLine) {
+  const sel = await evalJs(cdp, `(() => {
+    const w = document.querySelector('#editor-wrap .CodeMirror');
+    const cm = w && w.CodeMirror;
+    if (!cm) return null;
+    const last = ${toLine};
+    cm.setSelection({ line: ${fromLine}, ch: 0 }, { line: last, ch: (cm.getLine(last) || '').length });
+    cm.scrollIntoView({ line: ${fromLine}, ch: 0 }, 80);
+    cm.focus();
+    return cm.getSelection();
+  })()`);
+  if (!sel) return null;
+  await sleep(350);
+  const pt = await evalJs(cdp, `(() => {
+    const s = document.querySelector('#editor-wrap .CodeMirror-selected');
+    if (!s) return null;
+    const r = s.getBoundingClientRect();
+    return { x: Math.round(r.left + Math.min(r.width, 220) / 2), y: Math.round(r.top + Math.min(r.height, 24) / 2) };
+  })()`);
+  return { text: sel, pos: pt };
+}
+
+/** 编辑器正文区内的一个坐标点（用于「无选区」状态下右键） */
+async function editorPoint(cdp, dx = 70, dy = 46) {
+  return evalJs(cdp, `(() => {
+    const l = document.querySelector('#editor-wrap .CodeMirror-lines');
+    if (!l) return null;
+    const r = l.getBoundingClientRect();
+    return { x: Math.round(r.left + ${dx}), y: Math.round(r.top + ${dy}) };
+  })()`);
+}
+
+/** 在页面坐标处派发右键 mousedown（capture 阶段即触发右键菜单） */
+async function rightClickAt(cdp, x, y) {
+  if (!x || !y) return false;
+  return evalJs(cdp, `(() => {
+    const el = document.elementFromPoint(${x}, ${y});
+    if (!el) return false;
+    el.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true, cancelable: true, button: 2, buttons: 2, clientX: ${x}, clientY: ${y}
+    }));
+    return true;
+  })()`);
+}
+
+/** 等待右键菜单展开（可附带要求某分组可见） */
+async function waitCtxMenu(cdp, groupId) {
+  const expr = groupId
+    ? `(() => {
+        const m = document.getElementById('ctx-menu');
+        const g = document.getElementById(${JSON.stringify(groupId)});
+        return !!(m && getComputedStyle(m).display !== 'none' && g && getComputedStyle(g).display !== 'none');
+      })()`
+    : `(() => { const m = document.getElementById('ctx-menu'); return !!(m && getComputedStyle(m).display !== 'none'); })()`;
+  return waitUntil(cdp, expr, 6000);
+}
+
+/** 点击右键菜单中某个 data-cmd 项（走 ctxMenu 的 click 代理：closeCtxMenu + handleCtxCmd） */
+async function clickCtxCmd(cdp, cmd) {
+  return evalJs(cdp, `(() => {
+    const it = document.querySelector('#ctx-menu .ctx-item[data-cmd=${JSON.stringify(cmd)}]');
+    if (!it) return false;
+    it.click();
+    return true;
+  })()`);
+}
+
 /** 首页欢迎文档的 Markdown 正文 */
 const WELCOME_MD = [
   '# 欢迎使用 L.Note 🖋️',
@@ -457,6 +649,54 @@ function chartDemoDoc() {
       '',
       '> 提示：语言切换为 Mermaid 的文档则使用独立图表画布编辑。'
     ].join('\n')
+  };
+}
+
+/** 富文本文档：供大纲面板截图使用，含 h1 / h2 / h3 多级标题 */
+function richDoc() {
+  const blocks = [
+    { id: 'rb1', type: 'h1', text: '产品需求说明书' },
+    { id: 'rb2', type: 'text', text: '本文档汇总 L.Note 本地笔记编辑软件的功能需求与验收标准。' },
+    { id: 'rb3', type: 'h2', text: '1. 文档管理' },
+    { id: 'rb4', type: 'text', text: '支持新建、重命名、创建副本、收藏、置顶、标签与回收站等全生命周期管理。' },
+    { id: 'rb5', type: 'h3', text: '1.1 标签与筛选' },
+    { id: 'rb6', type: 'text', text: '可为文档添加多个标签，并在侧栏按标签快速筛选相关文档。' },
+    { id: 'rb7', type: 'h3', text: '1.2 批量操作' },
+    { id: 'rb8', type: 'text', text: '进入批量模式后可多选文档，执行批量标签、导出与删除。' },
+    { id: 'rb9', type: 'h2', text: '2. 编辑能力' },
+    { id: 'rb10', type: 'text', text: '富文本文档支持块级编辑、拖拽排序与选中工具条。' },
+    { id: 'rb11', type: 'h3', text: '2.1 语言与高亮' },
+    { id: 'rb12', type: 'text', text: '内置十余种语言的语法高亮，并支持按当前语言一键格式化。' },
+    { id: 'rb13', type: 'h2', text: '3. 图表与可视化' },
+    { id: 'rb14', type: 'text', text: '支持流程图、泳道图、思维导图与 Mermaid 图表渲染。' }
+  ];
+  return { id: 'd-rich', title: '产品需求说明书', kind: 'rich', updated: Date.now() - 3e6, content: blocks };
+}
+
+/** 便利贴提醒种子：仅供提醒相关场景使用，避免污染其他截图 */
+function reminderStickySeed() {
+  const pad = (n) => String(n).padStart(2, '0');
+  const hhmm = (d) => pad(d.getHours()) + ':' + pad(d.getMinutes());
+  const now = new Date();
+  const next = new Date(now.getTime() + 60000);
+  return {
+    edit: {
+      id: 'stk-weekly', kind: 'sticky', title: '每周复盘', updated: Date.now() - 3e6,
+      color: '#ffd8e4', content: '整理本周文档变更记录，同步下周写作计划。',
+      reminder: { enabled: true, type: 'weekly', days: [2, 4], time: '09:30' }
+    },
+    fire: [
+      {
+        id: 'stk-daily', kind: 'sticky', title: '每日写作提醒', updated: Date.now() - 1e6,
+        color: '#fff3bf', content: '打开 L.Note 核对今日写作计划，更新进度表格。',
+        reminder: { enabled: true, type: 'daily', time: hhmm(now) }
+      },
+      {
+        id: 'stk-daily2', kind: 'sticky', title: '文档备份提醒', updated: Date.now() - 5e5,
+        color: '#d0ebff', content: '把本周文档导出为 Markdown 备份到本地目录。',
+        reminder: { enabled: true, type: 'daily', time: hhmm(next) }
+      }
+    ]
   };
 }
 
@@ -969,6 +1209,474 @@ async function scenarioDbgFlow(cdp) {
   console.log('DBG-AFTER ' + JSON.stringify(after, null, 1));
 }
 
+/* ---------------- s3c：11~17 章应用侧界面场景 ---------------- */
+
+/** 11-01 大纲面板：富文档标题结构 + 左侧大纲树 */
+async function scenarioRichOutline(cdp) {
+  const docs = mainDocs().concat([richDoc()]);
+  await boot(cdp, docs, 'd-plan');
+  const opened = await openDocByTitle(cdp, '产品需求说明书');
+  log('打开富文本文档: ' + opened);
+  const blocksOk = await waitUntil(cdp, `document.querySelectorAll('#rich-canvas .ink-block').length >= 6`, 10000);
+  log('富文本块渲染: ' + blocksOk);
+  const btnOk = await evalJs(cdp, `(() => {
+    const b = document.getElementById('btn-rich-outline');
+    if (!b || getComputedStyle(b).display === 'none') return false;
+    b.click();
+    return true;
+  })()`);
+  log('大纲按钮点击: ' + btnOk);
+  const outlineOk = await waitUntil(cdp, `(() => {
+    const items = document.querySelectorAll('#outline-list .outline-item');
+    return items.length >= 6 && getComputedStyle(document.getElementById('rich-outline')).display !== 'none';
+  })()`, 8000);
+  log('大纲条目渲染: ' + outlineOk);
+  const st = await evalJs(cdp, `(() => ({
+    items: document.querySelectorAll('#outline-list .outline-item').length,
+    count: (document.getElementById('outline-count') || {}).textContent,
+    types: [...document.querySelectorAll('#outline-list .outline-item')].map((e) => e.getAttribute('data-type')).join(',')
+  }))()`).catch(() => null);
+  log('大纲状态: ' + JSON.stringify(st));
+  await sleep(400);
+  await capture(cdp, 'shot-11-01-outline.png');
+}
+
+/** 12-01 提醒设置：便利贴编辑浮层中的定时提醒配置（每周 / 时分） */
+async function scenarioReminderEdit(cdp) {
+  const docs = mainDocs().concat(mainSticky).concat([reminderStickySeed().edit]);
+  await boot(cdp, docs, 'd-plan');
+  const nav = await evalJs(cdp, `(() => { const n = document.getElementById('nav-sticky'); if (n) n.click(); return !!n; })()`);
+  log('nav-sticky 点击: ' + nav);
+  const hasCards = await waitUntil(cdp, `document.querySelectorAll('.sticky-card').length >= 4`, 8000);
+  log('便利贴卡片数量达标: ' + hasCards);
+  const clicked = await evalJs(cdp, `(() => {
+    const cards = [...document.querySelectorAll('.sticky-card')];
+    const t = cards.find((c) => {
+      const el = c.querySelector('.sticky-card-title');
+      return el && el.textContent.trim() === '每周复盘';
+    });
+    if (!t) return false;
+    t.click();
+    return true;
+  })()`);
+  log('打开提醒便利贴: ' + clicked);
+  const modalOk = await waitUntil(cdp, `(() => {
+    const m = document.getElementById('sticky-edit-modal');
+    const row = document.getElementById('sticky-rem-row');
+    return m && getComputedStyle(m).display !== 'none' && row && row.style.display !== 'none';
+  })()`, 8000);
+  log('提醒设置浮层展开: ' + modalOk);
+  const st = await evalJs(cdp, `(() => ({
+    enabled: (document.getElementById('sticky-edit-rem-enabled') || {}).checked,
+    type: (document.getElementById('sticky-edit-rem-type') || {}).value,
+    time: (document.getElementById('sticky-edit-rem-time') || {}).value,
+    weeklyChecked: document.querySelectorAll('#sticky-rem-weekly input[type=checkbox]:checked').length
+  }))()`).catch(() => null);
+  log('提醒字段状态: ' + JSON.stringify(st));
+  await sleep(400);
+  await capture(cdp, 'shot-12-01-reminder-edit.png');
+}
+
+/** 12-02 提醒弹窗：启动时命中当分钟提醒 → 自动弹出 */
+async function scenarioReminderPopup(cdp) {
+  const docs = mainDocs().concat(mainSticky).concat(reminderStickySeed().fire);
+  await boot(cdp, docs, 'd-plan', 2600);
+  const visible = `(() => {
+    const m = document.getElementById('sticky-reminder-modal');
+    return m && getComputedStyle(m).display !== 'none';
+  })()`;
+  let ok = await waitUntil(cdp, visible, 3000);
+  if (!ok) {
+    log('启动未命中，等待 30s 轮询周期…');
+    ok = await waitUntil(cdp, visible, 36000);
+  }
+  log('提醒弹窗出现: ' + ok);
+  const st = await evalJs(cdp, `(() => ({
+    title: (document.getElementById('sticky-reminder-title') || {}).textContent,
+    content: (document.getElementById('sticky-reminder-content') || {}).textContent
+  }))()`).catch(() => null);
+  log('提醒弹窗内容: ' + JSON.stringify(st));
+  await sleep(400);
+  await capture(cdp, 'shot-12-02-reminder-popup.png');
+}
+
+/** 13-01 图片编辑窗口：独立页面 image_viewer.html（假桥注入图片数据） */
+async function scenarioImageEditor(cdp) {
+  const png = fs.readFileSync(path.join(ROOT, 'screenshots', 'rich.png'));
+  const dataUrl = 'data:image/png;base64,' + png.toString('base64');
+  const bridgeId = await installBridge(cdp, imageBridgeSource(dataUrl, '界面截图.png'));
+  try {
+    await withTimeout(navigateAndWait(cdp, 'http://127.0.0.1:' + HTTP_PORT + '/image_viewer.html'), 15000, '打开图片编辑窗口');
+    await sleep(400);
+    await evalJs(cdp, `(() => { window.dispatchEvent(new Event('pywebviewready')); return true; })()`);
+    const imgOk = await waitUntil(cdp, `(() => { const i = document.getElementById('iv-img'); return !!(i && i.getAttribute('src') && i.complete && i.naturalWidth > 0); })()`, 10000);
+    log('图片加载完成: ' + imgOk);
+    const loadingHidden = await waitUntil(cdp, `(() => { const l = document.getElementById('iv-loading'); return l && getComputedStyle(l).display === 'none'; })()`, 6000);
+    log('加载提示已隐藏: ' + loadingHidden);
+    await sleep(300);
+    const editOk = await evalJs(cdp, `(() => { const b = document.getElementById('iv-edit-toggle'); if (!b) return false; b.click(); return true; })()`);
+    log('进入编辑模式: ' + editOk);
+    const editUi = await waitUntil(cdp, `(() => {
+      const bar = document.getElementById('iv-editbar');
+      const fb = document.getElementById('iv-filterbox');
+      return bar && bar.classList.contains('show') && fb && fb.classList.contains('show');
+    })()`, 6000);
+    log('编辑工具栏展开: ' + editUi);
+    const st = await evalJs(cdp, `(() => ({
+      title: (document.getElementById('iv-title') || {}).textContent,
+      zoom: (document.getElementById('iv-zoom') || {}).textContent,
+      tools: [...document.querySelectorAll('#iv-editbar .iv-btn')].map((e) => e.textContent.trim()).join(' / ')
+    }))()`).catch(() => null);
+    log('图片编辑窗口状态: ' + JSON.stringify(st));
+    await sleep(400);
+    await capture(cdp, 'shot-13-01-image-editor.png');
+  } finally {
+    await removeBridge(cdp, bridgeId);
+  }
+}
+
+/** 14-01 JSON 工具面板：「更多 → JSON 工具」子菜单就地展开 */
+async function scenarioJsonTools(cdp) {
+  await boot(cdp, mainDocs(), 'd-json');
+  await openDocByTitle(cdp, '示例数据.json');
+  await sleep(500);
+  const more = await evalJs(cdp, `(() => { const b = document.getElementById('btn-more'); if (b) b.click(); return !!b; })()`);
+  log('btn-more 点击: ' + more);
+  await sleep(400);
+  const trig = await evalJs(cdp, `(() => {
+    const t = document.querySelector('#appbar-menu .ab-trigger[data-ab="json"]');
+    if (!t || t.offsetParent === null) return false;
+    t.click();
+    return true;
+  })()`);
+  log('JSON 工具子菜单展开: ' + trig);
+  const subOk = await waitUntil(cdp, `(() => {
+    const s = document.querySelector('#appbar-menu .ab-sub[data-ab-sub="json"]');
+    return s && getComputedStyle(s).display !== 'none';
+  })()`, 6000);
+  log('JSON 子项可见: ' + subOk);
+  const st = await evalJs(cdp, `(() => ({
+    items: [...document.querySelectorAll('#appbar-menu .ab-sub[data-ab-sub="json"] .ab-sub-item')].map((e) => e.textContent.trim()).join(' / '),
+    topItems: [...document.querySelectorAll('#appbar-menu > [data-ab]')].filter((e) => e.offsetParent !== null).map((e) => (e.getAttribute('data-ab') || '')).join(',')
+  }))()`).catch(() => null);
+  log('JSON 工具项: ' + JSON.stringify(st));
+  await sleep(400);
+  await capture(cdp, 'shot-14-01-json-tools.png');
+}
+
+/** 15-01 文件比较窗口：独立页面 compare.html，按行差异高亮 */
+async function scenarioCompare(cdp) {
+  await withTimeout(navigateAndWait(cdp, 'http://127.0.0.1:' + HTTP_PORT + '/compare.html'), 15000, '打开文件比较窗口');
+  await sleep(700);
+  const textA = [
+    'app: L.Note',
+    'version: 0.21.13',
+    'theme: light',
+    'fontSize: 15',
+    'autoSave: true',
+    'lineWrap: true',
+    'recentLimit: 10'
+  ].join('\n');
+  const textB = [
+    'app: L.Note',
+    'version: 1.0.0',
+    'theme: light',
+    'fontSize: 16',
+    'autoSave: true',
+    'recentLimit: 20'
+  ].join('\n');
+  const filled = await evalJs(cdp, `(() => {
+    const a = document.getElementById('ta-a');
+    const b = document.getElementById('ta-b');
+    if (!a || !b) return false;
+    a.value = ${JSON.stringify(textA)};
+    b.value = ${JSON.stringify(textB)};
+    a.dispatchEvent(new Event('input', { bubbles: true }));
+    b.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  })()`);
+  log('填充比较内容: ' + filled);
+  const diffOk = await waitUntil(cdp, `(() => {
+    const removed = document.querySelectorAll('#cmp-col-a .cmp-line.removed').length;
+    const added = document.querySelectorAll('#cmp-col-b .cmp-line.added').length;
+    return removed > 0 && added > 0;
+  })()`, 10000);
+  log('按行差异高亮: ' + diffOk);
+  const st = await evalJs(cdp, `(() => ({
+    summary: (document.getElementById('cmp-summary') || {}).textContent,
+    headA: (document.getElementById('cmp-head-a') || {}).textContent,
+    headB: (document.getElementById('cmp-head-b') || {}).textContent,
+    lines: document.querySelectorAll('#cmp-col-a .cmp-line').length
+  }))()`).catch(() => null);
+  log('比较结果: ' + JSON.stringify(st));
+  await sleep(400);
+  await capture(cdp, 'shot-15-01-compare.png');
+}
+
+/** 16-01 设置-通用：字体大小滑杆 / 行号 / 自动换行 */
+async function scenarioSettingsGeneral(cdp) {
+  await boot(cdp, mainDocs(), 'd-plan');
+  const ok = await clickMoreItem(cdp, 'settings');
+  log('打开设置: ' + ok);
+  const modalOk = await waitUntil(cdp, `(() => {
+    const m = document.getElementById('settings-modal');
+    const p = document.getElementById('settings-pane-general');
+    return m && getComputedStyle(m).display !== 'none' && p && getComputedStyle(p).display !== 'none';
+  })()`, 6000);
+  log('设置-通用页签展示: ' + modalOk);
+  const st = await evalJs(cdp, `(() => ({
+    fontSize: (document.getElementById('settings-fontsize') || {}).value,
+    fontSizeVal: (document.getElementById('settings-fontsize-val') || {}).textContent,
+    lineNum: (document.getElementById('settings-linenum') || {}).checked,
+    wrap: (document.getElementById('settings-wrap') || {}).checked
+  }))()`).catch(() => null);
+  log('通用设置状态: ' + JSON.stringify(st));
+  await sleep(400);
+  await capture(cdp, 'shot-16-01-settings-general.png');
+}
+
+/** 16-02 设置-快捷键：快捷键列表与录制按钮 */
+async function scenarioSettingsKeys(cdp) {
+  await boot(cdp, mainDocs(), 'd-plan');
+  const ok = await clickMoreItem(cdp, 'settings');
+  log('打开设置: ' + ok);
+  await waitUntil(cdp, `(() => { const m = document.getElementById('settings-modal'); return m && getComputedStyle(m).display !== 'none'; })()`, 6000);
+  const tabOk = await evalJs(cdp, `(() => {
+    const t = document.querySelector('.settings-tabs [data-settings-tab="keys"]');
+    if (!t) return false;
+    t.click();
+    return true;
+  })()`);
+  log('切换到快捷键页签: ' + tabOk);
+  const paneOk = await waitUntil(cdp, `(() => {
+    const p = document.getElementById('settings-pane-keys');
+    return p && getComputedStyle(p).display !== 'none' && p.querySelectorAll('.sk-row').length > 0;
+  })()`, 6000);
+  log('快捷键列表渲染: ' + paneOk);
+  const st = await evalJs(cdp, `(() => ({
+    rows: document.querySelectorAll('#settings-keys-list .sk-row').length,
+    sample: [...document.querySelectorAll('#settings-keys-list .sk-row')].slice(0, 3).map((r) => r.innerText.replace(/\\s+/g, ' ').trim()).join(' | ')
+  }))()`).catch(() => null);
+  log('快捷键列表状态: ' + JSON.stringify(st));
+  await sleep(400);
+  await capture(cdp, 'shot-16-02-settings-keys.png');
+}
+
+/** 17-01 关于窗口：图标 / 名称 / 版本号 / 简介与检查更新入口 */
+async function scenarioAbout(cdp) {
+  await boot(cdp, mainDocs(), 'd-plan');
+  const ok = await clickMoreItem(cdp, 'about');
+  log('打开关于: ' + ok);
+  const modalOk = await waitUntil(cdp, `(() => { const m = document.getElementById('about-modal'); return m && getComputedStyle(m).display !== 'none'; })()`, 6000);
+  log('关于窗口展示: ' + modalOk);
+  const st = await evalJs(cdp, `(() => ({
+    name: (document.querySelector('#about-modal .about-name') || {}).textContent,
+    version: (document.getElementById('about-version') || {}).textContent,
+    desc: (document.querySelector('#about-modal .about-desc') || {}).textContent,
+    status: (document.getElementById('about-status') || {}).textContent
+  }))()`).catch(() => null);
+  log('关于窗口状态: ' + JSON.stringify(st));
+  await sleep(400);
+  await capture(cdp, 'shot-18-01-about.png');
+}
+
+/** 17-02 更新提示窗：假桥返回有更新 → 启动自动检查后弹出 */
+async function scenarioUpdateModal(cdp) {
+  const bridgeId = await installBridge(cdp, BRIDGE_APP_UPDATE);
+  try {
+    await boot(cdp, mainDocs(), 'd-plan', 1400);
+    const modalOk = await waitUntil(cdp, `(() => { const m = document.getElementById('update-modal'); return m && getComputedStyle(m).display !== 'none'; })()`, 15000);
+    log('更新提示窗出现: ' + modalOk);
+    const badge = await evalJs(cdp, `(() => {
+      const b = document.getElementById('update-badge');
+      const m = document.getElementById('menu-update-badge');
+      return {
+        badge: b ? getComputedStyle(b).display : null,
+        menuBadge: m ? getComputedStyle(m).display : null,
+        title: (document.getElementById('update-title') || {}).textContent,
+        versions: (document.getElementById('update-versions') || {}).textContent
+      };
+    })()`).catch(() => null);
+    log('更新提示窗状态: ' + JSON.stringify(badge));
+    await sleep(500);
+    await capture(cdp, 'shot-18-02-update.png');
+  } finally {
+    await removeBridge(cdp, bridgeId);
+  }
+}
+
+/** 16-03 设置-AI：服务商预设 / Base URL / 模型名 / 密钥掩码与保存按钮 */
+async function scenarioSettingsAi(cdp) {
+  const bridgeId = await installBridge(cdp, BRIDGE_APP_AI);
+  try {
+    await boot(cdp, mainDocs(), 'd-plan', 1600);
+    const ok = await clickMoreItem(cdp, 'settings');
+    log('打开设置: ' + ok);
+    await waitUntil(cdp, `(() => { const m = document.getElementById('settings-modal'); return m && getComputedStyle(m).display !== 'none'; })()`, 6000);
+    const tabOk = await evalJs(cdp, `(() => {
+      const t = document.querySelector('[data-settings-tab="ai"]');
+      if (!t) return false;
+      t.click();
+      return true;
+    })()`);
+    log('切换到 AI 页签: ' + tabOk);
+    const paneOk = await waitUntil(cdp, `(() => {
+      const p = document.getElementById('settings-pane-ai');
+      const b = document.getElementById('settings-ai-baseurl');
+      return !!(p && getComputedStyle(p).display !== 'none' && b && b.value);
+    })()`, 8000);
+    log('AI 配置回填: ' + paneOk);
+    const st = await evalJs(cdp, `(() => ({
+      preset: (document.getElementById('settings-ai-preset') || {}).value,
+      baseUrl: (document.getElementById('settings-ai-baseurl') || {}).value,
+      model: (document.getElementById('settings-ai-model') || {}).value,
+      keyPlaceholder: (document.getElementById('settings-ai-key') || {}).placeholder,
+      status: (document.getElementById('settings-ai-status') || {}).textContent,
+      rows: document.querySelectorAll('#settings-pane-ai .ts-row').length,
+      apiCalls: (window.__fakeApiCalls || []).slice()
+    }))()`).catch(() => null);
+    log('AI 设置状态: ' + JSON.stringify(st));
+    await sleep(400);
+    await capture(cdp, 'shot-16-03-settings-ai.png');
+  } finally {
+    await removeBridge(cdp, bridgeId);
+  }
+}
+
+/** 17-01 AI 助手入口菜单：文本选区右键 → 「AI 助手」「AI 图表」分组 */
+async function scenarioAiCtxMenu(cdp) {
+  const bridgeId = await installBridge(cdp, BRIDGE_APP_AI);
+  try {
+    await boot(cdp, mainDocs(), 'd-plan', 1600);
+    const info = await editorSelectionInfo(cdp);
+    log('编辑器实例: ' + JSON.stringify(info));
+    const sel = await selectEditorLines(cdp, 14, 16);
+    log('选中文本: ' + JSON.stringify(sel && sel.text));
+    const fired = await rightClickAt(cdp, sel && sel.pos && sel.pos.x, sel && sel.pos && sel.pos.y);
+    log('右键触发: ' + fired);
+    const menuOk = await waitCtxMenu(cdp, 'ctx-group-ai');
+    log('AI 助手分组展示: ' + menuOk);
+    const st = await evalJs(cdp, `(() => ({
+      aiItems: [...document.querySelectorAll('#ctx-group-ai .ctx-item')].map((i) => i.innerText.replace(/\\s+/g, ' ').trim()),
+      aiDisabled: document.querySelectorAll('#ctx-group-ai .ctx-item-disabled').length,
+      diagItems: [...document.querySelectorAll('#ctx-group-ai-diagram .ctx-item')].map((i) => i.innerText.replace(/\\s+/g, ' ').trim()),
+      diagDisabled: document.querySelectorAll('#ctx-group-ai-diagram .ctx-item-disabled').length
+    }))()`).catch(() => null);
+    log('右键菜单状态: ' + JSON.stringify(st));
+    await sleep(400);
+    await capture(cdp, 'shot-17-01-ai-ctx-menu.png');
+  } finally {
+    await removeBridge(cdp, bridgeId);
+  }
+}
+
+/** 17-02 AI 助手面板：润色结果预览与复制 / 插入 / 替换操作 */
+async function scenarioAiPanel(cdp) {
+  const bridgeId = await installBridge(cdp, BRIDGE_APP_AI);
+  try {
+    await boot(cdp, mainDocs(), 'd-plan', 1600);
+    const sel = await selectEditorLines(cdp, 14, 16);
+    log('选中文本: ' + JSON.stringify(sel && sel.text));
+    await rightClickAt(cdp, sel && sel.pos && sel.pos.x, sel && sel.pos && sel.pos.y);
+    await waitCtxMenu(cdp, 'ctx-group-ai');
+    const clicked = await clickCtxCmd(cdp, 'ai-polish');
+    log('点击「润色」: ' + clicked);
+    const panelOk = await waitUntil(cdp, `(() => {
+      const p = document.getElementById('ai-panel');
+      const b = document.getElementById('ai-panel-body');
+      return !!(p && getComputedStyle(p).display !== 'none' && b && b.textContent.length > 20);
+    })()`, 10000);
+    log('AI 助手面板就绪: ' + panelOk);
+    const st = await evalJs(cdp, `(() => ({
+      title: (document.getElementById('ai-panel-title') || {}).textContent,
+      meta: (document.getElementById('ai-panel-meta') || {}).textContent,
+      chars: ((document.getElementById('ai-panel-body') || {}).textContent || '').length,
+      copyDisabled: (document.getElementById('ai-copy') || {}).disabled,
+      insertDisabled: (document.getElementById('ai-apply-insert') || {}).disabled,
+      replaceDisabled: (document.getElementById('ai-apply-replace') || {}).disabled,
+      apiCalls: (window.__fakeApiCalls || []).slice()
+    }))()`).catch(() => null);
+    log('AI 助手面板状态: ' + JSON.stringify(st));
+    await sleep(400);
+    await capture(cdp, 'shot-17-02-ai-panel.png');
+  } finally {
+    await removeBridge(cdp, bridgeId);
+  }
+}
+
+/** 17-03 AI 图表描述输入框：未选中文本时右键「生成流程图」弹出的描述框 */
+async function scenarioAiDiagramPrompt(cdp) {
+  const bridgeId = await installBridge(cdp, BRIDGE_APP_AI);
+  try {
+    await boot(cdp, mainDocs(), 'd-plan', 1600);
+    const pt = await editorPoint(cdp);
+    const fired = await rightClickAt(cdp, pt && pt.x, pt && pt.y);
+    log('无选区右键触发: ' + fired);
+    const menuOk = await waitCtxMenu(cdp, 'ctx-group-ai-diagram');
+    log('AI 图表分组展示: ' + menuOk);
+    const hidden = await evalJs(cdp, `(() => {
+      const g = document.getElementById('ctx-group-ai');
+      return g ? getComputedStyle(g).display : null;
+    })()`);
+    log('无选区时 AI 助手分组 display: ' + hidden);
+    const clicked = await clickCtxCmd(cdp, 'ai-diagram-flow');
+    log('点击「生成流程图」: ' + clicked);
+    const promptOk = await waitUntil(cdp, `(() => {
+      const m = document.getElementById('ai-diagram-prompt');
+      const t = document.getElementById('ai-diagram-prompt-text');
+      return !!(m && getComputedStyle(m).display !== 'none' && t);
+    })()`, 6000);
+    log('描述输入框展示: ' + promptOk);
+    await evalJs(cdp, `(() => {
+      const t = document.getElementById('ai-diagram-prompt-text');
+      if (t) { t.value = '邮箱注册流程：填写邮箱与密码 → 校验邮箱格式 → 发送验证码 → 校验验证码 → 注册成功'; }
+      return true;
+    })()`);
+    const st = await evalJs(cdp, `(() => ({
+      title: (document.getElementById('ai-diagram-prompt-title') || {}).textContent,
+      value: (document.getElementById('ai-diagram-prompt-text') || {}).value
+    }))()`).catch(() => null);
+    log('描述输入框状态: ' + JSON.stringify(st));
+    await sleep(400);
+    await capture(cdp, 'shot-17-03-ai-diagram-prompt.png');
+  } finally {
+    await removeBridge(cdp, bridgeId);
+  }
+}
+
+/** 17-04 AI 图表面板：结构预览（节点 / 连线）与新建按钮 */
+async function scenarioAiDiagramPanel(cdp) {
+  const bridgeId = await installBridge(cdp, BRIDGE_APP_AI);
+  try {
+    await boot(cdp, mainDocs(), 'd-plan', 1600);
+    const sel = await selectEditorLines(cdp, 14, 16);
+    log('选中文本: ' + JSON.stringify(sel && sel.text));
+    await rightClickAt(cdp, sel && sel.pos && sel.pos.x, sel && sel.pos && sel.pos.y);
+    await waitCtxMenu(cdp, 'ctx-group-ai-diagram');
+    const clicked = await clickCtxCmd(cdp, 'ai-diagram-flow');
+    log('点击「生成流程图」: ' + clicked);
+    const panelOk = await waitUntil(cdp, `(() => {
+      const p = document.getElementById('ai-diagram-panel');
+      const b = document.getElementById('ai-diagram-body');
+      return !!(p && getComputedStyle(p).display !== 'none' && b && b.textContent.indexOf('节点') >= 0);
+    })()`, 10000);
+    log('AI 图表面板就绪: ' + panelOk);
+    const st = await evalJs(cdp, `(() => ({
+      title: (document.getElementById('ai-diagram-title') || {}).textContent,
+      meta: (document.getElementById('ai-diagram-meta') || {}).textContent,
+      createText: (document.getElementById('ai-diagram-create') || {}).textContent,
+      createDisabled: (document.getElementById('ai-diagram-create') || {}).disabled,
+      body: ((document.getElementById('ai-diagram-body') || {}).textContent || '').slice(0, 120),
+      apiCalls: (window.__fakeApiCalls || []).slice()
+    }))()`).catch(() => null);
+    log('AI 图表面板状态: ' + JSON.stringify(st));
+    await sleep(400);
+    await capture(cdp, 'shot-17-04-ai-diagram-panel.png');
+  } finally {
+    await removeBridge(cdp, bridgeId);
+  }
+}
+
 scenarios.push(['first-run', scenarioFirstRun]);
 scenarios.push(['main', scenarioMain]);
 scenarios.push(['new-menu', scenarioNewMenu]);
@@ -990,6 +1698,22 @@ scenarios.push(['shot-09-flow-lanes', scenarioFlowLanes]);
 scenarios.push(['shot-09-style-panel', scenarioFlowStyle]);
 scenarios.push(['shot-10-mind-ctx', scenarioMindCtx]);
 scenarios.push(['shot-10-mind-theme', scenarioMindTheme]);
+
+scenarios.push(['shot-11-outline', scenarioRichOutline]);
+scenarios.push(['shot-12-reminder-edit', scenarioReminderEdit]);
+scenarios.push(['shot-12-reminder-popup', scenarioReminderPopup]);
+scenarios.push(['shot-13-image-editor', scenarioImageEditor]);
+scenarios.push(['shot-14-json-tools', scenarioJsonTools]);
+scenarios.push(['shot-15-compare', scenarioCompare]);
+scenarios.push(['shot-16-settings-general', scenarioSettingsGeneral]);
+scenarios.push(['shot-16-settings-keys', scenarioSettingsKeys]);
+scenarios.push(['shot-16-settings-ai', scenarioSettingsAi]);
+scenarios.push(['shot-17-ai-ctx-menu', scenarioAiCtxMenu]);
+scenarios.push(['shot-17-ai-panel', scenarioAiPanel]);
+scenarios.push(['shot-17-ai-diagram-prompt', scenarioAiDiagramPrompt]);
+scenarios.push(['shot-17-ai-diagram-panel', scenarioAiDiagramPanel]);
+scenarios.push(['shot-18-about', scenarioAbout]);
+scenarios.push(['shot-18-update', scenarioUpdateModal]);
 
 /* ---------------- 主流程 ---------------- */
 

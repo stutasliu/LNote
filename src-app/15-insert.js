@@ -7,7 +7,7 @@ import { activeDoc } from './05-store.js';
 import { closeDocDelConfirm } from './06-doc-list.js';
 import { syncFromEditor } from './09-rich-save.js';
 import { closeTsModal } from './11-format-tools.js';
-import { dirOf, getApi, hasApi } from './13-api-path.js';
+import { dirOf, getApi, hasApi, callApi } from './13-api-path.js';
 import { toast } from './16-doc-ops.js';
 import { closeFindModal } from './19-find-replace.js';
   /* ---------------- 插入 / 粘贴图片 ---------------- */
@@ -333,7 +333,7 @@ import { closeFindModal } from './19-find-replace.js';
         queue = queue.then(function () {
           if (hasDisk) {
             // 已保存文档：拷贝到 .md 同目录的 assets/，写相对路径（文件可移植）
-            return getApi().copy_image_to_assets(baseDir, p).then(function (res) {
+            return callApi('copy_image_to_assets', baseDir, p).then(function (res) {
               if (res && res.path) {
                 insertAtCursor('![](' + res.rel + ')');
                 toast('已插入：' + res.rel, 'success');
@@ -402,7 +402,7 @@ import { closeFindModal } from './19-find-replace.js';
         var ext = extFromType(mime);
         var fname = 'paste_' + Date.now() + '.' + ext;
         var baseDir = dirOf(d.diskPath);
-        getApi().save_image_binary(baseDir, fname, b64).then(function (res) {
+        callApi('save_image_binary', baseDir, fname, b64).then(function (res) {
           if (res && res.path) {
             insertAtCursor('![](' + res.rel + ')');
             toast('已粘贴图片', 'success');

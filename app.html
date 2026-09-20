@@ -2,6 +2,9 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<!-- 内容安全策略：应用以 file:// 加载（pywebview），故需显式放行 file:；禁用 data: 脚本、object/embed、
+     <base> 劫持与外发表单，并把网络出口收窄到翻译接口，作为预览净化之外的纵深防御。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' file: data: blob:; script-src 'self' file: 'unsafe-inline'; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data: blob: https: http:; font-src 'self' file: data:; media-src 'self' file: data: blob:; connect-src 'self' file: blob: https://translate.googleapis.com; worker-src 'self' file: blob:; frame-src 'self' file: data: blob:; child-src 'self' file: data: blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>L.Note本地笔记编辑软件</title>
 <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
@@ -474,7 +477,7 @@
         </div>
         <div id="preview-body">
           <div id="md-out" style="display:none"></div>
-          <div id="html-out" style="display:none"><iframe id="html-frame" sandbox="allow-same-origin allow-scripts"></iframe></div>
+          <div id="html-out" style="display:none"><iframe id="html-frame" sandbox="allow-scripts"></iframe></div>
           <div id="mermaid-out" style="display:none"></div>
           <div id="preview-empty" class="preview-empty">
             <div class="preview-empty-icon"><svg viewBox="0 0 24 24" class="ui-svg" style="width:1em;height:1em;vertical-align:-0.15em" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 19.6v-7.2"/><path d="M12 19.6V4.8"/><path d="M19.2 19.6v-4.8"/></svg></div>
@@ -1032,7 +1035,7 @@ window.__mermaidReady = function (cb) {
       window.__mermaidInited = true;
       window.mermaid.initialize({
         startOnLoad: false,
-        securityLevel: 'loose',
+        securityLevel: 'strict',
         theme: 'neutral',
         flowchart: { htmlLabels: true, curve: 'basis' },
         fontFamily: 'inherit'

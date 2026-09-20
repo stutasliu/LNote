@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { saveDiskDoc, openEncModal, openCompareWindow, setLang, newDoc, exportDoc, importFile, toastTimer, toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, newSticky, saveSticky, findDoc, saveDocTags, collectAllTags, openStickyEditor, setTagExpiry, clearTagExpiry, cleanupExpiredTags, matchReminder, toLocalInput, fromLocalInput, fmtStamp, revealTarget, revealInFolder };
+export { saveDiskDoc, openEncModal, openCompareWindow, setLang, newDoc, exportDoc, importFile, toastTimer, toast, renameDoc, duplicateDoc, exportDocById, toggleFavorite, togglePin, newSticky, saveSticky, findDoc, saveDocTags, collectAllTags, openStickyEditor, setTagExpiry, clearTagExpiry, cleanupExpiredTags, matchReminder, toLocalInput, fromLocalInput, fmtStamp, revealTarget, revealInFolder, nextAutoTitle };
 /* [esm] 导入依赖模块绑定 */
 import { $, DOC_ICONS, LANGS, els, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
@@ -7,7 +7,7 @@ import { activeDoc, persist, uid } from './05-store.js';
 import { openDoc, updatePreviewBtn } from './07-doc-open.js';
 import { syncFromEditor } from './09-rich-save.js';
 import { updatePreviewVisibility } from './10-status-preview.js';
-import { getApi, hasApi, isRichDocContent } from './13-api-path.js';
+import { getApi, hasApi, isRichDocContent, callApi } from './13-api-path.js';
 import { openSingleModal } from './15-insert.js';
 import { openPdfFromData } from './23-pdf.js';
 import { openDocFromData } from './24-doc.js';
@@ -15,7 +15,7 @@ import { openDocFromData } from './24-doc.js';
     if (!d || !d.diskPath || !hasApi()) return;
     // PDF / Word 只读：绝不把 content 写回磁盘覆盖原二进制文件
     if (d.kind === 'pdf' || d.kind === 'doc') return;
-    getApi().write_text_file(d.diskPath, d.content, d.encoding).then(function (ok) {
+    callApi('write_text_file', d.diskPath, d.content, d.encoding).then(function (ok) {
       if (ok) {
         els.statSaved.textContent = '已保存到磁盘';
         els.statSaved.style.color = '#0f7b0f';
@@ -85,14 +85,16 @@ import { openDocFromData } from './24-doc.js';
     updatePreviewVisibility();
   }
 
-  // 未指定标题时自动命名：未命名文档、未命名文档 2、未命名文档 3 …（取现有最大序号 +1）
+  // 未指定标题时自动命名：无标题、无标题 2、无标题 3 …（取现有最大序号 +1）
+  // 所有新建文档入口（普通/富文本/流程图/思维导图/笔记）统一复用此规则，
+  // 避免出现「无标题」与「未命名文档」两套默认名。
   function nextAutoTitle() {
-    var base = '未命名文档';
+    var base = '无标题';
     var max = 0;
     (state.docs || []).forEach(function (doc) {
       var t = doc.title || '';
       if (t === base) { max = Math.max(max, 1); return; }
-      var m = t.match(/^未命名文档\s+(\d+)$/);
+      var m = t.match(/^无标题\s+(\d+)$/);
       if (m) max = Math.max(max, parseInt(m[1], 10));
     });
     return max ? base + ' ' + (max + 1) : base;
@@ -130,7 +132,7 @@ import { openDocFromData } from './24-doc.js';
       var md = window.InkpadBlocks ? window.InkpadBlocks.toMarkdown() : d.content;
       var rname = (d.title || '未命名').replace(/[\\/:*?"<>|]/g, '_') + '.md';
       if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
-        window.pywebview.api.save_file(rname, md).then(function (saved) { if (saved) toast('已导出到 ' + saved, 'success'); }).catch(function () { toast('导出失败', 'error'); });
+        callApi('save_file', rname, md).then(function (saved) { if (saved) toast('已导出到 ' + saved, 'success'); }).catch(function () { toast('导出失败', 'error'); });
       } else {
         var rblob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
         var ra = document.createElement('a'); ra.href = URL.createObjectURL(rblob); ra.download = rname; ra.click(); URL.revokeObjectURL(ra.href);
@@ -148,7 +150,7 @@ import { openDocFromData } from './24-doc.js';
 
     // 桌面版（pywebview）：走原生「另存为」对话框
     if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
-      window.pywebview.api.save_file(name, content).then(function (saved) {
+      callApi('save_file', name, content).then(function (saved) {
         if (saved) toast('已导出到 ' + saved, 'success');
       }).catch(function () {
         toast('导出失败', 'error');
@@ -292,7 +294,7 @@ import { openDocFromData } from './24-doc.js';
       var md = d.content || '';
       var rname = (d.title || '未命名').replace(/[\\/:*?"<>|]/g, '_') + '.md';
       if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
-        window.pywebview.api.save_file(rname, md).then(function (saved) {
+        callApi('save_file', rname, md).then(function (saved) {
           if (saved) toast('已导出到 ' + saved, 'success');
         }).catch(function () { toast('导出失败', 'error'); });
       } else {
@@ -307,7 +309,7 @@ import { openDocFromData } from './24-doc.js';
     var name = (d.title || '未命名').replace(/[\\/:*?"<>|]/g, '_') + ext;
     var content = d.content || '';
     if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
-      window.pywebview.api.save_file(name, content).then(function (saved) {
+      callApi('save_file', name, content).then(function (saved) {
         if (saved) toast('已导出到 ' + saved, 'success');
       }).catch(function () { toast('导出失败', 'error'); });
     } else {

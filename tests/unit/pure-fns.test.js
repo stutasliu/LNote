@@ -187,7 +187,7 @@ describe('文件名清洗', () => {
     expect(T.sanitizeFileName('name. ')).toBe('name');
   });
   it('sanitizeFileName 空名兜底', () => {
-    expect(T.sanitizeFileName('   ')).toBe('未命名文档');
+    expect(T.sanitizeFileName('   ')).toBe('无标题');
   });
 });
 

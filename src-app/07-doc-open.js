@@ -7,10 +7,9 @@ import { cm } from './04-editor-init.js';
 import { activeDoc, persist, saveCursorPos, loadCursorPos, clampCursorPos } from './05-store.js';
 import { fullTime, renderList } from './06-doc-list.js';
 import { openVisual } from './08-visual.js';
-import { ensureRichDiskPath } from './09-rich-save.js';
 import { updatePreviewVisibility, updateStatus } from './10-status-preview.js';
 import { dirOf, getApi, hasApi } from './13-api-path.js';
-import { saveDiskDoc, toast } from './16-doc-ops.js';
+import { toast } from './16-doc-ops.js';
 import { renderBacklinks } from './21-backlinks.js';
 import { openPdfFile } from './23-pdf.js';
 import { openDocFile } from './24-doc.js';
@@ -226,12 +225,9 @@ import { updateDocMapUI } from './25-doc-map.js';
             }, { once: true });
           }
         };
-        ensureRichDiskPath(d).then(function (assigned) {
-          loadFromDisk(function () {
-            finishOpen();
-            if (assigned) { persist(); saveDiskDoc(d); }
-          });
-        });
+        // 仅从磁盘读取正文（若已关联磁盘文件）；新建文档不再自动落盘，
+        // 必须由用户显式点击「保存」才创建磁盘文件。
+        loadFromDisk(finishOpen);
       }
       return;
     }
