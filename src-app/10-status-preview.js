@@ -79,6 +79,8 @@ import { dirOf, getApi, hasApi, isAbsPath, joinPath, normPath, resolveImgSrc, to
     var mode = previewDisplayMode(state.previewOn, lang, state.previewSplit);
     var show = mode !== 'none';
     els.previewPane.classList.toggle('full-window', mode === 'full');
+    // 满屏预览时隐藏语言选择行，把纵向空间让给预览；分栏 / 关闭预览时恢复
+    if (els.chipsRow) els.chipsRow.style.display = mode === 'full' ? 'none' : '';
     els.previewPane.style.display = show ? 'flex' : 'none';
     els.splitter.style.display = mode === 'split' ? 'block' : 'none';
     // 抓手光标 / 禁用文本选择只用于图表预览（可拖拽平移），

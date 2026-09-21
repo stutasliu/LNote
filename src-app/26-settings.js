@@ -195,6 +195,21 @@ function handleGlobalKeydown(e) {
     if (d) toast('已新建便利贴', 'success');
     return true;
   }
+  // 内置固定快捷键：Ctrl+J 聚焦侧栏搜索框（不占用 17 项可自定义快捷键表）
+  if (matchesCombo(e, 'Ctrl-J')) {
+    e.preventDefault();
+    var sbSide = $('sidebar');
+    if (sbSide && sbSide.classList.contains('collapsed')) {
+      var sbToggle = $('btn-toggle-sidebar2');
+      if (sbToggle) sbToggle.click();
+    }
+    var sbInput = $('sbSearchInput');
+    if (sbInput) {
+      sbInput.focus();
+      sbInput.select();
+    }
+    return true;
+  }
   return false;
 }
 

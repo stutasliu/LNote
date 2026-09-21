@@ -1,5 +1,5 @@
 #define MyAppName "L.Note"
-#define MyAppVersion "1.0.2"
+#define MyAppVersion "1.0.3"
 #define MyAppExeName "L.Note.exe"
 #define MyAppAssocProgId "L.Note.Image"
 

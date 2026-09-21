@@ -594,6 +594,10 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
   }
 
   function frFindNext(backward) {
+    // 若焦点仍在查找/替换输入框内（回车触发），不要抢焦点到编辑器：
+    // 否则同一次回车的后续事件会落到编辑器里，把文档内容回车掉。
+    var frEl = document.activeElement;
+    var frFromInput = !!frEl && (frEl.id === 'fr-find' || frEl.id === 'fr-replace');
     var q = $('fr-find').value;
     if (!q) { setFrStatus('请输入查找内容', 'error'); return; }
     frState.findHistory = pushHistory(frState.findHistory, q);
@@ -611,7 +615,7 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
     }
     if (!hit) {
       setFrStatus('未找到匹配项', 'error');
-      cm.focus();
+      if (!frFromInput) cm.focus();
       return;
     }
     // 范围内裁剪
@@ -646,8 +650,8 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
     cm.scrollIntoView({ from: hit.from, to: hit.to }, 80);
     // 设置当前匹配的醒目高亮（即便"高亮"没开也生效）
     setCurrentMatchMark(hit.from, hit.to);
-    // 聚焦编辑器，让选区蓝色可见
-    cm.focus();
+    // 聚焦编辑器让选区蓝色可见；但回车触发时保持输入框焦点，避免回车落进文档
+    if (!frFromInput) cm.focus();
     // 仅在查询词变化时才重新统计+高亮，避免每次跳转都全文档扫描
     if (state.frLastQuery !== q) {
       state.frLastQuery = q;

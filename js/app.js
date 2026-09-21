@@ -72,6 +72,7 @@
     title: $("doc-title"),
     breadcrumb: $("breadcrumb"),
     langSelect: $("lang-select"),
+    chipsRow: $("chipsRow"),
     editor: $("editor"),
     editorPane: $("editor-pane"),
     visualPane: $("visual-pane"),
@@ -3222,6 +3223,7 @@
     var mode = previewDisplayMode(state.previewOn, lang, state.previewSplit);
     var show = mode !== "none";
     els.previewPane.classList.toggle("full-window", mode === "full");
+    if (els.chipsRow) els.chipsRow.style.display = mode === "full" ? "none" : "";
     els.previewPane.style.display = show ? "flex" : "none";
     els.splitter.style.display = mode === "split" ? "block" : "none";
     els.previewBody.classList.toggle("pan-mode", show && isMermaid);
@@ -3596,6 +3598,20 @@
       var d = newSticky();
       renderList();
       if (d) toast3("\u5DF2\u65B0\u5EFA\u4FBF\u5229\u8D34", "success");
+      return true;
+    }
+    if (matchesCombo(e, "Ctrl-J")) {
+      e.preventDefault();
+      var sbSide = $("sidebar");
+      if (sbSide && sbSide.classList.contains("collapsed")) {
+        var sbToggle = $("btn-toggle-sidebar2");
+        if (sbToggle) sbToggle.click();
+      }
+      var sbInput = $("sbSearchInput");
+      if (sbInput) {
+        sbInput.focus();
+        sbInput.select();
+      }
       return true;
     }
     return false;
@@ -6343,6 +6359,8 @@
     return a.ch - b.ch;
   }
   function frFindNext(backward) {
+    var frEl = document.activeElement;
+    var frFromInput = !!frEl && (frEl.id === "fr-find" || frEl.id === "fr-replace");
     var q = $("fr-find").value;
     if (!q) {
       setFrStatus("\u8BF7\u8F93\u5165\u67E5\u627E\u5185\u5BB9", "error");
@@ -6361,7 +6379,7 @@
     }
     if (!hit) {
       setFrStatus("\u672A\u627E\u5230\u5339\u914D\u9879", "error");
-      cm.focus();
+      if (!frFromInput) cm.focus();
       return;
     }
     var scope = getScopeRange();
@@ -6400,7 +6418,7 @@
     cm.setSelection(hit.from, hit.to);
     cm.scrollIntoView({ from: hit.from, to: hit.to }, 80);
     setCurrentMatchMark(hit.from, hit.to);
-    cm.focus();
+    if (!frFromInput) cm.focus();
     if (state.frLastQuery !== q) {
       state.frLastQuery = q;
       setTimeout(function() {
@@ -11275,7 +11293,7 @@
   }
 
   // src-app/27-about.js
-  var APP_VERSION = "1.0.2";
+  var APP_VERSION = "1.0.3";
   var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
   var APP_HOME_URL = "https://stutasliu.github.io/LNote/";
   function versionGreater(a, b) {

@@ -130,7 +130,7 @@ export { STORAGE_KEY, ACTIVE_KEY, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, DOC_ICO
   var els = {
     sidebar: $('sidebar'), docList: $('doc-list'),
     title: $('doc-title'), breadcrumb: $('breadcrumb'),
-    langSelect: $('lang-select'), editor: $('editor'),
+    langSelect: $('lang-select'), chipsRow: $('chipsRow'), editor: $('editor'),
     editorPane: $('editor-pane'),
     visualPane: $('visual-pane'), visualToolbar: $('visual-toolbar'), visualCanvas: $('visual-canvas'),
     richPane: $('rich-pane'), richCanvas: $('rich-canvas'),

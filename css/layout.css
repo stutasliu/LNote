@@ -91,15 +91,6 @@
   line-height: 1;
 }
 .sb-search-input::placeholder { color: #86909C; }
-.sb-search-kbd {
-  font-size: 10px;
-  color: #86909C;
-  background: #fff;
-  border: 1px solid #E8E8E8;
-  border-radius: 3px;
-  padding: 1px 5px;
-  font-family: -apple-system, sans-serif;
-}
 
 /* ---- 主导航（飞书规范：48px 菜单项，线性 SVG 图标） ---- */
 .sb-main-nav {
