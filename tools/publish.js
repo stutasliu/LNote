@@ -2,9 +2,11 @@
  * tools/publish.js —— L.Note 发布前「版本印章 + 文档同步」固化脚本
  *
  * 职责（执行边界：不含代码构建 / Inno Setup 打包 / git 提交与推送，均按 project_rules.md 人工执行）：
- *   1. 校验并读取当前版本（main.py 的 APP_VERSION 为准，须与 package.json 一致）
+ *   1. 校验并读取当前版本（main.py 的 APP_VERSION 为准，须与 package.json、package-lock.json 一致）
  *   2. 版本印章：对"单版本载体"做全文 vCUR/CUR → vNEW/NEW 替换：
  *        main.py / package.json / src-app/27-about.js / installer/LNote.iss / blink-guide.html
+ *      package-lock.json 例外：只定点改写其自身 version 字段（顶层与 packages[""]），
+ *      不做全文替换，避免误伤依赖条目中的第三方版本号
  *      （js/app.js 为构建产物，不直接改，需按构建链重新生成）
  *   3. 累计文档不做全文替换，只插入新条目：
  *        - CHANGELOG.md：在顶部（首条 "## \[v…" 标题之前）插入 ## \[vNEW] - 日期 + ### 变更
@@ -126,6 +128,22 @@ const pkgJson = JSON.parse(read(path.join(ROOT, 'package.json')));
 if (pkgJson.version !== CUR) {
   fail('版本不一致: package.json=' + pkgJson.version + ' ≠ main.py=' + CUR + '，请先统一再发布');
 }
+
+const pkgLockRaw = read(path.join(ROOT, 'package-lock.json'));
+let pkgLock;
+try {
+  pkgLock = JSON.parse(pkgLockRaw);
+} catch (e) {
+  fail('package-lock.json 解析失败: ' + e.message);
+}
+if (pkgLock.version !== CUR) {
+  fail('版本不一致: package-lock.json=' + pkgLock.version + ' ≠ main.py=' + CUR + '，请先统一再发布');
+}
+const lockRoot = pkgLock.packages && pkgLock.packages[''];
+if (lockRoot && lockRoot.version !== CUR) {
+  fail('版本不一致: package-lock.json packages[""].version=' + lockRoot.version + ' ≠ main.py=' + CUR + '，请先统一再发布');
+}
+
 if (!/^\d+\.\d+\.\d+$/.test(CUR)) fail('当前版本号格式异常: ' + CUR);
 if (CUR === NEW) fail('新版本与当前版本相同: ' + NEW);
 
@@ -136,6 +154,7 @@ if (CUR === NEW) fail('新版本与当前版本相同: ' + NEW);
 const P = {
   mainPy: 'main.py',
   pkgJson: 'package.json',
+  pkgLock: 'package-lock.json',
   aboutJs: path.join('src-app', '27-about.js'),
   liss: path.join('installer', 'LNote.iss'),
   changelog: 'CHANGELOG.md',
@@ -151,7 +170,8 @@ const P = {
 };
 
 // 单版本载体文件：全文件出现的 vCUR / CUR 均属当前版信息，可整体替换为新版
-const STAMP_FILES = [P.mainPy, P.pkgJson, P.aboutJs, P.liss, P.blink];
+// package-lock.json 特殊：仅定点改写自身 version 字段（见 stampFile），故不适用全文替换语义
+const STAMP_FILES = [P.mainPy, P.pkgJson, P.pkgLock, P.aboutJs, P.liss, P.blink];
 
 // release/ 下两个发布 exe（新版本，落地前必须已构建就位；仓库命名带 "v"）
 const setupExe = APP + '-setup-v' + NEW + '.exe';
@@ -205,6 +225,20 @@ function stampFile(rel) {
     const eol = eolOf(raw);
     const text = JSON.stringify(obj, null, 2).split('\n').join(eol) + eol;
     return { text: text, desc: 'package.json version 字段 ' + CUR + ' → ' + NEW };
+  }
+  if (rel === P.pkgLock) {
+    const obj = JSON.parse(raw);
+    const root = obj.packages && obj.packages[''];
+    const fields = [];
+    if (obj.version === CUR) { obj.version = NEW; fields.push('version'); }
+    if (root && root.version === CUR) { root.version = NEW; fields.push('packages[""].version'); }
+    if (!fields.length) {
+      warnings.push('package-lock.json 未发现当前版本号 ' + CUR + '（跳过盖章）');
+      return null;
+    }
+    const eol = eolOf(raw);
+    const text = JSON.stringify(obj, null, 2).split('\n').join(eol) + eol;
+    return { text: text, desc: 'package-lock.json ' + fields.join(' + ') + ' ' + CUR + ' → ' + NEW };
   }
   const r = stampTokens(raw);
   if (r.total === 0) {

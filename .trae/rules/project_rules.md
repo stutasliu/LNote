@@ -239,13 +239,13 @@ git checkout master
 
 - [ ] 核对 `dist\L.Note.exe` 的文件修改时间晚于本次代码最后修改时间
 
-- [ ] 核对版本号一致：`main.py` 的 `APP_VERSION` 与 `package.json` 的 `version`
+- [ ] 核对版本号一致：`main.py` 的 `APP_VERSION`、`package.json` 的 `version`、`package-lock.json` 的 `version`（顶层与 `packages[""]`）
 
 - [ ] 向用户明确说明"请重新打开新的 `dist\L.Note.exe` 验证"，避免误用旧产物
 
 ## 版本号约定
 
-- 正式版本号定义于 `main.py`（`APP_VERSION`）与 `package.json`（`version`），两处需保持一致
+- 正式版本号定义于 `main.py`（`APP_VERSION`）与 `package.json`（`version`），两处需保持一致；`package-lock.json` 的 `version`（顶层与 `packages[""]`）须同步，由 `tools/publish.js` 定点改写，不参与全文 token 替换（避免误伤依赖条目中的第三方版本号）
 
 - 功能代号（如 v0.21.x）以代码注释 / CHANGELOG 为准
 
