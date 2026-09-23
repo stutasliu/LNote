@@ -3414,6 +3414,7 @@
     lineWrapping: true,
     lineNumbers: true,
     previewSplit: false,
+    autoFormatPaste: true,
     shortcuts: {
       save: "Ctrl-S",
       newDoc: "Ctrl-N",
@@ -3462,6 +3463,7 @@
       if (typeof saved.lineWrapping === "boolean") base.lineWrapping = saved.lineWrapping;
       if (typeof saved.lineNumbers === "boolean") base.lineNumbers = saved.lineNumbers;
       if (typeof saved.previewSplit === "boolean") base.previewSplit = saved.previewSplit;
+      if (typeof saved.autoFormatPaste === "boolean") base.autoFormatPaste = saved.autoFormatPaste;
       if (saved.shortcuts) {
         Object.keys(base.shortcuts).forEach(function(k) {
           var v = saved.shortcuts[k];
@@ -3626,6 +3628,7 @@
     $("settings-linenum").value = settingsState.lineNumbers ? "1" : "0";
     $("settings-wrap").value = settingsState.lineWrapping ? "1" : "0";
     $("settings-previewmode").value = settingsState.previewSplit ? "split" : "full";
+    $("settings-pasteformat").value = settingsState.autoFormatPaste ? "1" : "0";
   }
   function switchSettingsTab(name) {
     Array.prototype.forEach.call(document.querySelectorAll(".settings-tab"), function(t) {
@@ -3783,6 +3786,10 @@
       state.previewSplit = settingsState.previewSplit;
       saveSettings();
       updatePreviewVisibility();
+    });
+    $("settings-pasteformat").addEventListener("change", function() {
+      settingsState.autoFormatPaste = this.value === "1";
+      saveSettings();
     });
     cm.setOption("lineNumbers", settingsState.lineNumbers);
     cm.setOption("lineWrapping", settingsState.lineWrapping);
@@ -7657,6 +7664,45 @@
     }
     return out.join("\n");
   }
+  function isBalancedXml(t) {
+    var s = String(t == null ? "" : t).trim();
+    if (!s || s.charAt(0) !== "<") return false;
+    var cleaned = s.replace(/<\?[\s\S]*?\?>/g, "").replace(/<!--[\s\S]*?-->/g, "").replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, "").replace(/<!DOCTYPE[^>]*>/gi, "");
+    var re = /<(\/?)([A-Za-z_][A-Za-z0-9_.:-]*)((?:"[^"]*"|'[^']*'|[^>"'])*?)(\/?)>/g;
+    var stack = [];
+    var count = 0;
+    var roots = 0;
+    var m;
+    while ((m = re.exec(cleaned)) !== null) {
+      count++;
+      if (m[1] === "/") {
+        if (stack.pop() !== m[2]) return false;
+      } else {
+        if (stack.length === 0) roots++;
+        if (m[4] !== "/") stack.push(m[2]);
+      }
+    }
+    return count > 0 && roots === 1 && stack.length === 0;
+  }
+  function autoFormatPasted(t) {
+    var s = String(t == null ? "" : t);
+    var trimmed = s.trim();
+    if (!trimmed) return { lang: "", text: s };
+    var head = trimmed.charAt(0);
+    if ((head === "{" || head === "[") && isWholeJson(trimmed)) {
+      try {
+        return { lang: "json", text: JSON.stringify(JSON.parse(trimmed), null, 2) };
+      } catch (e) {
+      }
+    }
+    if (isBalancedXml(trimmed)) {
+      try {
+        return { lang: "xml", text: prettyXML(trimmed) };
+      } catch (e2) {
+      }
+    }
+    return { lang: "", text: s };
+  }
   function formatCurrent() {
     if (state.currentVisual) return;
     var d = activeDoc();
@@ -10583,7 +10629,13 @@
         try {
           if (navigator.clipboard && navigator.clipboard.readText) {
             navigator.clipboard.readText().then(function(t) {
-              if (t) cm.replaceSelection(t);
+              if (!t) return;
+              var plan = planPasteAutoFormat(t);
+              if (plan) {
+                applyPasteAutoFormat(plan);
+                return;
+              }
+              cm.replaceSelection(t);
             }).catch(function() {
               try {
                 document.execCommand("paste");
@@ -11061,10 +11113,51 @@
       return false;
     }
   }
+  function pasteAutoFormatEnabled() {
+    return !settingsState || settingsState.autoFormatPaste !== false;
+  }
+  function isWholeDocPaste() {
+    try {
+      var before = cm.getValue();
+      var sel = cm.getSelection();
+      if (!before.trim()) return !sel;
+      return !!sel && sel.trim() === before.trim();
+    } catch (e) {
+      return false;
+    }
+  }
+  function applyPasteAutoFormat(plan) {
+    cm.replaceSelection(plan.text);
+    if (plan.whole) setLang(plan.lang, true);
+    toast3(plan.lang === "json" ? "\u5DF2\u81EA\u52A8\u683C\u5F0F\u5316\u7C98\u8D34\u7684 JSON \u2713" : "\u5DF2\u81EA\u52A8\u683C\u5F0F\u5316\u7C98\u8D34\u7684 XML \u2713", "success");
+  }
+  function planPasteAutoFormat(raw) {
+    if (!raw || !raw.trim()) return null;
+    if (!pasteAutoFormatEnabled()) return null;
+    var res = autoFormatPasted(raw);
+    if (!res || !res.lang) return null;
+    var whole = isWholeDocPaste();
+    if (res.text === raw && !whole) return null;
+    return { lang: res.lang, text: res.text, whole };
+  }
   cm.on("paste", function(cm2, e) {
+    if (!e || e.__lnotePasteHandled) return;
+    e.__lnotePasteHandled = true;
     var cd = e.clipboardData || window.clipboardData;
     if (!cd || !cd.items) return;
-    if (hasClipboardText(cd)) return;
+    if (hasClipboardText(cd)) {
+      var raw = "";
+      try {
+        raw = cd.getData("text/plain") || "";
+      } catch (err) {
+        return;
+      }
+      var plan = planPasteAutoFormat(raw);
+      if (!plan) return;
+      e.preventDefault();
+      applyPasteAutoFormat(plan);
+      return;
+    }
     for (var i = 0; i < cd.items.length; i++) {
       var it = cd.items[i];
       if (it.kind === "file" && it.type && it.type.indexOf("image/") === 0) {
@@ -11293,7 +11386,7 @@
   }
 
   // src-app/27-about.js
-  var APP_VERSION = "1.0.3";
+  var APP_VERSION = "1.0.4";
   var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
   var APP_HOME_URL = "https://stutasliu.github.io/LNote/";
   function versionGreater(a, b) {

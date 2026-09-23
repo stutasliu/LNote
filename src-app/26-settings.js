@@ -20,6 +20,7 @@ var DEFAULT_SETTINGS = {
   lineWrapping: true,
   lineNumbers: true,
   previewSplit: false,
+  autoFormatPaste: true,
   shortcuts: {
     save: 'Ctrl-S',
     newDoc: 'Ctrl-N',
@@ -68,6 +69,7 @@ function loadSettings() {
     if (typeof saved.lineWrapping === 'boolean') base.lineWrapping = saved.lineWrapping;
     if (typeof saved.lineNumbers === 'boolean') base.lineNumbers = saved.lineNumbers;
     if (typeof saved.previewSplit === 'boolean') base.previewSplit = saved.previewSplit;
+    if (typeof saved.autoFormatPaste === 'boolean') base.autoFormatPaste = saved.autoFormatPaste;
     if (saved.shortcuts) {
       Object.keys(base.shortcuts).forEach(function (k) {
         var v = saved.shortcuts[k];
@@ -225,6 +227,7 @@ function syncSettingsControls() {
   $('settings-linenum').value = settingsState.lineNumbers ? '1' : '0';
   $('settings-wrap').value = settingsState.lineWrapping ? '1' : '0';
   $('settings-previewmode').value = settingsState.previewSplit ? 'split' : 'full';
+  $('settings-pasteformat').value = settingsState.autoFormatPaste ? '1' : '0';
 }
 function switchSettingsTab(name) {
   Array.prototype.forEach.call(document.querySelectorAll('.settings-tab'), function (t) {
@@ -385,6 +388,10 @@ function initSettings() {
     state.previewSplit = settingsState.previewSplit;
     saveSettings();
     updatePreviewVisibility();
+  });
+  $('settings-pasteformat').addEventListener('change', function () {
+    settingsState.autoFormatPaste = this.value === '1';
+    saveSettings();
   });
 
   // 应用持久化的编辑器选项（04 初始化使用默认值，这里覆盖为已保存设置）

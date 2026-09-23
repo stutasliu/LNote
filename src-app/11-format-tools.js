@@ -1,5 +1,5 @@
 /* [esm] 导出本模块顶层绑定 */
-export { formatJSON, highlightJSONError, jsonErrMarks, jsonErrTimer, clearJSONErrorHighlight, formatXML, prettyXML, formatCurrent, withContent, jsonFormat, jsonCompress, strEscape, strUnescape, unicodeToZh, zhToUnicode, jsonToGet, b64Encode, b64Decode, urlEncodeText, urlDecodeText, copyToClipboard, legacyCopy, TOOL_FNS, TOOL_NAMES, MODAL_TOOLS, runTool, codeMode, codeDo, openCodeToolModal, closeCodeToolModal, bindCodeModal, tsTimer, tsIsMs, pad2, formatBeijing, refreshTsNow, openTsModal, closeTsModal, bindTsModal, withText, titleCase, swapCase, fullToHalf, halfToFull, withLines, indentOf, deleteLines, deleteToSol, deleteToEol, mergeLines, reindent, foldAllDocs, unfoldAllDocs, foldToLevel, execEditorCmd, TEXT_TOOLS, dedupeLines, runTextTool };
+export { formatJSON, highlightJSONError, jsonErrMarks, jsonErrTimer, clearJSONErrorHighlight, formatXML, prettyXML, isBalancedXml, autoFormatPasted, formatCurrent, withContent, jsonFormat, jsonCompress, strEscape, strUnescape, unicodeToZh, zhToUnicode, jsonToGet, b64Encode, b64Decode, urlEncodeText, urlDecodeText, copyToClipboard, legacyCopy, TOOL_FNS, TOOL_NAMES, MODAL_TOOLS, runTool, codeMode, codeDo, openCodeToolModal, closeCodeToolModal, bindCodeModal, tsTimer, tsIsMs, pad2, formatBeijing, refreshTsNow, openTsModal, closeTsModal, bindTsModal, withText, titleCase, swapCase, fullToHalf, halfToFull, withLines, indentOf, deleteLines, deleteToSol, deleteToEol, mergeLines, reindent, foldAllDocs, unfoldAllDocs, foldToLevel, execEditorCmd, TEXT_TOOLS, dedupeLines, runTextTool };
 /* [esm] 导入依赖模块绑定 */
 import { $, state } from './01-core.js';
 import { cm } from './04-editor-init.js';
@@ -174,6 +174,49 @@ import { setLang, toast } from './16-doc-ops.js';
       }
     }
     return out.join('\n');
+  }
+
+  // v1.0.4：XML 结构校验（单一根元素、标签成对闭合）。
+  // 用纯字符串扫描而非 DOMParser，保证可作为纯函数在单测中独立执行。
+  function isBalancedXml(t) {
+    var s = String(t == null ? '' : t).trim();
+    if (!s || s.charAt(0) !== '<') return false;
+    var cleaned = s.replace(/<\?[\s\S]*?\?>/g, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '')
+      .replace(/<!DOCTYPE[^>]*>/gi, '');
+    var re = /<(\/?)([A-Za-z_][A-Za-z0-9_.:-]*)((?:"[^"]*"|'[^']*'|[^>"'])*?)(\/?)>/g;
+    var stack = [];
+    var count = 0;
+    var roots = 0;
+    var m;
+    while ((m = re.exec(cleaned)) !== null) {
+      count++;
+      if (m[1] === '/') {
+        if (stack.pop() !== m[2]) return false;
+      } else {
+        if (stack.length === 0) roots++;
+        if (m[4] !== '/') stack.push(m[2]);
+      }
+    }
+    return count > 0 && roots === 1 && stack.length === 0;
+  }
+
+  // v1.0.4：粘贴文本自动识别 —— 整段是合法 JSON / XML 时返回序列化结果与目标语言，
+  // 其余情况原样返回（lang 为空表示无需处理，直接走默认粘贴）。
+  function autoFormatPasted(t) {
+    var s = String(t == null ? '' : t);
+    var trimmed = s.trim();
+    if (!trimmed) return { lang: '', text: s };
+    // 仅把「对象 / 数组」视为 JSON：避免裸标量（123 / true / "text"）被误判并切换文档语言
+    var head = trimmed.charAt(0);
+    if ((head === '{' || head === '[') && isWholeJson(trimmed)) {
+      try { return { lang: 'json', text: JSON.stringify(JSON.parse(trimmed), null, 2) }; } catch (e) {}
+    }
+    if (isBalancedXml(trimmed)) {
+      try { return { lang: 'xml', text: prettyXML(trimmed) }; } catch (e2) {}
+    }
+    return { lang: '', text: s };
   }
 
   function formatCurrent() {

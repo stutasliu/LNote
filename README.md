@@ -2,14 +2,14 @@
 
 L.Note本地笔记编辑软件 —— 语法高亮 / Markdown 实时预览 / Mermaid 图表 / JSON·XML 格式化，数据全部保存在浏览器本地存储（localStorage），纯本地运行、无需联网。
 
-> 版本：v1.0.3　|　许可证：MIT
+> 版本：v1.0.4　|　许可证：MIT
 
 ---
 
 ## ⬇️ 下载与安装
 
 - 最新版下载页：`release/download.html`（或访问仓库 `release/` 目录）
-- 便携版（免安装）：`release/L.Note-v1.0.3-win64.exe`，双击即用
+- 便携版（免安装）：`release/L.Note-v1.0.4-win64.exe`，双击即用
 - 校验和：`release/SHA256SUMS.txt`
 - 发布说明：`release/RELEASE-NOTES.md`
 

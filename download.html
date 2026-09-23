@@ -186,34 +186,34 @@
     <div class="logo"><img src="resource/app_512.png" alt="L.Note"></div>
     <h1>L.Note本地笔记编辑软件</h1>
     <p class="tagline">本地笔记编辑软件 —— 语法高亮 · Markdown 预览 · Mermaid 图表 · JSON/XML 工具</p>
-    <div class="badge">免费 · 纯本地运行 · 无需联网 · 安装版 / 便携版可选 · <b>v1.0.3</b></div>
+    <div class="badge">免费 · 纯本地运行 · 无需联网 · 安装版 / 便携版可选 · <b>v1.0.4</b></div>
   </header>
 
   <div class="dl-grid">
     <div class="dl-card">
       <div class="dl-tag">推荐 · 安装版</div>
-      <a class="dl-btn" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v1.0.3/L.Note-setup-v1.0.3.exe" download>
+      <a class="dl-btn" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v1.0.4/L.Note-setup-v1.0.4.exe" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        下载安装版 v1.0.3
+        下载安装版 v1.0.4
       </a>
       <div class="dl-meta">
         安装向导 · 约 18.3 MB · Windows 10/11（x64）<br>
         可选注册 .md / .markdown / 图片文件关联，含卸载程序<br>
         SHA256（可复制核对）：<br>
-        <code class="hash">5C21B7D88618CC85BA42B79C5BB59E6CFE1279F88B38D1C3AB28CF7FB0CB8042</code>
+        <code class="hash">11B6767EFDC36F7ACFEE52E30B11AD2636B0F765CBFD521364B02B67EA33E4D1</code>
       </div>
     </div>
     <div class="dl-card">
       <div class="dl-tag alt">免安装 · 便携版</div>
-      <a class="dl-btn alt" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v1.0.3/L.Note-v1.0.3-win64.exe" download>
+      <a class="dl-btn alt" href="https://gitee.com/x_xiansheng/l.-note/releases/download/v1.0.4/L.Note-v1.0.4-win64.exe" download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-        下载便携版 v1.0.3
+        下载便携版 v1.0.4
       </a>
       <div class="dl-meta">
         免安装 · 约 16.7 MB · Windows 10/11（x64）<br>
         双击直接运行；需要文件关联时用 register-file-assoc.ps1<br>
         SHA256（可复制核对）：<br>
-        <code class="hash">0D6086CB30C50CBE1609AB80AEFE3167975A6CE8EC703C796AFF3344D63CC633</code>
+        <code class="hash">CBF8B823AE1851A071673640F0D7EDA19792F77E1FFA029FB7C64D27D2B0E2DA</code>
       </div>
     </div>
   </div>
@@ -305,8 +305,8 @@
       <div class="panel">
         <h3>安装与运行</h3>
         <ul>
-          <li><b>安装版（推荐）：</b>双击 L.Note-setup-v1.0.3.exe，按向导完成安装；勾选「注册文件关联」后，.md / .markdown / 图片文件即可双击用 L.Note 打开</li>
-          <li><b>便携版：</b>双击 L.Note-v1.0.3-win64.exe，免安装直接运行</li>
+          <li><b>安装版（推荐）：</b>双击 L.Note-setup-v1.0.4.exe，按向导完成安装；勾选「注册文件关联」后，.md / .markdown / 图片文件即可双击用 L.Note 打开</li>
+          <li><b>便携版：</b>双击 L.Note-v1.0.4-win64.exe，免安装直接运行</li>
           <li>依赖 Edge WebView2 运行时（Win11 自带，Win10 一般已预装）</li>
           <li>数据保存在本机浏览器存储，卸载/换机前请先导出备份</li>
         </ul>
@@ -316,8 +316,8 @@
         <ul>
           <li>复制上方对应文件的 SHA256 值</li>
           <li>在 exe 所在目录执行：</li>
-          <li><b>certutil -hashfile L.Note-setup-v1.0.3.exe SHA256</b></li>
-          <li><b>certutil -hashfile L.Note-v1.0.3-win64.exe SHA256</b></li>
+          <li><b>certutil -hashfile L.Note-setup-v1.0.4.exe SHA256</b></li>
+          <li><b>certutil -hashfile L.Note-v1.0.4-win64.exe SHA256</b></li>
           <li>比对输出哈希是否一致</li>
         </ul>
       </div>
@@ -326,6 +326,12 @@
 
   <section>
     <h2>更新日志</h2>
+    <div class="changelog">
+      <div class="v">v1.0.4</div>
+      <ul>
+        <li>**新增「粘贴时自动格式化 JSON / XML」**：从剪贴板粘贴到编辑器时自动识别内容类型——若为完整 JSON（对象或数组）或结构良好且仅有单一根元素的 XML，则自动序列化为缩进 2 个空格的规范格式；普通文本、代码、表格、Markdown 等非目标类型原样粘贴，不做任何处理。当粘贴内容会整篇覆盖文档（空文档且无选区，或选区即全文）时，还会自动把文档语言切换为 JSON / XML，使语法高亮与保存后缀同步匹配；在既有文档中间插入片段时不会改动文档语言。，**新增设置项「粘贴自动格式化」**：位于「设置 → 通用」，默认开启，可随时关闭；关闭后粘贴一律原样插入。该设置随其他设置项一并持久化到本地，重启后保持。键盘粘贴与右键菜单「粘贴」两条入口行为一致。</li>
+      </ul>
+    </div>
     <div class="changelog">
       <div class="v">v1.0.3</div>
       <ul>

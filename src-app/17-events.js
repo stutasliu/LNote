@@ -2,7 +2,7 @@
 export { initEvents, toolMenu, convertMenu, pb, splitDrag, MIN_PANE, sideDrag, SIDE_MIN, SIDE_MAX, syncSideWidth, ttMenu, ctxMenu, docCtxMenu, docCtxId, ctxDebug, __ctxLast, paintCtxDebug, isPlainEditorTarget, openCtxMenu, openDocCtxMenu, closeCtxMenu, handleCtxCmd, handleDocCtxCmd, initCtxMenu, hasClipboardText };
 /* [esm] 导入依赖模块绑定 */
 import { $, LANGS, SAMPLE_DIAGRAM, SAMPLE_MINDMAP, els, state } from './01-core.js';
-import { handleGlobalKeydown } from './26-settings.js';
+import { handleGlobalKeydown, settingsState } from './26-settings.js';
 import { cm } from './04-editor-init.js';
 import { activeDoc, saveCursorPos } from './05-store.js';
 import { closeDocDelConfirm, deleteDoc, openDocDelConfirm, pendingDelId, openTagEditModal } from './06-doc-list.js';
@@ -10,7 +10,7 @@ import { openDoc } from './07-doc-open.js';
 import { onVisualChange } from './08-visual.js';
 import { newRichDoc, newVisualDoc, saveDoc, syncFromEditor } from './09-rich-save.js';
 import { applyZoom, panState, scheduleRender, svgNatural, updatePreviewVisibility, updateStatus } from './10-status-preview.js';
-import { clearJSONErrorHighlight, copyToClipboard, execEditorCmd, formatXML, runTextTool, runTool } from './11-format-tools.js';
+import { clearJSONErrorHighlight, copyToClipboard, execEditorCmd, formatXML, runTextTool, runTool, autoFormatPasted } from './11-format-tools.js';
 import { CLIP_KEY, openSnippetModal, recordClip, renderClipList } from './12-snippet-clip.js';
 import { getApi, hasApi, callApi } from './13-api-path.js';
 import { applyImgZoom, closeImageModal, fitImage, openFolder, openDiskFile, switchSideTab } from './14-filetree-image.js';
@@ -394,7 +394,13 @@ import { isAiConfigured, onAiConfigChanged, refreshAiConfigState } from './29-ai
       case 'paste':
         try {
           if (navigator.clipboard && navigator.clipboard.readText) {
-            navigator.clipboard.readText().then(function (t) { if (t) cm.replaceSelection(t); }).catch(function () { try { document.execCommand('paste'); } catch (e2) {} });
+            navigator.clipboard.readText().then(function (t) {
+              if (!t) return;
+              // v1.0.4：与键盘粘贴一致，按设置自动识别并序列化 JSON / XML
+              var plan = planPasteAutoFormat(t);
+              if (plan) { applyPasteAutoFormat(plan); return; }
+              cm.replaceSelection(t);
+            }).catch(function () { try { document.execCommand('paste'); } catch (e2) {} });
           } else { document.execCommand('paste'); }
         } catch (e3) { try { document.execCommand('paste'); } catch (e4) {} }
         break;
@@ -771,13 +777,61 @@ import { isAiConfigured, onAiConfigChanged, refreshAiConfigState } from './29-ai
     } catch (e) { return false; }
   }
 
+  // v1.0.4：粘贴自动格式化开关（设置尚未加载时按默认「开启」处理）。
+  function pasteAutoFormatEnabled() {
+    return !settingsState || settingsState.autoFormatPaste !== false;
+  }
+
+  // v1.0.4：本次粘贴是否覆盖整篇文档 —— 仅此时才顺带切换文档语言，
+  // 避免往 Markdown / 代码文档中间插片段时被改掉语言（影响高亮与保存后缀）。
+  function isWholeDocPaste() {
+    try {
+      var before = cm.getValue();
+      var sel = cm.getSelection();
+      if (!before.trim()) return !sel;
+      return !!sel && sel.trim() === before.trim();
+    } catch (e) { return false; }
+  }
+
+  // v1.0.4：写入自动序列化后的粘贴内容；覆盖整篇文档时同步切换语言高亮。
+  function applyPasteAutoFormat(plan) {
+    cm.replaceSelection(plan.text);
+    if (plan.whole) setLang(plan.lang, true);
+    toast(plan.lang === 'json' ? '已自动格式化粘贴的 JSON ✓' : '已自动格式化粘贴的 XML ✓', 'success');
+  }
+
+  // v1.0.4：判断本次粘贴是否要自动序列化（返回 null 表示交给默认粘贴）。
+  // 仅当剪贴板文本整体是合法 JSON / XML 时接管；结果与原文一致且无需切换语言时也不接管。
+  function planPasteAutoFormat(raw) {
+    if (!raw || !raw.trim()) return null;
+    if (!pasteAutoFormatEnabled()) return null;
+    var res = autoFormatPasted(raw);
+    if (!res || !res.lang) return null;
+    var whole = isWholeDocPaste();
+    if (res.text === raw && !whole) return null;
+    return { lang: res.lang, text: res.text, whole: whole };
+  }
+
   // 粘贴图片自动插入（Markdown / HTML 文档）
   // v0.21.3：文本优先 —— 剪贴板含文本时不拦截，交给默认粘贴；
   // 纯图片（如从浏览器/文件管理器复制）才走图片插入。
+  // v1.0.4：文本粘贴时按设置自动识别 JSON / XML 并序列化（默认开启，非目标类型原样粘贴）。
   cm.on('paste', function (cm2, e) {
+    // 同一 paste 事件可能被 CodeMirror 内部分发两次（textarea 与 scroller 两条路径），
+    // 加标记确保只处理一次，避免文本/图片重复插入。
+    if (!e || e.__lnotePasteHandled) return;
+    e.__lnotePasteHandled = true;
     var cd = e.clipboardData || window.clipboardData;
     if (!cd || !cd.items) return;
-    if (hasClipboardText(cd)) return;
+    if (hasClipboardText(cd)) {
+      var raw = '';
+      try { raw = cd.getData('text/plain') || ''; } catch (err) { return; }
+      var plan = planPasteAutoFormat(raw);
+      if (!plan) return;
+      e.preventDefault();
+      applyPasteAutoFormat(plan);
+      return;
+    }
     for (var i = 0; i < cd.items.length; i++) {
       var it = cd.items[i];
       if (it.kind === 'file' && it.type && it.type.indexOf('image/') === 0) {
