@@ -419,9 +419,13 @@ import { FR_BACK_MAX, FR_HL_BATCH, FR_HL_DOC_CAP, FR_HL_EST_CAP, FR_HL_HARD_CAP,
     }
     syncFrStateToUi();
 
-    // 自动用当前选区填充
+    // 自动用当前选区填充：有选区时始终带入（覆盖上次查询）；无选区时保留上次查询，便于连续查找
     var sel = cm.getSelection();
-    if (sel && !$('fr-find').value) $('fr-find').value = sel;
+    if (sel) {
+      var one = sel.replace(/\r\n?/g, '\n');
+      // 查找框是单行 input（换行会被浏览器剔除），多行选区转成 \n 转义，配合「扩展转义」即可跨行查找
+      $('fr-find').value = one.indexOf('\n') >= 0 ? one.split('\n').join('\\n') : one;
+    }
 
     // 收藏指示
     var q = $('fr-find').value;

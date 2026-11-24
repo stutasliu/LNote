@@ -6203,7 +6203,10 @@
     }
     syncFrStateToUi();
     var sel = cm.getSelection();
-    if (sel && !$("fr-find").value) $("fr-find").value = sel;
+    if (sel) {
+      var one = sel.replace(/\r\n?/g, "\n");
+      $("fr-find").value = one.indexOf("\n") >= 0 ? one.split("\n").join("\\n") : one;
+    }
     var q = $("fr-find").value;
     var has = frState.favorites.some(function(f) {
       return f.find === q;
@@ -11386,7 +11389,7 @@
   }
 
   // src-app/27-about.js
-  var APP_VERSION = "1.0.4";
+  var APP_VERSION = "1.0.5";
   var APP_RELEASES_URL = "https://github.com/stutasliu/LNote/releases";
   var APP_HOME_URL = "https://stutasliu.github.io/LNote/";
   function versionGreater(a, b) {
